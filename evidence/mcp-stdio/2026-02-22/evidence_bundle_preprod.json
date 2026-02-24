@@ -1,0 +1,105 @@
+{
+  "evidence_bundle": {
+    "id": "UNWIND-EVIDENCE-001",
+    "generated_at_utc": "2026-02-22T15:36:45.354876+00:00",
+    "generator": "tools/build_evidence_bundle.py",
+    "bundle_sha256": "aa31709f38109e6811f39b9c991cebfcbe21cee12bfbc29f95c4372d03bea41a"
+  },
+  "test_summary": {
+    "framework": "pytest",
+    "total_tests": 932,
+    "passed": 932,
+    "failed": 0,
+    "duration_seconds": 5.51,
+    "run_at_utc": "2026-02-22T15:36:45.354932+00:00"
+  },
+  "drill_reports": {
+    "breakglass_operational_drill": {
+      "verdict": "PASS",
+      "total_checks": 45,
+      "passed": 45,
+      "failed": 0,
+      "elapsed_seconds": 0.01,
+      "timestamp": "2026-02-22T15:04:06.539982+00:00"
+    },
+    "rollback_drill_v2": {
+      "verdict": "PASS",
+      "total_checks": 46,
+      "passed": 46,
+      "failed": 0,
+      "elapsed_seconds": 0.012,
+      "timestamp": "2026-02-22T15:14:31.009515+00:00"
+    },
+    "key_rotation_drill": {
+      "verdict": "PASS",
+      "total_checks": 40,
+      "passed": 40,
+      "failed": 0,
+      "elapsed_seconds": 0.032,
+      "timestamp": "2026-02-22T15:25:35.707821+00:00"
+    }
+  },
+  "drill_totals": {
+    "total_checks": 131,
+    "total_passed": 131,
+    "total_failed": 0,
+    "all_pass": true
+  },
+  "strict_profile": {
+    "strict_enabled": true,
+    "strict_flags": [
+      "supply_chain_verifier",
+      "digest_provider",
+      "require_all_legs"
+    ],
+    "non_overridable": [
+      "supply_chain_verifier"
+    ],
+    "breakglass_overridable": [
+      "digest_provider",
+      "require_all_legs"
+    ],
+    "breakglass_max_flags": 2,
+    "tofu_production": "disabled (verify-only)"
+  },
+  "config_hashes_sha256": {
+    "unwind/enforcement/__init__.py": "394e508f80296e30a17966c9bc53d9efbfb148474128e746c6b32db6af94ab08",
+    "unwind/enforcement/approval_windows.py": "3d42be635e6b05d26e14ebccd1d226c43e26d617ad3f8f4ed46ac54422b9b030",
+    "unwind/enforcement/breakglass.py": "ff91f7503b25cdb361646697216f1e29c87feb49863117d612861ae9564f5703",
+    "unwind/enforcement/canary.py": "b9b91a277b30ea30a4d404395d1b2eb678257af3dc87a75ed5d776d809dccd35",
+    "unwind/enforcement/dlp_lite.py": "0af81f24b252a424939b4ff5d6f835767207d3c77f33d11728dd13c9d7a58dff",
+    "unwind/enforcement/exec_tunnel.py": "cb76adc4154030acbc924f616d45376a70c8941fc4d6e7e5275d382097a40503",
+    "unwind/enforcement/manifest_filter.py": "fcc5879f9b5708b63a269facca222843511d0633c731534dddd13f6962faa019",
+    "unwind/enforcement/path_jail.py": "11782ac777f12943808d47cd6d8ab6afc5e710b3912a7a1a1dcd75caeaa5b4cd",
+    "unwind/enforcement/pipeline.py": "c805ee764b4416ecfbe3f1f6abc9a83fcf43b1598ffe891d97b771f6dfc47d47",
+    "unwind/enforcement/response_validator.py": "7b766731f30254b4529fb9ac120bcb66a5186490c6e74605bc6d07e15237d9d0",
+    "unwind/enforcement/rubber_stamp.py": "58570f958252141b9e37b037db33ea974ea56f8728383278b571104ec65d3e35",
+    "unwind/enforcement/self_protection.py": "18f7aa3277df259a369c872aaae082b94692d5232c200319eae8f127e28efea3",
+    "unwind/enforcement/signature_verify.py": "3f97c33cbe1d0e32a9097550eda222733a821ff1204ef3b938e834272fcdfaf2",
+    "unwind/enforcement/ssrf_shield.py": "31fa51c77266a0a47833b63ac116489bd4ecb687b7e5216823c50bc36087048f",
+    "unwind/enforcement/supply_chain.py": "c551d52a8719ead2fe5f76304476a421ac31b04873d07320a21bfa13d17e2262",
+    "unwind/enforcement/taint_decay.py": "b2a1da39e60b9f8d9ecb8baf2529ae08b1eeb5a41190c45afdaf1e67ba8cb7e0",
+    "unwind/enforcement/telemetry.py": "86eaac45b9cf439bcc6a319c57d14e97f319f75afc45d81e07eda7191942e26d",
+    "unwind/config.py": "2d7abe8011a2cd854efe553450b2a992bf419aa476d9ceb46b1910008283bd49",
+    "tools/breakglass_drill.py": "66f24c62c0373ee211484a0caa7b42aeed3ffa8b5566b60d0e3c5344bad13bad",
+    "tools/key_rotation_drill.py": "5aa8bde282fffdb0a86235955255050c8c2e84fe7035226d9009b5f50df7e23e",
+    "tools/rollback_drill.py": "a433dfd72077b689e22350319e38d798ec144fb36c22272817f852d75981f89b"
+  },
+  "punch_list_status": {
+    "#1 strict-path telemetry": "CLOSED",
+    "#2 budget idempotency": "CLOSED",
+    "#3 rollback drill": "CLOSED (46/46)",
+    "#4 breakglass drill": "CLOSED (45/45)",
+    "#5 key rotation drill": "CLOSED (40/40)"
+  },
+  "specs_received": [
+    "R-STRICT-001 (strict switch verification)",
+    "R-BREAK-001 (breakglass operational drill)",
+    "R-KEY-ROT-001 (key rotation runbook)"
+  ],
+  "known_future_work": [
+    "KeyState.EXPIRED (time-based expiry) \u2014 not yet implemented",
+    "Dedicated key lifecycle telemetry events (key_added, key_status_changed) \u2014 not yet wired",
+    "SOC/PagerDuty wiring for breakglass callback \u2014 operational gate"
+  ]
+}

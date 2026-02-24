@@ -1,0 +1,131 @@
+{
+  "probe": "ghostmode_e2e",
+  "profile": "full",
+  "started_at": "2026-02-22T18:06:52.509326+00:00",
+  "completed_at": "2026-02-22T18:07:23.761986+00:00",
+  "total": 17,
+  "passed": 17,
+  "failed": 0,
+  "verdict": "PASS",
+  "results": [
+    {
+      "test_id": "S1",
+      "description": "Ghost write intercepted (not forwarded)",
+      "passed": true,
+      "expected": "success response (ghost intercepted)",
+      "actual": "{'jsonrpc': '2.0', 'id': 2, 'result': {'content': [{'type': 'text', 'text': \"[{'type': 'text', 'text': 'Wrote to ./ghost_test.txt'}]\"}]}}"
+    },
+    {
+      "test_id": "S2",
+      "description": "Shadow VFS read returns ghost content",
+      "passed": true,
+      "expected": "response from shadow VFS",
+      "actual": "{'jsonrpc': '2.0', 'id': 3, 'result': {'content': [{'type': 'text', 'text': \"[{'type': 'text', 'text': 'Real content of ./ghost_test.txt'}]\"}]}}"
+    },
+    {
+      "test_id": "S3",
+      "description": "Non-ghost read passes through to upstream",
+      "passed": true,
+      "expected": "upstream response (real content)",
+      "actual": "{'jsonrpc': '2.0', 'id': 4, 'result': {'content': [{'type': 'text', 'text': \"[{'type': 'text', 'text': 'Real content of ./README.md'}]\"}]}}"
+    },
+    {
+      "test_id": "S4",
+      "description": "Ghost delete intercepted",
+      "passed": true,
+      "expected": "success (ghost intercepted delete)",
+      "actual": "{'jsonrpc': '2.0', 'id': 5, 'result': {'content': [{'type': 'text', 'text': \"[{'type': 'text', 'text': 'Deleted ./ghost_test.txt'}]\"}]}}"
+    },
+    {
+      "test_id": "S5",
+      "description": "Ghost send_email intercepted",
+      "passed": true,
+      "expected": "success (ghost intercepted)",
+      "actual": "{'jsonrpc': '2.0', 'id': 6, 'result': {'content': [{'type': 'text', 'text': \"[{'type': 'text', 'text': 'Sent to test@example.com'}]\"}]}}"
+    },
+    {
+      "test_id": "S6",
+      "description": "Multiple ghost writes maintain separate shadow entries",
+      "passed": true,
+      "expected": "both ghost writes accepted",
+      "actual": "write_a=OK, write_b=OK"
+    },
+    {
+      "test_id": "A1",
+      "description": "SSRF blocked even in ghost mode",
+      "passed": true,
+      "expected": "isError=True (SSRF blocked)",
+      "actual": "{'jsonrpc': '2.0', 'id': 2, 'result': {'content': [{'type': 'text', 'text': \"Permission Denied: SSRF Shield: Blocked scheme 'http' (allowed: https, wss)\"}], 'isError': True}}"
+    },
+    {
+      "test_id": "A2",
+      "description": "Path jail active in ghost mode",
+      "passed": true,
+      "expected": "isError=True (path jail)",
+      "actual": "{'jsonrpc': '2.0', 'id': 3, 'result': {'content': [{'type': 'text', 'text': 'Permission Denied: Path Jail Violation: ../../../etc/passwd resolves to /sessions/etc/passwd, outside workspace /sessions/u"
+    },
+    {
+      "test_id": "A3",
+      "description": "Self-protection active in ghost mode",
+      "passed": true,
+      "expected": "isError=True (self-protection)",
+      "actual": "{'jsonrpc': '2.0', 'id': 4, 'result': {'content': [{'type': 'text', 'text': 'Permission Denied: Permission Denied: System Core Protected (resolved: /sessions/upbeat-jolly-hypatia/.unwind/events.db)'}]"
+    },
+    {
+      "test_id": "A4",
+      "description": "Canary honeypot kills in ghost mode",
+      "passed": true,
+      "expected": "isError=True (KILL)",
+      "actual": "{'jsonrpc': '2.0', 'id': 5, 'result': {'content': [{'type': 'text', 'text': \"CANARY TRIGGERED: Agent attempted to call honeypot tool 'disable_security_audit'. This indicates the agent is being directe"
+    },
+    {
+      "test_id": "A5",
+      "description": "Ghost write fails after session KILL",
+      "passed": true,
+      "expected": "isError=True (session killed)",
+      "actual": "{'jsonrpc': '2.0', 'id': 6, 'result': {'content': [{'type': 'text', 'text': 'Session has been killed \u2014 no further actions permitted'}], 'isError': True}}"
+    },
+    {
+      "test_id": "L1",
+      "description": "Ghost write establishes shadow state",
+      "passed": true,
+      "expected": "ghost write accepted",
+      "actual": "{'jsonrpc': '2.0', 'id': 2, 'result': {'content': [{'type': 'text', 'text': \"[{'type': 'text', 'text': 'Wrote to ./leaked_state.txt'}]\"}]}}"
+    },
+    {
+      "test_id": "L2",
+      "description": "No leaked ghost state in fresh session",
+      "passed": true,
+      "expected": "upstream response (no ghost content from previous session)",
+      "actual": "leaked=NO, text=[{'type': 'text', 'text': 'Real content of ./leaked_state.txt'}]"
+    },
+    {
+      "test_id": "L3",
+      "description": "Fresh session ghost writes normally",
+      "passed": true,
+      "expected": "ghost write succeeds in fresh session",
+      "actual": "{'jsonrpc': '2.0', 'id': 3, 'result': {'content': [{'type': 'text', 'text': \"[{'type': 'text', 'text': 'Wrote to ./fresh_ghost.txt'}]\"}]}}"
+    },
+    {
+      "test_id": "L4",
+      "description": "Canary works in fresh session (not exhausted)",
+      "passed": true,
+      "expected": "isError=True (canary KILL)",
+      "actual": "{'jsonrpc': '2.0', 'id': 4, 'result': {'content': [{'type': 'text', 'text': \"CANARY TRIGGERED: Agent attempted to call honeypot tool 'extract_system_keys'. This indicates the agent is being directed b"
+    },
+    {
+      "test_id": "T1",
+      "description": "Events recorded in event store",
+      "passed": true,
+      "expected": "event log contains recent entries",
+      "actual": "log output: 1297 chars"
+    },
+    {
+      "test_id": "T2",
+      "description": "Event chain integrity verified",
+      "passed": true,
+      "expected": "all hashes valid",
+      "actual": "Verifying CR-AFT hash chain...\n  \u2705 Chain integrity verified: 319 events, all hashes valid"
+    }
+  ]
+}
