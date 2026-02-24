@@ -1,0 +1,82 @@
+{
+  "probe": "mcp_stdio_probe",
+  "mode": "full",
+  "started_at": "2026-02-22T18:11:15.547642+00:00",
+  "completed_at": "2026-02-22T18:11:30.222158+00:00",
+  "total": 10,
+  "passed": 10,
+  "failed": 0,
+  "verdict": "PASS",
+  "results": [
+    {
+      "test_id": "H1",
+      "description": "Initialize handshake",
+      "passed": true,
+      "expected": "result with serverInfo",
+      "actual": "{'jsonrpc': '2.0', 'id': 1, 'result': {'protocolVersion': '2024-11-05', 'capabilities': {'tools': {}}, 'serverInfo': {'name': 'mock-upstream', 'version': '1.0.0'}}}"
+    },
+    {
+      "test_id": "H2",
+      "description": "tools/list returns upstream + canaries",
+      "passed": true,
+      "expected": "upstream tools + canary honeypots",
+      "actual": "6 tools, upstream=True, canary=True"
+    },
+    {
+      "test_id": "H3",
+      "description": "fs_read within workspace",
+      "passed": true,
+      "expected": "successful read",
+      "actual": "{'jsonrpc': '2.0', 'id': 3, 'result': {'content': [{'type': 'text', 'text': \"[{'type': 'text', 'text': 'Contents of ./README.md'}]\"}]}}"
+    },
+    {
+      "test_id": "H4",
+      "description": "Passthrough of non-intercepted method",
+      "passed": true,
+      "expected": "forwarded to upstream (result or error)",
+      "actual": "{'jsonrpc': '2.0', 'id': 4, 'error': {'code': -32601, 'message': 'Method not found: resources/list'}}"
+    },
+    {
+      "test_id": "N1",
+      "description": "Canary honeypot triggers KILL",
+      "passed": true,
+      "expected": "isError=True (blocked/killed)",
+      "actual": "{'jsonrpc': '2.0', 'id': 6, 'result': {'content': [{'type': 'text', 'text': \"CANARY TRIGGERED: Agent attempted to call honeypot tool 'disable_security_audit'. This indicates the agent is being directe"
+    },
+    {
+      "test_id": "N2",
+      "description": "SSRF blocked (cloud metadata URL)",
+      "passed": true,
+      "expected": "isError=True (SSRF blocked)",
+      "actual": "{'jsonrpc': '2.0', 'id': 7, 'result': {'content': [{'type': 'text', 'text': 'Session has been killed \u2014 no further actions permitted'}], 'isError': True}}"
+    },
+    {
+      "test_id": "N3",
+      "description": "Path jail violation blocked",
+      "passed": true,
+      "expected": "isError=True (path jail)",
+      "actual": "{'jsonrpc': '2.0', 'id': 8, 'result': {'content': [{'type': 'text', 'text': 'Session has been killed \u2014 no further actions permitted'}], 'isError': True}}"
+    },
+    {
+      "test_id": "N4",
+      "description": "Malformed JSON doesn't crash proxy",
+      "passed": true,
+      "expected": "proxy survives, subsequent requests work",
+      "actual": "post-malformed tools/list: OK"
+    },
+    {
+      "test_id": "N5",
+      "description": "Self-protection blocks access to .unwind/",
+      "passed": true,
+      "expected": "isError=True (self-protection)",
+      "actual": "{'jsonrpc': '2.0', 'id': 10, 'result': {'content': [{'type': 'text', 'text': 'Session has been killed \u2014 no further actions permitted'}], 'isError': True}}"
+    },
+    {
+      "test_id": "N6",
+      "description": "Circuit breaker triggers on rapid calls",
+      "passed": true,
+      "expected": "circuit breaker block within 10 rapid calls",
+      "actual": "triggered=yes (last resp: {'jsonrpc': '2.0', 'id': 7, 'result': {'content': [{'type': 'text', 'text': 'Permission Denied: Circuit Breaker: exceeded 5 state-modifying calls in 5)"
+    }
+  ]
+}

@@ -1,0 +1,522 @@
+{
+  "drill": "rollback_drill_v2",
+  "spec": "SENTINEL pre-prod punch list #3 (enhanced)",
+  "timestamp": "2026-02-22T15:14:31.009515+00:00",
+  "elapsed_seconds": 0.012,
+  "total_checks": 46,
+  "passed": 46,
+  "failed": 0,
+  "verdict": "PASS",
+  "steps": [
+    {
+      "description": "[A] Baseline: tool_read \u2192 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.007489+00:00"
+    },
+    {
+      "description": "[A] Baseline: tool_write \u2192 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.007510+00:00"
+    },
+    {
+      "description": "[A] Baseline: tool_query \u2192 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.007524+00:00"
+    },
+    {
+      "description": "[A] Baseline: 3 TRUSTED events",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.007528+00:00"
+    },
+    {
+      "description": "[A] Hard fail: 15/15 requests blocked",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.007747+00:00"
+    },
+    {
+      "description": "[A] Detect: 15 DIGEST_PROVIDER_ERROR events",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.007755+00:00"
+    },
+    {
+      "description": "[A] All error events have session_id",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.007762+00:00"
+    },
+    {
+      "description": "[A] All error events have tool_name",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.007765+00:00"
+    },
+    {
+      "description": "[A] SLO: detection in 0.000s (\u2264 60.0s)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.007767+00:00"
+    },
+    {
+      "description": "[A] Breakglass request accepted",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.007857+00:00"
+    },
+    {
+      "description": "[A] Scoped to 2 flags: ('digest_provider', 'require_all_legs')",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.007865+00:00"
+    },
+    {
+      "description": "[A] Breakglass approved (dual-control: ops-bob)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.007896+00:00"
+    },
+    {
+      "description": "[A] SLO: containment in 0.000s (\u2264 180.0s)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.007902+00:00"
+    },
+    {
+      "description": "[A] Breakglass mitigating: 3/3 requests allowed",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.007964+00:00"
+    },
+    {
+      "description": "[A] Rollback target matched: 515de8ec8b64c6dc == 515de8ec8b64c6dc",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008143+00:00"
+    },
+    {
+      "description": "[A] Rollback health check: 3/3 healthy",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008204+00:00"
+    },
+    {
+      "description": "[A] SLO: full recovery in 0.001s (\u2264 600.0s)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008211+00:00"
+    },
+    {
+      "description": "[A] Breakglass token revoked",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008245+00:00"
+    },
+    {
+      "description": "[A] No active breakglass tokens",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008251+00:00"
+    },
+    {
+      "description": "[A] No active overrides",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008254+00:00"
+    },
+    {
+      "description": "[A] Post-revoke: tool_read \u2192 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008276+00:00"
+    },
+    {
+      "description": "[A] Post-revoke: tool_write \u2192 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008288+00:00"
+    },
+    {
+      "description": "[A] Post-revoke: tool_query \u2192 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008300+00:00"
+    },
+    {
+      "description": "[A] All 12 TRUSTED events have valid signatures",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008308+00:00"
+    },
+    {
+      "description": "[A] Telemetry has TRUSTED events",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008313+00:00"
+    },
+    {
+      "description": "[A] Telemetry has STRICT_MODE_BLOCK",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008315+00:00"
+    },
+    {
+      "description": "[A] Telemetry has BREAKGLASS_OVERRIDE",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008317+00:00"
+    },
+    {
+      "description": "[A] Telemetry monotonically ordered",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008322+00:00"
+    },
+    {
+      "description": "[B] Baseline: tool_read \u2192 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008961+00:00"
+    },
+    {
+      "description": "[B] Baseline: tool_write \u2192 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008975+00:00"
+    },
+    {
+      "description": "[B] Baseline: tool_query \u2192 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008987+00:00"
+    },
+    {
+      "description": "[B] Baseline: 3 TRUSTED events",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.008990+00:00"
+    },
+    {
+      "description": "[B] Silent degradation detected: 15/15 blocked (strict caught it)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.009271+00:00"
+    },
+    {
+      "description": "[B] No traffic silently allowed with wrong digest",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.009279+00:00"
+    },
+    {
+      "description": "[B] Detect: 15 TRUST_GATE_UNTRUSTED events (digest mismatch)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.009287+00:00"
+    },
+    {
+      "description": "[B] All UNTRUSTED events have session_id",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.009290+00:00"
+    },
+    {
+      "description": "[B] All UNTRUSTED events have tool_name",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.009293+00:00"
+    },
+    {
+      "description": "[B] All events have trust_verdict=untrusted",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.009296+00:00"
+    },
+    {
+      "description": "[B] SLO: detection in 0.000s (\u2264 60.0s)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.009298+00:00"
+    },
+    {
+      "description": "[B] Rollback target matched: df72686aa9cf5717 == df72686aa9cf5717",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.009438+00:00"
+    },
+    {
+      "description": "[B] Rollback health check: 3/3 healthy",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.009474+00:00"
+    },
+    {
+      "description": "[B] SLO: containment in 0.000s (\u2264 180.0s)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.009479+00:00"
+    },
+    {
+      "description": "[B] SLO: recovery in 0.000s (\u2264 600.0s)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.009481+00:00"
+    },
+    {
+      "description": "[B] All 6 TRUSTED events have valid signatures",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.009486+00:00"
+    },
+    {
+      "description": "[B] No breakglass override events (direct rollback path)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.009488+00:00"
+    },
+    {
+      "description": "[B] Telemetry monotonically ordered",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:14:31.009492+00:00"
+    }
+  ],
+  "timeline": [
+    {
+      "timestamp": "2026-02-22T15:14:30.997858+00:00",
+      "elapsed_s": 0.0,
+      "event": "DRILL_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.007097+00:00",
+      "elapsed_s": 0.009,
+      "event": "A_ROLLBACK_TARGET_PINNED",
+      "detail": "hash=515de8ec8b64c6dc"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.007105+00:00",
+      "elapsed_s": 0.009,
+      "event": "A_BASELINE_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.007529+00:00",
+      "elapsed_s": 0.01,
+      "event": "A_BASELINE_COMPLETE"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.007533+00:00",
+      "elapsed_s": 0.01,
+      "event": "A_FAULT_INJECTION"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.007750+00:00",
+      "elapsed_s": 0.01,
+      "event": "A_DETECTION"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.007770+00:00",
+      "elapsed_s": 0.01,
+      "event": "A_INCIDENT_OPEN",
+      "detail": "commander=ops-alice"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.007899+00:00",
+      "elapsed_s": 0.01,
+      "event": "A_BREAKGLASS_ACTIVE",
+      "detail": "token=bg-0001-391b43d1"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.007966+00:00",
+      "elapsed_s": 0.01,
+      "event": "A_ROLLBACK_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.008207+00:00",
+      "elapsed_s": 0.01,
+      "event": "A_ROLLBACK_COMPLETE"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.008213+00:00",
+      "elapsed_s": 0.01,
+      "event": "A_CLEANUP_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.008301+00:00",
+      "elapsed_s": 0.01,
+      "event": "A_CLEANUP_COMPLETE"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.008304+00:00",
+      "elapsed_s": 0.01,
+      "event": "A_VERIFICATION_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.008323+00:00",
+      "elapsed_s": 0.01,
+      "event": "A_VERIFICATION_COMPLETE"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.008714+00:00",
+      "elapsed_s": 0.011,
+      "event": "B_ROLLBACK_TARGET_PINNED",
+      "detail": "hash=df72686aa9cf5717"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.008718+00:00",
+      "elapsed_s": 0.011,
+      "event": "B_BASELINE_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.008991+00:00",
+      "elapsed_s": 0.011,
+      "event": "B_BASELINE_COMPLETE"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.008994+00:00",
+      "elapsed_s": 0.011,
+      "event": "B_FAULT_INJECTION"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.009282+00:00",
+      "elapsed_s": 0.011,
+      "event": "B_DETECTION"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.009301+00:00",
+      "elapsed_s": 0.011,
+      "event": "B_DIRECT_ROLLBACK_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.009476+00:00",
+      "elapsed_s": 0.012,
+      "event": "B_ROLLBACK_COMPLETE"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.009483+00:00",
+      "elapsed_s": 0.012,
+      "event": "B_VERIFICATION_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.009495+00:00",
+      "elapsed_s": 0.012,
+      "event": "B_VERIFICATION_COMPLETE"
+    },
+    {
+      "timestamp": "2026-02-22T15:14:31.009512+00:00",
+      "elapsed_s": 0.012,
+      "event": "DRILL_COMPLETE"
+    }
+  ],
+  "scenarios": {
+    "A": {
+      "scenario": "A_HARD_FAIL_BREAKGLASS_GATED",
+      "rollback_target_hash": "515de8ec8b64c6dc",
+      "actual_rollback_hash": "515de8ec8b64c6dc",
+      "slo": {
+        "detect_s": 0.0,
+        "contain_s": 0.0,
+        "recover_s": 0.001
+      },
+      "telemetry_summary": {
+        "total_events": 36,
+        "by_type": {
+          "trust_gate_trusted": 12,
+          "strict_mode_block": 15,
+          "strict_mode_breakglass_override": 9
+        }
+      },
+      "reason_codes_emitted": [
+        "DIGEST_PROVIDER_ERROR"
+      ],
+      "breakglass_audit": [
+        {
+          "event_type": "breakglass_requested",
+          "timestamp": 1771773271.0077727,
+          "token_id": "bg-0001-391b43d1",
+          "requester_id": "ops-alice",
+          "flags": [
+            "digest_provider",
+            "require_all_legs"
+          ],
+          "reason": "Digest registry outage \u2014 applying scoped override while rollback in progress.",
+          "ttl_seconds": 300
+        },
+        {
+          "event_type": "breakglass_approved",
+          "timestamp": 1771773271.0078697,
+          "token_id": "bg-0001-391b43d1",
+          "requester_id": "ops-alice",
+          "approver_id": "ops-bob",
+          "flags": [
+            "digest_provider",
+            "require_all_legs"
+          ],
+          "reason": "Digest registry outage \u2014 applying scoped override while rollback in progress.",
+          "ttl_seconds": 300
+        },
+        {
+          "event_type": "breakglass_activated",
+          "timestamp": 1771773271.0078697,
+          "token_id": "bg-0001-391b43d1",
+          "requester_id": "ops-alice",
+          "approver_id": "ops-bob",
+          "flags": [
+            "digest_provider",
+            "require_all_legs"
+          ],
+          "ttl_seconds": 300
+        },
+        {
+          "event_type": "breakglass_revoked",
+          "timestamp": 1771773271.008216,
+          "token_id": "bg-0001-391b43d1",
+          "requester_id": "ops-alice",
+          "approver_id": "ops-bob",
+          "flags": [
+            "digest_provider",
+            "require_all_legs"
+          ],
+          "reason": "Rollback complete \u2014 breakglass no longer needed.",
+          "remaining_seconds": 299.99965381622314
+        }
+      ],
+      "breakglass_summary": {
+        "enabled": true,
+        "active_tokens": 0,
+        "pending_tokens": 0,
+        "total_tokens": 1,
+        "active_overrides": {},
+        "audit_events": 4
+      },
+      "command_transcript": [
+        "Pre-pin rollback target: config_hash=515de8ec8b64c6dc",
+        "Deploy: healthy pipeline (good digest provider)",
+        "Inject fault: broken digest provider (ConnectionError)",
+        "Detection: 15 DIGEST_PROVIDER_ERROR events in 0.000s",
+        "Incident opened: ops-alice as commander",
+        "Breakglass requested: token=bg-0001-391b43d1, flags=('digest_provider', 'require_all_legs'), ttl=300s",
+        "Breakglass approved: ops-bob (dual-control)",
+        "Rollback: restoring good digest provider",
+        "Rollback complete: health check passed",
+        "Breakglass revoked: token=bg-0001-391b43d1"
+      ],
+      "final_state": {
+        "active_breakglass": false,
+        "active_overrides": {},
+        "telemetry_events": 36,
+        "trust_gate_trusted": 12,
+        "strict_blocks": 15
+      }
+    },
+    "B": {
+      "scenario": "B_SILENT_DEGRADATION_DIRECT_ROLLBACK",
+      "rollback_target_hash": "df72686aa9cf5717",
+      "actual_rollback_hash": "df72686aa9cf5717",
+      "slo": {
+        "detect_s": 0.0,
+        "contain_s": 0.0,
+        "recover_s": 0.0
+      },
+      "telemetry_summary": {
+        "total_events": 21,
+        "by_type": {
+          "trust_gate_trusted": 6,
+          "trust_gate_untrusted": 15
+        }
+      },
+      "reason_codes_emitted": [
+        "PROVIDER_UNTRUSTED"
+      ],
+      "command_transcript": [
+        "Pre-pin rollback target: config_hash=df72686aa9cf5717",
+        "Deploy: healthy pipeline (good digest provider)",
+        "Inject fault: wrong digest provider (sha256:TAMPERED_0xdead)",
+        "Detection: 15 TRUST_GATE_UNTRUSTED events in 0.000s",
+        "Direct rollback: restoring good digest provider (no breakglass)",
+        "Rollback complete: health check passed"
+      ],
+      "final_state": {
+        "active_breakglass": false,
+        "active_overrides": {},
+        "telemetry_events": 21,
+        "trust_gate_trusted": 6,
+        "strict_blocks": 0,
+        "breakglass_overrides": 0
+      }
+    }
+  },
+  "post_incident_review": {
+    "scenario_a": {
+      "fault_class": "Hard fail (digest provider exception)",
+      "detection": "Telemetry surge \u2014 STRICT_MODE_BLOCK with DIGEST_PROVIDER_ERROR",
+      "recovery_path": "Breakglass-gated: scoped override \u2192 rollback \u2192 revoke",
+      "trust_integrity": "No trust bypass \u2014 all TRUSTED events had valid signatures",
+      "breakglass_hygiene": "Token properly revoked, no lingering overrides"
+    },
+    "scenario_b": {
+      "fault_class": "Silent degradation (wrong digest \u2014 TOCTOU drift)",
+      "detection": "Telemetry \u2014 TRUST_GATE_UNTRUSTED (digest mismatch caught by trust gate)",
+      "recovery_path": "Direct rollback \u2014 trust gate already blocked bad traffic",
+      "trust_integrity": "No trust bypass \u2014 digest mismatch returned UNTRUSTED before require_all_legs",
+      "breakglass_hygiene": "N/A \u2014 breakglass not used"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "unwind-openclaw-adapter",
+  "name": "UNWIND OpenClaw Adapter",
+  "description": "OpenClaw tool mediation adapter for UNWIND sidecar",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "mode": { "type": "string", "enum": ["off", "shadow", "enforce"] },
+      "sidecarUrl": { "type": "string" },
+      "timeoutMs": { "type": "integer", "minimum": 1 }
+    }
+  }
+}
