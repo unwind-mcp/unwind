@@ -12,6 +12,7 @@ Pipeline order:
 2b. Exec tunnel detection
 2c. Credential exposure (pre-execution param scan)
 3.  Path jail (workspace canonicalization)
+3b. Ghost Egress Guard (block network reads in Ghost Mode — BEFORE DNS)
 4.  SSRF shield (DNS resolve + IP block)
 4b. Egress policy (domain-level: metadata, internal, denylist)
 5.  DLP-lite (regex + entropy on egress)
@@ -34,6 +35,7 @@ from .dlp_lite import DLPLiteCheck
 from .canary import CanaryCheck
 from .credential_exposure import CredentialExposureCheck
 from .egress_policy import EgressPolicyCheck
+from .ghost_egress import GhostEgressGuard, GhostSessionAllowlist
 from .exec_tunnel import ExecTunnelCheck, EXEC_TOOL_NAMES
 from .approval_windows import (
     ApprovalWindowConfig,
@@ -108,6 +110,8 @@ class EnforcementPipeline:
         self.exec_tunnel = ExecTunnelCheck(config)
         self.credential_exposure = CredentialExposureCheck(config)
         self.egress_policy = EgressPolicyCheck(config)
+        self.ghost_egress = GhostEgressGuard(config)
+        self._ghost_session_allowlists: dict[str, GhostSessionAllowlist] = {}
         self.supply_chain = supply_chain_verifier  # Optional — stage 0b
         # Digest-at-execution provider: computes live digest of a provider
         # for TOCTOU-safe integrity checking (R-LOCK-002)
@@ -511,6 +515,24 @@ class EnforcementPipeline:
                     block_reason=jail_error,
                 )
 
+        # --- 3b. Ghost Egress Guard (network isolation in Ghost Mode) ---
+        # Runs BEFORE SSRF so that secrets in URLs never trigger DNS lookups.
+        if session.ghost_mode:
+            session_allowlist = self._ghost_session_allowlists.get(session.session_id)
+            ghost_result = self.ghost_egress.check(
+                tool_name, target=target, parameters=parameters,
+                session_allowlist=session_allowlist,
+            )
+            if ghost_result is not None:
+                if ghost_result.blocked:
+                    return PipelineResult(
+                        action=CheckResult.GHOST,
+                        canonical_target=canonical_target,
+                        tool_class=tool_class,
+                        block_reason=ghost_result.reason,
+                    )
+                # Not blocked — passed DLP scanning, continue pipeline
+
         # --- 4. SSRF shield (for network tools) ---
         if tool_name in self.config.network_tools and target:
             ssrf_result = self.ssrf_shield.check(target)
@@ -882,3 +904,22 @@ class EnforcementPipeline:
         return self.approval_windows.invalidate_session_windows(
             session.session_id, reason
         )
+
+    # --- Ghost Egress Guard: session domain allowlist helpers ---
+
+    def ghost_allow_domain(self, session: Session, domain: str) -> None:
+        """Add a domain to the session's Ghost Mode allowlist (for 'ask' mode)."""
+        sid = session.session_id
+        if sid not in self._ghost_session_allowlists:
+            self._ghost_session_allowlists[sid] = GhostSessionAllowlist(
+                ttl_seconds=self.config.ghost_network_allowlist_ttl_seconds
+            )
+        self._ghost_session_allowlists[sid].allow(domain)
+
+    def ghost_allowed_domains(self, session: Session) -> list[str]:
+        """Return currently allowed domains for a session's Ghost Mode."""
+        sid = session.session_id
+        al = self._ghost_session_allowlists.get(sid)
+        if al is None:
+            return []
+        return al.allowed_domains()
