@@ -112,7 +112,7 @@ Ghost Mode intercepts writes (returns fake success to agent) and optionally bloc
 
 ## 5. Test Suite
 
-**Current count: 1382 tests, all passing.**
+**Current count: 1449 tests, all passing.**
 
 ```bash
 # Run all tests
@@ -228,6 +228,30 @@ See `tests/canary/canary-mapping.md` for canary-to-test mappings.
 - **Lane 2 (this week):** Compatibility-critical — MCP/spec/protocol/API changes
 - **Lane 3 (monthly):** Opportunity — new tools/workflows, never interrupts core roadmap
 
+### Intel Source Validation (mandatory)
+
+#### Source trust rubric (0–3)
+- **Tier 3 (authoritative/actionable):** official repo/advisory/CVE records (GitHub Advisories, NVD, OSV, CISA KEV), or vendor advisories with reproducible fix/version details.
+- **Tier 2 (high-signal, needs confirmation):** reputable researcher or vendor analysis without direct authoritative artifact.
+- **Tier 1 (lead-only):** social/community/AI-summary sources (X, Reddit, HN, Discord, Grok/Gemini/LLM summaries).
+- **Tier 0 (noise):** unverifiable or contradictory claims with no evidence.
+
+#### Action policy by tier
+- Tier 3: may trigger lane assignment, patch planning, and release gate decisions.
+- Tier 2: may open investigation and prep tests, but no release-impact decisions without Tier 3 corroboration.
+- Tier 1: intake only; corroborate before any engineering action.
+- Tier 0: discard.
+
+#### Daily triage checklist (15 minutes)
+1. Intake max 10 candidate items.
+2. Tag each item with source tier + evidence link(s).
+3. Corroborate with at least one Tier 3 source before action.
+4. Score (0–5): relevance, exploitability/breakage, urgency, blast radius.
+5. Route to lane (1/2/3), assign owner and due date.
+6. Log decision in weekly triage template.
+
+**Hard rule:** Tier-1/AI/social claims are intake only. No engineering or release action without Tier-3 confirmation.
+
 ---
 
 ## 9. Key Documents
@@ -242,6 +266,7 @@ See `tests/canary/canary-mapping.md` for canary-to-test mappings.
 | Secret Registry | `docs/SECRET_REGISTRY_DESIGN.md` | Known-secret matching design |
 | Compatibility | `docs/COMPATIBILITY_MATRIX.md` | Framework compatibility |
 | Security mapping | `docs/SECURITY-FRAMEWORK-MAPPING.md` | OWASP/NIST alignment |
+| ADR baseline | `docs/adr/` | Architecture Decision Records (template + accepted decisions) |
 
 ---
 
@@ -250,10 +275,10 @@ See `tests/canary/canary-mapping.md` for canary-to-test mappings.
 This block lets a rebooted session verify it's reading current continuity, not stale.
 
 ```
-last_known_good_commit: 44e9e4a (GitHub main before local sync-safety commit)
+last_known_good_commit: 3dc29b2 (GitHub main)
 branch: main
-test_count: 1382
-last_canary_run: 2026-02-25 (canary suite included in full green run)
+test_count: 1449
+last_canary_run: 2026-02-25 (included in full green run)
 last_sync_direction: GitHub → Pi (pull origin main)
 continuity_updated: 2026-02-25
 ```
@@ -319,14 +344,15 @@ Next action: [specific task]
 ## 14. Current State (update after each session)
 
 ### Completed
-- 15-stage enforcement pipeline (all stages implemented and tested)
-- Ghost Mode with tool classification + prefix heuristic
-- Ghost Egress Guard (stage 3b) — read-channel exfiltration prevention
-- Canary contract test suite (24 tests, 5 categories)
-- Ecosystem intel framework (watchlist, scoring, triage templates)
-- GitHub repo setup (github.com/brugai/unwind, private)
-- Safe sync scripts (Mac ↔ Pi) with dry-run default, prune guard, backups, integrity report
-- 1382 tests all passing
+- P0 complete: enforcement-in-path verification, transport fail-closed contract tests, sync safety hardening.
+- P1 complete: exec tunnel bypass fixes, events retention enforcement, path/URL regression lock-in.
+- P2 complete: taint decay tightening/wash-risk controls and canary randomisation hardening.
+- 15-stage enforcement pipeline implemented and tested.
+- Ghost Egress Guard (stage 3b) before SSRF (stage 4), with regression coverage.
+- Canary contract suite + dynamic per-session canary naming.
+- Ecosystem intel framework (watchlist, scoring, triage templates).
+- Safe sync scripts (Mac ↔ Pi) with dry-run default, prune guard, backups, integrity report.
+- 1449 tests all passing.
 
 ### Queued
 
@@ -348,7 +374,24 @@ Next action: [specific task]
 
 ---
 
-## 15. For a Brand New Claude Session
+## 15. RELEASE-CHECKLIST (Gate Status)
+
+Release gate must remain green before tagging/release.
+
+- [x] **Canary ✅**
+  - `tests/canary/test_canary_contracts.py` and related canary coverage green in full suite.
+- [x] **Continuity ✅**
+  - `docs/CONTINUITY.md` updated with current state, fingerprint, and reboot integrity workflow.
+- [x] **Enforcement-in-path ✅**
+  - `tests/test_enforcement_in_path.py` present and green.
+- [x] **Retention ✅**
+  - `EventStore.enforce_retention()` implemented + retention tests (`tests/test_events_retention.py`) green.
+- [x] **Full suite ✅**
+  - Latest Pi run: `1449 passed, 22 subtests passed, 0 failed`.
+
+---
+
+## 16. For a Brand New Claude Session
 
 Read these files in this order:
 1. This file (`docs/CONTINUITY.md`)
@@ -358,7 +401,7 @@ Read these files in this order:
 5. `unwind/enforcement/pipeline.py` (the spine)
 6. Run `python -m pytest --tb=short -q  # Mac; on Pi use: .venv/bin/python -m pytest --tb=short -q` to confirm current state
 
-## 16. For a Brand New SENTINEL Session
+## 17. For a Brand New SENTINEL Session
 
 Read these files in this order:
 1. This file (`docs/CONTINUITY.md`)
