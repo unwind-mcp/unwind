@@ -443,6 +443,101 @@ class EventStore:
         )
         self._conn.commit()
 
+    # --- P1-6: Retention enforcement ---
+
+    def enforce_retention(
+        self,
+        retention_days: int = 0,
+        max_rows: int = 0,
+    ) -> dict:
+        """Enforce retention policy on events and orphaned snapshots.
+
+        Args:
+            retention_days: Delete events older than this many days (0 = no age limit).
+            max_rows: Keep at most this many events (0 = no row limit).
+                      When exceeded, oldest events are deleted first.
+
+        Returns:
+            Dict with counts: events_deleted, snapshots_deleted, db_size_after.
+        """
+        if not self._conn:
+            return {"events_deleted": 0, "snapshots_deleted": 0, "db_size_after": 0}
+
+        events_deleted = 0
+        snapshots_deleted = 0
+
+        # --- 1. Age-based retention ---
+        if retention_days > 0:
+            cutoff = time.time() - (retention_days * 86400)
+
+            # Delete orphaned snapshots for events that will be deleted
+            snap_result = self._conn.execute(
+                """DELETE FROM snapshots WHERE event_id IN
+                   (SELECT event_id FROM events WHERE timestamp < ?)""",
+                (cutoff,),
+            )
+            snapshots_deleted += snap_result.rowcount
+
+            # Delete old events
+            evt_result = self._conn.execute(
+                "DELETE FROM events WHERE timestamp < ?",
+                (cutoff,),
+            )
+            events_deleted += evt_result.rowcount
+            self._conn.commit()
+
+        # --- 2. Row-count cap ---
+        if max_rows > 0:
+            count_row = self._conn.execute(
+                "SELECT COUNT(*) as cnt FROM events"
+            ).fetchone()
+            current_count = count_row["cnt"] if count_row else 0
+
+            if current_count > max_rows:
+                excess = current_count - max_rows
+                # Get the IDs of the oldest excess events
+                oldest = self._conn.execute(
+                    "SELECT event_id FROM events ORDER BY timestamp ASC LIMIT ?",
+                    (excess,),
+                ).fetchall()
+                oldest_ids = [row["event_id"] for row in oldest]
+
+                if oldest_ids:
+                    placeholders = ",".join("?" * len(oldest_ids))
+                    # Delete their snapshots first
+                    snap_result = self._conn.execute(
+                        f"DELETE FROM snapshots WHERE event_id IN ({placeholders})",
+                        oldest_ids,
+                    )
+                    snapshots_deleted += snap_result.rowcount
+
+                    # Delete the events
+                    evt_result = self._conn.execute(
+                        f"DELETE FROM events WHERE event_id IN ({placeholders})",
+                        oldest_ids,
+                    )
+                    events_deleted += evt_result.rowcount
+                    self._conn.commit()
+
+        # --- 3. Reclaim space ---
+        if events_deleted > 0 or snapshots_deleted > 0:
+            self._conn.execute("PRAGMA incremental_vacuum;")
+
+        # --- 4. Report ---
+        db_size = self.db_path.stat().st_size if self.db_path.exists() else 0
+        return {
+            "events_deleted": events_deleted,
+            "snapshots_deleted": snapshots_deleted,
+            "db_size_after": db_size,
+        }
+
+    def event_count(self) -> int:
+        """Return the current number of events in the database."""
+        if not self._conn:
+            return 0
+        row = self._conn.execute("SELECT COUNT(*) as cnt FROM events").fetchone()
+        return row["cnt"] if row else 0
+
     def close(self) -> None:
         """Close the database connection."""
         if self._conn:
