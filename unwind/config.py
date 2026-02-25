@@ -109,6 +109,19 @@ class UnwindConfig:
         "upload_file", "api_call", "webhook",
     })
 
+    # --- Ghost Egress Guard (stage 3b) ---
+    # Network policy for Ghost Mode: "isolate", "ask", or "filtered"
+    ghost_network_policy: str = "isolate"
+    # Static domain allowlist for "ask" mode
+    ghost_network_allowlist: list[str] = field(default_factory=list)
+    # TTL for session-level domain approvals (0 = lasts entire session)
+    ghost_network_allowlist_ttl_seconds: float = 0.0
+    # Tools subject to Ghost Egress Guard — network-capable tools that could
+    # exfiltrate data via read channels (DNS, HTTP GET, search queries)
+    ghost_egress_tools: FrozenSet[str] = frozenset({
+        "fetch_web", "http_get", "browser_navigate", "websocket", "search_web",
+    })
+
     # --- Canary Honeypot Tools ---
     canary_tools: FrozenSet[str] = frozenset({
         "disable_security_audit",
