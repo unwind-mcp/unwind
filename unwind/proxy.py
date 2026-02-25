@@ -49,6 +49,20 @@ class UnwindProxy:
         """Initialize UNWIND — create dirs, open DB, run exposure check."""
         self.config.ensure_dirs()
         self.event_store.initialize()
+        # P1-6: Enforce retention on startup (clean up old events)
+        if self.config.events_retention_days > 0 or self.config.events_max_rows > 0:
+            result = self.event_store.enforce_retention(
+                retention_days=self.config.events_retention_days,
+                max_rows=self.config.events_max_rows,
+            )
+            if result["events_deleted"] > 0:
+                logger.info(
+                    "Retention enforced: %d events deleted, %d snapshots deleted, "
+                    "DB size: %d bytes",
+                    result["events_deleted"],
+                    result["snapshots_deleted"],
+                    result["db_size_after"],
+                )
         self._run_exposure_check()
         self._started = True
         logger.info(

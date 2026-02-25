@@ -147,6 +147,23 @@ def validate_config(config: UnwindConfig) -> ValidationResult:
             "(default: 300.0).",
         )
 
+    # P1-6: Events retention bounds
+    if config.events_retention_days < 0:
+        result.add(
+            "events_retention_days",
+            f"Must be non-negative, got {config.events_retention_days}.",
+            "Set events_retention_days to 0 (keep forever) or positive "
+            "(default: 90).",
+        )
+
+    if config.events_max_rows < 0:
+        result.add(
+            "events_max_rows",
+            f"Must be non-negative, got {config.events_max_rows}.",
+            "Set events_max_rows to 0 (unlimited) or positive "
+            "(default: 500000).",
+        )
+
     # --- Ghost Egress Guard ---
 
     valid_policies = ("isolate", "ask", "filtered")
