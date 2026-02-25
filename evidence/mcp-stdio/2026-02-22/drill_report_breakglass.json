@@ -1,0 +1,357 @@
+{
+  "drill": "breakglass_operational_drill",
+  "spec": "R-BREAK-001",
+  "punch_list_item": "#4",
+  "timestamp": "2026-02-22T15:04:06.539982+00:00",
+  "elapsed_seconds": 0.01,
+  "total_checks": 45,
+  "passed": 45,
+  "failed": 0,
+  "verdict": "PASS",
+  "steps": [
+    {
+      "description": "Strict mode blocks when digest_provider missing (no breakglass)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539196+00:00"
+    },
+    {
+      "description": "Autonomous profile 'sentinel-cron' denied breakglass request",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539268+00:00"
+    },
+    {
+      "description": "Non-overridable flag 'supply_chain_verifier' correctly rejected",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539297+00:00"
+    },
+    {
+      "description": "3-flag request denied (cap is 2)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539314+00:00"
+    },
+    {
+      "description": "Breakglass request accepted",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539354+00:00"
+    },
+    {
+      "description": "Token state is PENDING (got pending)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539358+00:00"
+    },
+    {
+      "description": "Token has 2 flags: ('digest_provider', 'require_all_legs')",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539360+00:00"
+    },
+    {
+      "description": "TTL is 1800s (got 1800)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539362+00:00"
+    },
+    {
+      "description": "Self-approval correctly rejected (requester == approver)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539393+00:00"
+    },
+    {
+      "description": "Self-approved token state is REJECTED (got rejected)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539395+00:00"
+    },
+    {
+      "description": "Token approved by ops-bob",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539411+00:00"
+    },
+    {
+      "description": "Token state is ACTIVE (got active)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539413+00:00"
+    },
+    {
+      "description": "Approver recorded as ops-bob (got ops-bob)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539416+00:00"
+    },
+    {
+      "description": "Token has remaining TTL (1800s)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539419+00:00"
+    },
+    {
+      "description": "require_all_legs is overridden",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539423+00:00"
+    },
+    {
+      "description": "digest_provider is overridden",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539424+00:00"
+    },
+    {
+      "description": "lockfile_hmac is NOT overridden (not in token)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539426+00:00"
+    },
+    {
+      "description": "supply_chain_verifier is NOT overridden (non-overridable)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539428+00:00"
+    },
+    {
+      "description": "Service reports active breakglass",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539432+00:00"
+    },
+    {
+      "description": "Active overrides: {'digest_provider': 'bg-0001-6bf6dfba', 'require_all_legs': 'bg-0001-6bf6dfba'}",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539435+00:00"
+    },
+    {
+      "description": "Pipeline ALLOWS tool_alpha with breakglass active",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539710+00:00"
+    },
+    {
+      "description": "Telemetry recorded 2 breakglass override event(s)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539716+00:00"
+    },
+    {
+      "description": "Window TTL multiplier is 0.5 during breakglass",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539720+00:00"
+    },
+    {
+      "description": "Window max_uses divisor is 2 during breakglass",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539722+00:00"
+    },
+    {
+      "description": "Token successfully revoked by ops-carol",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539823+00:00"
+    },
+    {
+      "description": "Token state is REVOKED (got revoked)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539844+00:00"
+    },
+    {
+      "description": "Revoker recorded as ops-carol (got ops-carol)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539847+00:00"
+    },
+    {
+      "description": "require_all_legs no longer overridden",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539854+00:00"
+    },
+    {
+      "description": "digest_provider no longer overridden",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539862+00:00"
+    },
+    {
+      "description": "No active breakglass tokens",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539867+00:00"
+    },
+    {
+      "description": "Pipeline BLOCKS again after revocation",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539898+00:00"
+    },
+    {
+      "description": "Window TTL multiplier back to 1.0",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539905+00:00"
+    },
+    {
+      "description": "Re-revoke correctly rejected (token already revoked)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539909+00:00"
+    },
+    {
+      "description": "Audit contains REQUESTED event",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539914+00:00"
+    },
+    {
+      "description": "Audit contains APPROVED event",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539915+00:00"
+    },
+    {
+      "description": "Audit contains ACTIVATED event",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539921+00:00"
+    },
+    {
+      "description": "Audit contains REVOKED event",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539924+00:00"
+    },
+    {
+      "description": "Audit contains at least one DENIED event (non-overridable or cap)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539926+00:00"
+    },
+    {
+      "description": "Audit contains DENIED_SELF_APPROVE event",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539928+00:00"
+    },
+    {
+      "description": "Telemetry recorded 5 events",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539938+00:00"
+    },
+    {
+      "description": "Telemetry has 1 TRUST_GATE_TRUSTED event(s)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539941+00:00"
+    },
+    {
+      "description": "Telemetry has 2 STRICT_MODE_BLOCK event(s)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539943+00:00"
+    },
+    {
+      "description": "Telemetry has 2 BREAKGLASS_OVERRIDE event(s)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539945+00:00"
+    },
+    {
+      "description": "No active tokens remaining",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539955+00:00"
+    },
+    {
+      "description": "No active overrides remaining",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:04:06.539957+00:00"
+    }
+  ],
+  "audit_trail": [
+    {
+      "event_type": "breakglass_denied_disabled",
+      "timestamp": 1771772646.5392036,
+      "requester_id": "sentinel-cron",
+      "flags": [
+        "digest_provider"
+      ],
+      "reason": "Autonomous profile 'sentinel-cron' cannot request breakglass (default deny for autonomous principals)"
+    },
+    {
+      "event_type": "breakglass_denied_non_overridable",
+      "timestamp": 1771772646.539273,
+      "requester_id": "ops-alice",
+      "flags": [
+        "supply_chain_verifier"
+      ],
+      "reason": "Non-overridable flags requested: supply_chain_verifier. Only digest_provider, lockfile_hmac, require_all_legs can be overridden."
+    },
+    {
+      "event_type": "breakglass_denied_non_overridable",
+      "timestamp": 1771772646.5393007,
+      "requester_id": "ops-alice",
+      "flags": [
+        "digest_provider",
+        "lockfile_hmac",
+        "require_all_legs"
+      ],
+      "reason": "Too many flags requested: 3 (max 2 per token). Request separate tokens for additional flags."
+    },
+    {
+      "event_type": "breakglass_requested",
+      "timestamp": 1771772646.5393167,
+      "token_id": "bg-0001-6bf6dfba",
+      "requester_id": "ops-alice",
+      "flags": [
+        "digest_provider",
+        "require_all_legs"
+      ],
+      "reason": "Emergency provider migration \u2014 digest registry down",
+      "ttl_seconds": 1800
+    },
+    {
+      "event_type": "breakglass_requested",
+      "timestamp": 1771772646.5393643,
+      "token_id": "bg-0002-e77c7e00",
+      "requester_id": "ops-dave",
+      "flags": [
+        "digest_provider"
+      ],
+      "reason": "Self-approve test",
+      "ttl_seconds": 3600.0
+    },
+    {
+      "event_type": "breakglass_denied_self_approve",
+      "timestamp": 1771772646.5393825,
+      "token_id": "bg-0002-e77c7e00",
+      "requester_id": "ops-dave",
+      "approver_id": "ops-dave",
+      "flags": [
+        "digest_provider"
+      ],
+      "reason": "Dual-control violation: approver cannot be requester"
+    },
+    {
+      "event_type": "breakglass_approved",
+      "timestamp": 1771772646.5393977,
+      "token_id": "bg-0001-6bf6dfba",
+      "requester_id": "ops-alice",
+      "approver_id": "ops-bob",
+      "flags": [
+        "digest_provider",
+        "require_all_legs"
+      ],
+      "reason": "Emergency provider migration \u2014 digest registry down",
+      "ttl_seconds": 1800
+    },
+    {
+      "event_type": "breakglass_activated",
+      "timestamp": 1771772646.5393977,
+      "token_id": "bg-0001-6bf6dfba",
+      "requester_id": "ops-alice",
+      "approver_id": "ops-bob",
+      "flags": [
+        "digest_provider",
+        "require_all_legs"
+      ],
+      "ttl_seconds": 1800
+    },
+    {
+      "event_type": "breakglass_revoked",
+      "timestamp": 1771772646.539725,
+      "token_id": "bg-0001-6bf6dfba",
+      "requester_id": "ops-alice",
+      "approver_id": "ops-bob",
+      "flags": [
+        "digest_provider",
+        "require_all_legs"
+      ],
+      "reason": "Incident resolved \u2014 digest registry back online",
+      "remaining_seconds": 1799.999672651291
+    }
+  ],
+  "telemetry_summary": {
+    "total_events": 5,
+    "by_type": {
+      "strict_mode_block": 2,
+      "strict_mode_breakglass_override": 2,
+      "trust_gate_trusted": 1
+    }
+  },
+  "service_summary": {
+    "enabled": true,
+    "active_tokens": 0,
+    "pending_tokens": 0,
+    "total_tokens": 2,
+    "active_overrides": {},
+    "audit_events": 9
+  }
+}

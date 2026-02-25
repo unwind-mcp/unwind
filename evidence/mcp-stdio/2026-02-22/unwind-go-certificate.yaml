@@ -1,0 +1,215 @@
+certificate_meta:
+  id: R-GO-CERT-001
+  name: "UNWIND Final GO Certificate"
+  version: 1.0.0
+  generated_at_utc: "2026-02-22T15:35:00Z"
+  owner: SENTINEL
+  purpose: "Single-page release control checklist for final production go/no-go decision."
+  release_candidate:
+    build_id: "TBD"
+    commit_hash: "TBD"
+    test_summary: "TBD"
+
+status_fields:
+  overall_verdict:
+    allowed_values: [GO, NO_GO, CONDITIONAL_GO]
+    value: CONDITIONAL_GO
+    rationale: "Pending completion of all gate checklist items below."
+  blockers:
+    - "None listed yet"
+
+checklist:
+  gate_1_evidence_bundle:
+    description: "Consolidated evidence package is complete, consistent, and auditable."
+    required: true
+    items:
+      - id: G1-01
+        check: "Evidence bundle exists and is versioned"
+        type: machine
+        status: false
+        machine_assertion: "file_exists('evidence_bundle_preprod.json') == true"
+      - id: G1-02
+        check: "Strict switch matrix verification included (R-STRICT-001)"
+        type: machine
+        status: false
+        machine_assertion: "contains_artifact('unwind-strict-mode-verification-pack002-final.yaml')"
+      - id: G1-03
+        check: "Telemetry + budget idempotency proof included"
+        type: machine
+        status: false
+        machine_assertion: "contains_reason_codes(['BUDGET_DEBIT','BUDGET_DEBIT_SKIPPED_DUPLICATE','TRUST_LEG_MISSING'])"
+      - id: G1-04
+        check: "Rollback, breakglass, and key-rotation drill reports attached"
+        type: machine
+        status: false
+        machine_assertion: "files_present(['drill_report_rollback.json','drill_report_breakglass.json','drill_report_key_rotation.json'])"
+      - id: G1-05
+        check: "Evidence package has release candidate commit hash and config hash"
+        type: machine
+        status: false
+        machine_assertion: "metadata.release_candidate.commit_hash != null and metadata.config_hash != null"
+      - id: G1-06
+        check: "All referenced tests pass on release candidate"
+        type: machine
+        status: false
+        machine_assertion: "test_failures == 0"
+
+  gate_2_operational_wiring:
+    description: "Operational alerting and runbook controls are live."
+    required: true
+    items:
+      - id: G2-01
+        check: "Breakglass callback wired to SOC/PagerDuty in production"
+        type: operational
+        status: false
+        evidence: "integration config + test alert id"
+      - id: G2-02
+        check: "24h post-incident breakglass review runbook active"
+        type: operational
+        status: false
+        evidence: "runbook link + owner acknowledgement"
+      - id: G2-03
+        check: "On-call acknowledges alert routing for trust-gate critical events"
+        type: operational
+        status: false
+        evidence: "on-call sign-off"
+      - id: G2-04
+        check: "Drill artifact retention path documented and accessible"
+        type: operational
+        status: false
+        evidence: "artifact location + retention policy"
+
+  gate_3_production_profile_lock:
+    description: "Production security profile is pinned and drift-resistant."
+    required: true
+    items:
+      - id: G3-01
+        check: "strict.enabled=true"
+        type: machine
+        status: false
+        machine_assertion: "config.strict.enabled == true"
+      - id: G3-02
+        check: "strict.digest_provider.required=true"
+        type: machine
+        status: false
+        machine_assertion: "config.strict.digest_provider.required == true"
+      - id: G3-03
+        check: "strict.digest_provider.on_error=fail_closed"
+        type: machine
+        status: false
+        machine_assertion: "config.strict.digest_provider.on_error == 'fail_closed'"
+      - id: G3-04
+        check: "strict.trust_gate.require_all_legs=true"
+        type: machine
+        status: false
+        machine_assertion: "config.strict.trust_gate.require_all_legs == true"
+      - id: G3-05
+        check: "strict.lockfile.require_hmac=true and reject_fallback_hmac_key=true"
+        type: machine
+        status: false
+        machine_assertion: "config.strict.lockfile.require_hmac and config.strict.lockfile.reject_fallback_hmac_key"
+      - id: G3-06
+        check: "strict.signatures.require_verifier_when_required=true"
+        type: machine
+        status: false
+        machine_assertion: "config.strict.signatures.require_verifier_when_required == true"
+      - id: G3-07
+        check: "strict.key_store.require_hmac=true"
+        type: machine
+        status: false
+        machine_assertion: "config.strict.key_store.require_hmac == true"
+      - id: G3-08
+        check: "TOFU disabled in production"
+        type: machine
+        status: false
+        machine_assertion: "config.strict.tofu.enabled == false"
+      - id: G3-09
+        check: "Breakglass default disabled in production"
+        type: machine
+        status: false
+        machine_assertion: "config.strict.breakglass.allow == false"
+      - id: G3-10
+        check: "Config integrity check reports NO_DRIFT"
+        type: machine
+        status: false
+        machine_assertion: "latest_config_integrity_result == 'NO_DRIFT'"
+
+  gate_4_canary_and_abort_criteria:
+    description: "Controlled canary executed with explicit abort thresholds and tested rollback path."
+    required: true
+    items:
+      - id: G4-01
+        check: "Canary scope defined (traffic %, duration, tool scope)"
+        type: operational
+        status: false
+      - id: G4-02
+        check: "Abort criteria documented with thresholds"
+        type: operational
+        status: false
+        thresholds:
+          - "strict_mode_block_rate_unexpected > X%"
+          - "signature_invalid_spike > Y/min"
+          - "budget_exceeded_anomaly > Z/min"
+      - id: G4-03
+        check: "Rollback trigger command/runbook validated against current release hash"
+        type: machine
+        status: false
+        machine_assertion: "rollback_dry_run_hash_match == true"
+      - id: G4-04
+        check: "Canary telemetry confirms expected trust-gate behavior"
+        type: machine
+        status: false
+        machine_assertion: "no_unexpected_allow_on_high_risk_paths == true"
+      - id: G4-05
+        check: "Post-canary state clean (no active breakglass tokens/overrides)"
+        type: machine
+        status: false
+        machine_assertion: "active_breakglass_tokens == 0 and active_breakglass_overrides == 0"
+      - id: G4-06
+        check: "Enforcement friction SLOs within bounds"
+        type: machine
+        status: false
+        slos:
+          amber_fire_rate_untainted_sessions:
+            target: "== 0%"
+            hard_fail_if: "> 0%"
+            measurement: "amber events in untainted sessions / total decisions in untainted sessions"
+          amber_fire_rate_natural_taint:
+            target: "<= 3%"
+            warn_if: "> 2% sustained 10m"
+            hard_fail_if: "> 3% sustained 10m"
+            measurement: "amber events in naturally tainted normal workflows / total decisions in those workflows"
+          circuit_breaker_false_positive_rate:
+            target: "<= 0.5%"
+            hard_fail_if: "> 0.5% sustained 10m"
+            measurement: "circuit breaker triggers later classified benign / total circuit breaker triggers"
+          repeated_amber_same_pattern_ratio:
+            target: "<= 10%"
+            hard_fail_if: "> 10% sustained 10m"
+            measurement: "repeated amber prompts for same pattern_id within window / total amber prompts"
+        tracked_straitjacket_vectors:
+          - approval_window_churn
+          - taint_stickiness
+          - circuit_breaker_batch_penalty
+          - strict_dependency_storms
+          - session_kill_blast_radius
+
+verdict_logic:
+  go:
+    condition: "All required gate items true"
+  conditional_go:
+    condition: "No P0 failures; only time-bounded operational follow-ups remain"
+  no_go:
+    condition: "Any P0 security gate item false or evidence inconsistency detected"
+
+sign_off:
+  sentry_review:
+    reviewer: "SENTINEL"
+    timestamp_utc: "TBD"
+    verdict: "TBD"
+    notes: "TBD"
+  owner_approval:
+    approver: "David Russell"
+    timestamp_utc: "TBD"
+    verdict: "TBD"
+    notes: "TBD"

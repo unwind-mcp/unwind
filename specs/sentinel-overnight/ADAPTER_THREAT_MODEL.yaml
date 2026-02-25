@@ -1,0 +1,72 @@
+threat_model_meta:
+  id: ADAPTER-THREAT-MODEL-2026-02-23
+  title: UNWIND OpenClaw Adapter Threat Model
+  author: SENTINEL
+  scope: [TS plugin, Python sidecar, local HTTP IPC]
+
+threats:
+  - id: TM-ADAPTER-001
+    name: Sidecar spoofing on local port
+    severity: P0
+    likelihood: Medium
+    mitigations: [strong bearer secret 32+ bytes, loopback-only bind, prefer Unix domain socket, signed startup nonce, pin endpoint, startup race protection]
+
+  - id: TM-ADAPTER-002
+    name: IPC interception or modification
+    severity: P1
+    likelihood: Medium
+    mitigations: [Unix socket + ACL, request signing HMAC, strict JSON schema, disable proxy, least-privilege accounts, redact secrets in logs]
+
+  - id: TM-ADAPTER-003
+    name: Plugin tampering / enforcement bypass
+    severity: P0
+    likelihood: Medium
+    mitigations: [signed plugin package, immutable plugin dir, plugin allowlist by ID+version+hash, self-integrity startup check, telemetry on load/change, independent watchdog]
+
+  - id: TM-ADAPTER-004
+    name: Hook ordering / override ambiguity
+    severity: P0
+    likelihood: Medium
+    mitigations: [terminal block semantics, UNWIND first in priority, restrict co-resident enforcement plugins, multi-plugin conflict tests, fail startup if ordering unproven]
+
+  - id: TM-ADAPTER-005
+    name: Sidecar latency induced DoS
+    severity: P1
+    likelihood: High
+    mitigations: [strict 500ms timeout, circuit breaker, bounded concurrency, rate limiting, latency SLO monitoring, canary timeout tests]
+
+  - id: TM-ADAPTER-006
+    name: Gateway restart readiness race
+    severity: P0
+    likelihood: Medium
+    mitigations: [startupRequireHealthy=true, unknown state blocks, sequence startup, synthetic policy self-test, persist readiness state, restart race CI test]
+
+  - id: TM-ADAPTER-007
+    name: Plugin config manipulation (mode=off)
+    severity: P0
+    likelihood: Medium
+    mitigations: [lock enforce in production, strict ACLs + checksums, dual-control for mode changes, alerts on mode transitions, fail closed on invalid config, rollback-safe snapshots]
+
+  - id: TM-ADAPTER-008
+    name: Sidecar crash loop
+    severity: P1
+    likelihood: Medium
+    mitigations: [exponential backoff restart, fail-closed while unhealthy, circuit breaker, crash-loop telemetry, diagnostics preservation, operator runbook]
+
+  - id: TM-ADAPTER-009
+    name: Memory/state poisoning across sessions
+    severity: P0
+    likelihood: Medium
+    mitigations: [scope all state by adapter+session+principal+generation, invalidate on rebind, one-time approvals with TTL, reject ambiguous context, cross-session replay tests, expired state sweep]
+
+  - id: TM-ADAPTER-010
+    name: Upgrade/downgrade rollback attacks
+    severity: P0
+    likelihood: Medium
+    mitigations: [minimum version enforcement, signed release metadata, anti-rollback monotonic version, refuse incompatible API versions, CI gate, version regression alerts]
+
+recommended_24h_actions:
+  - Finalize terminal block semantics for multi-plugin ordering
+  - Implement production config lock (enforce-only + immutable + drift alerting)
+  - Add sidecar identity hardening beyond bearer token
+  - Add startup readiness self-test and block-until-healthy gate

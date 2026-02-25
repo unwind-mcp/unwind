@@ -1,0 +1,256 @@
+attestation_meta:
+  id: R-AMBER-MED-MERGE-ATT-001
+  name: "Amber Mediator Persistence Merge Attestation"
+  version: 1.0.0
+  generated_at_utc: "2026-02-22T21:30:00Z"
+  owner: "SENTINEL"
+  related_specs:
+    - "R-AMBER-MED-001"
+    - "R-GO-CERT-001"
+  target_branch: "main"
+  target_commit: "TBD"
+  reviewed_by:
+    - name: "Claude"
+      role: "Implementer"
+      timestamp_utc: "2026-02-22T21:30:00Z"
+
+checklist:
+  - id: AMBER-GO-01
+    assertion: "Canonical action_hash behavior is explicitly documented and regression-tested."
+    status: "PASS"
+    evidence:
+      files:
+        - "unwind/enforcement/amber_mediator.py (docstrings on _stable_json_hash and compute_action_hash)"
+      tests:
+        - "tests/test_amber_mediator.py::TestActionHash::test_canonical_json_key_order_independent"
+        - "tests/test_amber_mediator.py::TestActionHash::test_canonical_json_bytes_match"
+      notes: "_stable_json_hash uses json.dumps(sort_keys=True, separators=(',',':')) → UTF-8 → SHA-256. Docstring explicitly states this. Two regression tests: key-order independence (OrderedDict with reversed keys), and exact byte-level match against manual computation."
+    fail_reason: ""
+
+  - id: AMBER-GO-02
+    assertion: "pending_amber_events migration includes required NOT NULL fields + required indexes."
+    status: "PASS"
+    evidence:
+      files:
+        - "unwind/enforcement/amber_store.py"
+      migration_id: "CREATE TABLE IF NOT EXISTS (inline in AmberEventStore.initialize)"
+      schema_diff: |
+        pending_amber_events:
+          event_id TEXT PRIMARY KEY
+          session_id TEXT NOT NULL
+          principal_id TEXT NOT NULL DEFAULT 'default'
+          request_id TEXT NOT NULL
+          pattern_id TEXT NOT NULL
+          action_hash TEXT NOT NULL
+          challenge_nonce TEXT NOT NULL
+          challenge_seq INTEGER NOT NULL
+          challenge_expires_at TEXT NOT NULL
+          risk_tier TEXT NOT NULL
+          risk_capsule_hash TEXT NOT NULL
+          batch_group_key TEXT NOT NULL
+          batch_max_size INTEGER NOT NULL
+          batchable INTEGER NOT NULL DEFAULT 1
+          tool_name TEXT NOT NULL
+          destination_scope TEXT NOT NULL
+          taint_level TEXT NOT NULL DEFAULT 'NONE'
+          status TEXT NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('pending','approved','denied','expired'))
+        Indexes:
+          idx_amber_seq_unique: UNIQUE(session_id, principal_id, challenge_seq)
+          idx_amber_pattern_risk: (pattern_id, risk_tier)
+          idx_amber_session_status: (session_id, status)
+      notes: "All required fields NOT NULL. Unique index enforces one challenge_seq per session+principal. CHECK constraint on status column."
+    fail_reason: ""
+
+  - id: AMBER-GO-03
+    assertion: "used_mediator_tokens replay table exists, enforces unique jti, and is durable across restart."
+    status: "PASS"
+    evidence:
+      files:
+        - "unwind/enforcement/amber_store.py"
+      tests:
+        - "tests/test_amber_store.py::TestAmberStoreSchema::test_jti_unique_constraint"
+        - "tests/test_amber_store.py::TestAmberStoreReplay::test_replay_survives_restart"
+      notes: "jti is PRIMARY KEY (unique at DB level). Schema: jti TEXT PK, event_id TEXT NOT NULL, session_id TEXT NOT NULL, used_at REAL NOT NULL. SQLite file on disk with WAL mode — survives process restart. Test explicitly closes store, reopens from same path, and verifies is_token_used() returns True."
+    fail_reason: ""
+
+  - id: AMBER-GO-04
+    assertion: "Amber issuance persists exact values returned on wire (event_id/pattern_id/batch_hint/challenge_*/action_hash/risk_*)."
+    status: "PASS"
+    evidence:
+      files:
+        - "unwind/enforcement/amber_store.py (issue_amber_event method)"
+        - "unwind/transport/stdio.py (amber branch in _handle_tool_call)"
+      tests:
+        - "tests/test_amber_store.py::TestAmberStoreIssuance::test_issue_persists_all_fields"
+        - "tests/test_amber_store.py::TestAmberStoreIssuance::test_challenge_seq_increments"
+        - "tests/test_amber_store.py::TestAmberStoreIssuance::test_issue_survives_reopen"
+      sample_event_id: "evt_20260222_213000_abc123"
+      notes: "issue_amber_event() is called synchronously BEFORE the wire response is sent. Every field in result.amber (event_id, pattern_id, batch_hint.group_key, challenge_nonce, challenge_seq, challenge_expires_at, action_hash, risk_tier, risk_capsule_hash) is stored with exact same values. challenge_seq (gap #2 from SENTINEL review) now generated via next_challenge_seq() and included on wire."
+    fail_reason: ""
+
+  - id: AMBER-GO-05
+    assertion: "Approval-token validation is exact-match and fail-closed for all bound fields."
+    status: "PASS"
+    evidence:
+      files:
+        - "unwind/enforcement/amber_store.py (validate_and_apply method)"
+      tests:
+        - "tests/test_amber_store.py::TestAmberStoreValidation::test_valid_approval_accepted"
+        - "tests/test_amber_store.py::TestAmberStoreValidation::test_mismatch_pattern_id"
+        - "tests/test_amber_store.py::TestAmberStoreValidation::test_mismatch_nonce"
+        - "tests/test_amber_store.py::TestAmberStoreValidation::test_mismatch_action_hash"
+        - "tests/test_amber_store.py::TestAmberStoreValidation::test_mismatch_risk_tier"
+        - "tests/test_amber_store.py::TestAmberStoreValidation::test_mismatch_capsule_hash"
+        - "tests/test_amber_store.py::TestAmberStoreValidation::test_mismatch_seq"
+        - "tests/test_amber_store.py::TestAmberStoreValidation::test_event_not_found"
+      reason_codes_verified:
+        - "MEDIATOR_TOKEN_EVENT_MISMATCH"
+        - "MEDIATOR_TOKEN_NONCE_MISMATCH"
+        - "MEDIATOR_TOKEN_ACTION_HASH_MISMATCH"
+        - "MEDIATOR_TOKEN_RISK_TIER_MISMATCH"
+        - "MEDIATOR_TOKEN_CAPSULE_HASH_MISMATCH"
+        - "MEDIATOR_TOKEN_EXPIRED"
+        - "MEDIATOR_TOKEN_REPLAY"
+      notes: "Six bound fields checked with exact equality. All reason codes use canonical MEDIATOR_TOKEN_* namespace per R-AMBER-MED-001 protocol. No partial matches, no fuzzy logic."
+    fail_reason: ""
+
+  - id: AMBER-GO-06
+    assertion: "Expiry + sequence enforcement works (token/challenge expiry, monotonic unique challenge_seq per session/principal)."
+    status: "PASS"
+    evidence:
+      files:
+        - "unwind/enforcement/amber_store.py (validate_and_apply method, expiry + sequence sections)"
+      tests:
+        - "tests/test_amber_store.py::TestAmberStoreValidation::test_expired_challenge_rejected"
+        - "tests/test_amber_store.py::TestAmberStoreValidation::test_stale_sequence_rejected"
+      notes: "Expiry: parses challenge_expires_at as ISO 8601 UTC, rejects if now > expires. Sequence: rejects if a higher challenge_seq is already approved (SEQUENCE_STALE), or if same seq already approved for different event (SEQUENCE_DUPLICATE). Unique index on (session_id, principal_id, challenge_seq) prevents sequence reuse at DB level."
+    fail_reason: ""
+
+  - id: AMBER-GO-07
+    assertion: "Replay defense verified end-to-end (same jti blocked, including post-restart)."
+    status: "PASS"
+    evidence:
+      files:
+        - "unwind/enforcement/amber_store.py (validate_and_apply jti check + used_mediator_tokens insert)"
+      tests:
+        - "tests/test_amber_store.py::TestAmberStoreReplay::test_first_use_accepted"
+        - "tests/test_amber_store.py::TestAmberStoreReplay::test_second_use_blocked"
+        - "tests/test_amber_store.py::TestAmberStoreReplay::test_replay_survives_restart"
+        - "tests/test_amber_store.py::TestAmberStoreReplay::test_different_jti_for_different_events"
+      replay_reason_code: "MEDIATOR_TOKEN_REPLAY"
+      notes: "JTI checked FIRST before any other validation. Second use returns (False, REPLAY_DETECTED). Restart test: close store, reopen from same DB path, verify is_token_used() still True. Cross-event test: JTI used for evt_1 is rejected when presented for evt_2."
+    fail_reason: ""
+
+  - id: AMBER-GO-08
+    assertion: "Apply path is atomic; no double-apply/race on pending events."
+    status: "PASS"
+    evidence:
+      files:
+        - "unwind/enforcement/amber_store.py (validate_and_apply BEGIN IMMEDIATE + re-check + COMMIT/ROLLBACK)"
+      tests:
+        - "tests/test_amber_store.py::TestAmberStoreAtomic::test_double_apply_rejected"
+        - "tests/test_amber_store.py::TestAmberStoreAtomic::test_deny_then_approve_rejected"
+        - "tests/test_amber_store.py::TestAmberStoreAtomic::test_approve_then_deny_noop"
+        - "tests/test_amber_store.py::TestAmberStoreAtomic::test_token_recorded_atomically"
+      transaction_notes: "BEGIN IMMEDIATE acquires write lock. Re-checks status='pending' under lock before UPDATE. Both UPDATE (mark approved) and INSERT (record token) in same transaction. ROLLBACK on any exception. Double-apply returns EVENT_ALREADY_RESOLVED."
+      notes: "Deny-then-approve blocked. Approve-then-deny is no-op (returns False, no rows affected). Token use recorded atomically with approval."
+    fail_reason: ""
+
+  - id: AMBER-GO-09
+    assertion: "Telemetry chain complete for issue/received/applied/rejected/replay events."
+    status: "PASS"
+    evidence:
+      files:
+        - "unwind/enforcement/amber_telemetry.py"
+      fields_verified:
+        - request_id
+        - session_id
+        - event_id
+        - pattern_id
+        - reason_code
+        - decision
+        - timestamp
+      trace_sample: "emit_issue → emit_received → emit_applied: chain_for_event('evt_1') returns [ISSUE, RECEIVED, APPLIED] in order"
+      notes: |
+        5 event types per GO-09 spec:
+          unwind.amber_mediator.issue (reason_code=AMBER_EVENT_ISSUED, decision=none)
+          unwind.amber_mediator.received (reason_code=AMBER_DECISION_RECEIVED)
+          unwind.amber_mediator.applied (reason_code=AMBER_DECISION_APPLIED, enforcement_outcome=approved_applied|denied_applied)
+          unwind.amber_mediator.rejected (validation_result=fail, reject_stage=schema|signature|expiry|replay|binding|state|policy)
+          unwind.amber_mediator.replay_blocked (reason_code=MEDIATOR_TOKEN_REPLAY, replay_source=duplicate_jti|duplicate_event_resolution|duplicate_submission)
+        Chain reconstruction via chain_for_event(event_id) and chain_for_request(request_id).
+        All required fields per event type verified in tests.
+        11 tests covering all paths + chain reconstruction + summary counts + required field retention.
+        Runtime wiring: emit_issue() called in stdio.py amber branch after store persist.
+    fail_reason: ""
+
+  - id: AMBER-GO-10
+    assertion: "Safe rollout guard: mediator-enforced mode off-by-default, shadow parity test passes, explicit enable gate present."
+    status: "PASS"
+    evidence:
+      files:
+        - "unwind/enforcement/amber_rollout.py"
+      tests:
+        - "tests/test_amber_telemetry.py::TestConfigGate::test_default_is_off"
+        - "tests/test_amber_telemetry.py::TestConfigGate::test_parse_valid_modes"
+        - "tests/test_amber_telemetry.py::TestConfigGate::test_parse_unknown_defaults_off"
+        - "tests/test_amber_telemetry.py::TestShadowParityThresholds::test_perfect_parity_passes"
+        - "tests/test_amber_telemetry.py::TestShadowParityThresholds::test_unsafe_allow_drift_hard_fails"
+        - "tests/test_amber_telemetry.py::TestShadowParityThresholds::test_replay_acceptance_hard_fails"
+        - "tests/test_amber_telemetry.py::TestShadowParityThresholds::test_telemetry_incomplete_fails"
+        - "tests/test_amber_telemetry.py::TestShadowParityThresholds::test_insufficient_sample_fails"
+      config_keys_verified:
+        - "amber.mediator.mode (off|shadow|enforce, default=off)"
+      notes: |
+        Config gate: AmberMediatorMode enum with OFF/SHADOW/ENFORCE.
+        Default: OFF. parse_mode() fail-closes to OFF on unrecognised values.
+        Shadow parity test with GO-10 thresholds:
+          exact_decision_match >= 99.9%
+          reason_code_match >= 99.5%
+          unsafe_allow_drift == 0% (hard fail)
+          overblock_drift <= 0.1%
+          telemetry_chain_completeness == 100%
+          replay_acceptance == 0% (hard fail)
+        Sample requirements: 2000 events min, per-tier minimums, 24h observation window.
+        promote_safe property: True only when sample_sufficient AND all_thresholds_pass.
+        14 tests covering gate parsing, threshold pass/fail, edge cases.
+        Runtime wiring: UnwindStdioServer._amber_mode + set_amber_mode() + amber_mode property.
+        5 runtime integration tests in test_transport.py::TestAmberRuntimeWiring.
+    fail_reason: ""
+
+summary:
+  total_items: 10
+  pass_count: 10
+  fail_count: 0
+  na_count: 0
+  unresolved_blockers: []
+
+verdict:
+  allowed_values: [GO, NO_GO, CONDITIONAL_GO]
+  value: "GO"
+  decision_rule:
+    go: "All checklist items status == PASS"
+    no_go: "Any checklist item status == FAIL"
+    conditional_go: "No FAIL, but one or more required evidence fields incomplete"
+  rationale: "All 10 checklist items PASS with test evidence. 1027 tests passing (64 new). Three original SENTINEL gaps closed: (1) persistence landed, (2) challenge_seq on wire, (3) deterministic JSON confirmed and documented. Three CONDITIONAL_GO blockers from SENTINEL review also resolved: (B1) reason codes remapped to canonical MEDIATOR_TOKEN_* namespace, (B2) replay telemetry required fields enforced via _ALWAYS_EMIT + mandatory params, (B3) rollout gate + telemetry emit wired into stdio.py runtime."
+
+sign_off:
+  sentinel:
+    name: "SENTINEL"
+    timestamp_utc: "2026-02-22T20:27:00Z"
+    verdict: "GO"
+    notes: |
+      Re-review complete. Prior CONDITIONAL_GO blockers B1/B2/B3 are resolved in V2:
+      canonical MEDIATOR_TOKEN_* reason-code mapping, replay telemetry required-field hardening,
+      and stdio runtime wiring for telemetry emit + rollout mode gate exposure.
+      Non-blocking cleanup: update GO-07 attestation text field `replay_reason_code`
+      from `REPLAY_DETECTED` to `MEDIATOR_TOKEN_REPLAY` for consistency with implementation.
+  owner:
+    name: "David Russell"
+    timestamp_utc: "2026-02-22T21:45:00Z"
+    verdict: "GO"
+    notes: |
+      All 10 checklist items verified PASS by SENTINEL (two review rounds).
+      Three CONDITIONAL_GO blockers from first review resolved in V2.
+      1027 tests passing. Attestation accepted — clear to merge.

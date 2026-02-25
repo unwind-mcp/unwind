@@ -1,0 +1,321 @@
+checklist_meta:
+  id: R-EXEC-PIPE-001
+  name: "UNWIND execution checklist (Stages 0.5 -> 4)"
+  version: 1.1.0
+  generated_at_utc: "2026-02-22T16:18:00Z"
+  owner: SENTINEL
+  purpose: "Operational execution checklist from install sanity through post-canary burn-in."
+  revision_note: "Updated for confirmed existing stdio proxy plumbing; stages 0.5-2 are validation, not new transport build."
+
+architecture_baseline_confirmed:
+  - "Entry point: `unwind serve -- <upstream>`"
+  - "Transport model: stdio MCP proxy (JSON-RPC 2.0 over stdin/stdout)"
+  - "No network listener required in stdio mode"
+  - "`proxy_host`/`proxy_port` are defined but intentionally unused in stdio mode"
+  - "GhostMode is a separate pip package in same repo"
+  - "CLI commands available include: serve, status, log, verify, undo, export, dashboard"
+  - "Dashboard endpoint: Flask on 127.0.0.1:9001"
+
+global_rules:
+  - "Fail closed on strict-mode trust controls"
+  - "No production promotion without stage evidence artifacts"
+  - "Any FAIL at a stage blocks next stage"
+  - "Capture timestamps + commit hash for every stage run"
+  - "For every command executed, capture stdout/stderr to evidence files"
+
+release_context:
+  release_candidate_commit: "4eca805bf1517bbb02102d63ea0c7db06127c562"
+  go_certificate: "R-GO-CERT-001"
+
+stages:
+  - stage: "0.5"
+    title: "Install/runtime sanity on Pi (existing proxy plumbing)"
+    objective: "Prove deploy mechanics, CLI availability, strict profile boot integrity, and stdio transport assumptions."
+    tasks:
+      - "Install package(s) on Pi: core UNWIND and optional GhostMode package."
+      - "Run `unwind serve --help` and verify stdio-oriented serve flow."
+      - "Run `unwind status`, `unwind verify`, and `unwind dashboard --help` smoke checks."
+      - "Confirm `proxy_host`/`proxy_port` intentionally unused in stdio mode (documented, not treated as defect)."
+      - "Start process and verify strict config loads cleanly."
+      - "Restart service and confirm state persistence + NO_DRIFT."
+
+    command_evidence:
+      commands:
+        - cmd: "pip install -e ."
+          capture_stdout: "stage05_cmd_pip_core.out"
+          capture_stderr: "stage05_cmd_pip_core.err"
+        - cmd: "pip install -e ghostmode/"
+          capture_stdout: "stage05_cmd_pip_ghostmode.out"
+          capture_stderr: "stage05_cmd_pip_ghostmode.err"
+        - cmd: "unwind serve --help"
+          capture_stdout: "stage05_cmd_serve_help.out"
+          capture_stderr: "stage05_cmd_serve_help.err"
+        - cmd: "unwind status"
+          capture_stdout: "stage05_cmd_status.out"
+          capture_stderr: "stage05_cmd_status.err"
+        - cmd: "unwind verify"
+          capture_stdout: "stage05_cmd_verify.out"
+          capture_stderr: "stage05_cmd_verify.err"
+      expected_output_patterns:
+        - "serve help indicates upstream command form (`-- <upstream>`)"
+        - "no requirement for proxy_host/proxy_port listener in stdio mode"
+        - "strict config loaded / no fatal startup errors"
+
+    pass_criteria:
+      - id: S05-PASS-01
+        criterion: "Core and GhostMode install complete without fatal errors"
+        type: machine
+      - id: S05-PASS-02
+        criterion: "`unwind serve --help` reflects stdio upstream invocation model"
+        type: machine
+      - id: S05-PASS-03
+        criterion: "Strict profile starts cleanly and survives restart"
+        type: machine
+      - id: S05-PASS-04
+        criterion: "Config integrity result = NO_DRIFT after restart"
+        type: machine
+      - id: S05-PASS-05
+        criterion: "proxy_host/proxy_port unused in stdio mode confirmed/documented"
+        type: operational
+
+    fail_conditions:
+      - "CLI command surface missing/broken"
+      - "Strict profile fails to load"
+      - "Service cannot restart cleanly"
+      - "Unexpected requirement for network listener in stdio mode"
+
+    evidence_artifacts:
+      - "stage05_cmd_*.out/.err"
+      - "service_start_status.json"
+      - "config_snapshot.json (strict flags + hashes)"
+      - "integrity_check_output.json"
+      - "stdio_transport_assumption_note.md"
+      - "git_commit_hash.txt"
+
+  - stage: "1"
+    title: "Pi integration test (real MCP protocol over stdio)"
+    objective: "Prove existing `unwind serve -- <upstream>` proxy handles on-wire MCP traffic with enforcement."
+    tasks:
+      - "Launch UNWIND stdio proxy with real/mock upstream MCP server."
+      - "Send valid MCP JSON-RPC 2.0 requests through stdin/stdout path."
+      - "Run negative-path cases: malformed JSON-RPC, digest mismatch, signature invalid, blocked tool."
+      - "Verify passthrough for non-enforced methods and enforcement on tools/call path."
+      - "Confirm reason-coded telemetry for all verdicts."
+
+    command_evidence:
+      commands:
+        - cmd: "unwind serve -- npx @modelcontextprotocol/server-filesystem ~/Documents"
+          capture_stdout: "stage1_cmd_proxy_start.out"
+          capture_stderr: "stage1_cmd_proxy_start.err"
+        - cmd: "python tools/mcp_stdio_probe.py --mode happy --out stage1_happy.json"
+          capture_stdout: "stage1_cmd_happy.out"
+          capture_stderr: "stage1_cmd_happy.err"
+        - cmd: "python tools/mcp_stdio_probe.py --mode negative --out stage1_negative.json"
+          capture_stdout: "stage1_cmd_negative.out"
+          capture_stderr: "stage1_cmd_negative.err"
+      expected_output_patterns:
+        - "valid JSON-RPC requests receive valid responses"
+        - "negative cases produce expected blocks/errors with reason codes"
+
+    pass_criteria:
+      - id: S1-PASS-01
+        criterion: "Happy-path MCP tool calls route successfully through stdio proxy"
+        type: machine
+      - id: S1-PASS-02
+        criterion: "Negative-path calls block/fail with correct reason codes"
+        type: machine
+      - id: S1-PASS-03
+        criterion: "No silent allow on intentionally blocked scenarios"
+        type: machine
+      - id: S1-PASS-04
+        criterion: "Telemetry contains request_id/session_id/reason_code for each verdict"
+        type: machine
+
+    fail_conditions:
+      - "JSON-RPC parsing/routing failure on valid stdio traffic"
+      - "Blocked cases unexpectedly allowed"
+      - "Missing/invalid reason-coded telemetry"
+
+    evidence_artifacts:
+      - "stage1_cmd_*.out/.err"
+      - "stage1_happy.json"
+      - "stage1_negative.json"
+      - "mcp_wire_capture.jsonl"
+      - "telemetry_extract_stage1.json"
+      - "reason_code_summary_stage1.json"
+
+  - stage: "2"
+    title: "GhostMode end-to-end workflow validation (existing package wiring)"
+    objective: "Prove GhostMode package works through existing UNWIND stdio proxy path in realistic workflows."
+    tasks:
+      - "Install GhostMode package (if not already installed)."
+      - "Run GhostMode pointing to UNWIND proxy with safe workflow."
+      - "Run policy-edge workflow to trigger enforced blocks/challenges."
+      - "Verify user-visible outcomes align with enforcement + telemetry traces."
+
+    command_evidence:
+      commands:
+        - cmd: "ghostmode --help"
+          capture_stdout: "stage2_cmd_ghostmode_help.out"
+          capture_stderr: "stage2_cmd_ghostmode_help.err"
+        - cmd: "python tools/ghostmode_e2e.py --profile safe --out stage2_safe.json"
+          capture_stdout: "stage2_cmd_safe.out"
+          capture_stderr: "stage2_cmd_safe.err"
+        - cmd: "python tools/ghostmode_e2e.py --profile adversarial --out stage2_adversarial.json"
+          capture_stdout: "stage2_cmd_adversarial.out"
+          capture_stderr: "stage2_cmd_adversarial.err"
+      expected_output_patterns:
+        - "safe workflow completes"
+        - "adversarial workflow blocked/challenged with expected reason codes"
+
+    pass_criteria:
+      - id: S2-PASS-01
+        criterion: "Expected safe workflows complete successfully"
+        type: machine
+      - id: S2-PASS-02
+        criterion: "Expected risky workflows are blocked/challenged correctly"
+        type: machine
+      - id: S2-PASS-03
+        criterion: "No cross-session/principal leakage"
+        type: machine
+      - id: S2-PASS-04
+        criterion: "Telemetry reconstructs full request->decision->response chain"
+        type: machine
+
+    fail_conditions:
+      - "GhostMode cannot operate through UNWIND stdio path"
+      - "Policy-edge workflows bypass controls"
+      - "Principal/session isolation breach"
+
+    evidence_artifacts:
+      - "stage2_cmd_*.out/.err"
+      - "stage2_safe.json"
+      - "stage2_adversarial.json"
+      - "telemetry_extract_stage2.json"
+      - "operator_observations_stage2.md"
+
+  - stage: "3"
+    title: "Production canary (10% / 120m)"
+    objective: "Validate live behavior under controlled exposure with active abort thresholds."
+    scope:
+      traffic_percent: 10
+      duration_minutes: 120
+      in_scope_categories:
+        - sensor
+        - read
+        - low_risk_actuator
+      excluded_categories:
+        - high_risk_actuator
+        - policy_or_rbac_mutation
+        - breakglass_admin
+    abort_thresholds:
+      strict_mode_block_rate_unexpected:
+        abort_if: "> 1.0% sustained 5m"
+      signature_invalid_spike:
+        abort_if: "> 10/min sustained 3m"
+      budget_exceeded_anomaly:
+        abort_if: "> 5/min sustained 5m"
+    tasks:
+      - "Run canary monitor in live mode on Pi telemetry log."
+      - "Track threshold status every 30s and persist monitor output."
+      - "Abort + rollback immediately if threshold breached."
+      - "Verify post-abort or post-complete cleanup state (no active breakglass tokens/overrides)."
+
+    command_evidence:
+      commands:
+        - cmd: "python tools/canary_monitor.py --live --log-file <telemetry.jsonl> --out canary_report.json"
+          capture_stdout: "stage3_cmd_canary_monitor.out"
+          capture_stderr: "stage3_cmd_canary_monitor.err"
+        - cmd: "python tools/rollback_execute.py --target-hash <PINNED_HASH>"
+          capture_stdout: "stage3_cmd_rollback_if_triggered.out"
+          capture_stderr: "stage3_cmd_rollback_if_triggered.err"
+      expected_output_patterns:
+        - "CANARY_PASS or ABORT_RECOMMENDED verdict emitted"
+        - "abort reason includes threshold identifier when triggered"
+
+    pass_criteria:
+      - id: S3-PASS-01
+        criterion: "No abort threshold breaches during full 120m window"
+        type: machine
+      - id: S3-PASS-02
+        criterion: "No unexpected allow on high-risk paths"
+        type: machine
+      - id: S3-PASS-03
+        criterion: "If aborted, rollback executes within SLO and restores healthy strict behavior"
+        type: machine
+      - id: S3-PASS-04
+        criterion: "Canary report verdict = CANARY_PASS"
+        type: machine
+
+    fail_conditions:
+      - "Any abort threshold breach without immediate rollback"
+      - "Unexpected allow on blocked class"
+      - "Stale breakglass state after canary"
+
+    evidence_artifacts:
+      - "stage3_cmd_*.out/.err"
+      - "canary_report.json"
+      - "canary_monitor_log.txt"
+      - "abort_or_continue_decision_log.md"
+      - "rollback_execution_log_if_any.json"
+      - "post_canary_state_snapshot.json"
+
+  - stage: "4"
+    title: "Post-canary burn-in (24-72h)"
+    objective: "Prove operational stability before broader rollout."
+    tasks:
+      - "Run at approved post-canary traffic level."
+      - "Monitor false positives, strict block quality, signature_invalid and budget anomaly trends."
+      - "Run at least one rollback dry-run against current release hash."
+      - "Complete 24h breakglass review process for any activation events."
+
+    command_evidence:
+      commands:
+        - cmd: "python tools/burnin_metrics.py --hours 24 --out burn_in_metrics_summary.json"
+          capture_stdout: "stage4_cmd_burnin_metrics.out"
+          capture_stderr: "stage4_cmd_burnin_metrics.err"
+        - cmd: "python tools/rollback_dryrun.py --target-hash <CURRENT_HASH> --out rollback_dry_run_report.json"
+          capture_stdout: "stage4_cmd_rollback_dryrun.out"
+          capture_stderr: "stage4_cmd_rollback_dryrun.err"
+      expected_output_patterns:
+        - "burn-in metrics generated"
+        - "rollback dry-run hash match true"
+
+    pass_criteria:
+      - id: S4-PASS-01
+        criterion: "No unresolved high-severity incidents during burn-in"
+        type: machine
+      - id: S4-PASS-02
+        criterion: "Error/anomaly rates stable or improving over burn-in window"
+        type: machine
+      - id: S4-PASS-03
+        criterion: "Rollback dry-run hash match true on current release"
+        type: machine
+      - id: S4-PASS-04
+        criterion: "Any breakglass event has completed review within 24h"
+        type: operational
+
+    fail_conditions:
+      - "Repeated unexplained strict-block anomalies"
+      - "Inability to execute rollback dry-run"
+      - "Missed post-incident review SLA"
+
+    evidence_artifacts:
+      - "stage4_cmd_*.out/.err"
+      - "burn_in_metrics_summary.json"
+      - "daily_anomaly_digest.md"
+      - "rollback_dry_run_report.json"
+      - "breakglass_review_records/"
+      - "final_promotion_recommendation.md"
+
+final_promotion_decision:
+  allowed_values:
+    - PROMOTE
+    - HOLD
+    - ROLLBACK
+  decision_rule:
+    - "PROMOTE only if all stage pass_criteria are met and no unresolved P0/P1 incidents."
+    - "HOLD if any operational item incomplete but no active security failure."
+    - "ROLLBACK on active security control failure or unexplained high-severity anomaly."
+
+questions_for_david: []

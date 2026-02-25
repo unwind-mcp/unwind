@@ -1,0 +1,75 @@
+review:
+  generated_at: "2026-02-23T17:20:00+00:00"
+  reviewer: SENTINEL
+  openclaw_version_target: "2026.2.21-2"
+
+executive_summary:
+  - "Plugin SDK sufficient for UNWIND adapter; before_tool_call is the enforcement choke-point."
+  - "Hook errors caught by OpenClaw runtime (fail-open) — adapter MUST catch internally and return block."
+  - "before_message_write and tool_result_persist are sync-only; async handlers ignored."
+  - "after_tool_call error-path assumptions must be corrected."
+
+hooks:
+  all_hook_names: [before_model_resolve, before_prompt_build, before_agent_start, llm_input, llm_output, agent_end, before_compaction, after_compaction, before_reset, message_received, message_sending, message_sent, before_tool_call, after_tool_call, tool_result_persist, before_message_write, session_start, session_end, subagent_spawning, subagent_delivery_target, subagent_spawned, subagent_ended, gateway_start, gateway_stop]
+
+  execution_model:
+    modifying_hooks: "Sequential, priority-ordered (higher first). Used for before_tool_call, before_model_resolve, etc."
+    void_hooks: "Parallel fire-and-forget (Promise.all). Used for after_tool_call, llm_*, gateway_*, session_*."
+    error_behavior: "Global runner catchErrors=true; handler errors logged and suppressed."
+
+  before_tool_call_behavior:
+    - "No hook => call proceeds unchanged."
+    - "block=true blocks with blockReason fallback."
+    - "params shallow-merged into original when original is object."
+    - "Exceptions caught => call proceeds (host fail-open)."
+
+  after_tool_call_behavior:
+    - "Called after successful execution with {toolName, params, result}."
+    - "NOT called on tool exception path in current runtime."
+    - "Type includes error/durationMs but current call site doesn't populate in normal path."
+
+  sync_only_hooks: [tool_result_persist, before_message_write]
+
+lifecycle:
+  plugin_api_methods: [registerTool, registerHook, registerHttpHandler, registerHttpRoute, registerChannel, registerGatewayMethod, registerCli, registerService, registerProvider, registerCommand, resolvePath, on]
+  service_lifecycle: ["start(ctx)", "optional stop(ctx)"]
+  gateway_hooks: [gateway_start, gateway_stop]
+  gateway_start_failures: "warning-only"
+
+manifest:
+  filename: "openclaw.plugin.json"
+  required_fields: [id, configSchema]
+
+trust_model:
+  - "Plugins are in-process with gateway (trusted code boundary)."
+  - "No plugin sandbox isolation by default."
+
+undocumented_behavior:
+  - id: UDB-1
+    behavior: "Hook execution differs by type: modifying=sequential, void=parallel"
+    risk: "Ordering assumptions break for void hooks"
+  - id: UDB-2
+    behavior: "tool_result_persist and before_message_write sync-only; async ignored"
+    risk: "Silent non-application of async mutations"
+  - id: UDB-3
+    behavior: "Hook errors swallowed by global runner (fail-open)"
+    risk: "Security adapter must self-catch"
+  - id: UDB-4
+    behavior: "after_tool_call receives success-path only; error path skips hook"
+    risk: "Don't rely on after_tool_call for error telemetry"
+
+diff_impact_for_build:
+  - id: IMP-1
+    change: "All fail-closed logic in before_tool_call; never throw"
+  - id: IMP-2
+    change: "after_tool_call is best-effort success telemetry only"
+  - id: IMP-3
+    change: "Param mutation as shallow overlay"
+  - id: IMP-4
+    change: "Avoid async in tool_result_persist/before_message_write"
+  - id: IMP-5
+    change: "Version-gate: hard floor >= 2026.2.12, recommend >= 2026.2.21"
+
+minimum_version:
+  hard_minimum: "2026.2.12"
+  recommended: "2026.2.21"
