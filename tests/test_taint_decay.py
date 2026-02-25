@@ -30,13 +30,14 @@ from unwind.enforcement.taint_decay import (
 
 @pytest.fixture
 def config():
-    """Default decay config for tests."""
+    """Default decay config for tests (dwell=0 for pre-P2-8 compat)."""
     return TaintDecayConfig(
         decay_interval_seconds=60.0,
         clean_ops_per_decay=10,
         retaint_cooldown_seconds=5.0,
         single_event_max=TaintLevel.HIGH,
         amber_threshold=TaintLevel.HIGH,
+        min_dwell_seconds=0.0,  # Disabled for existing tests
     )
 
 
@@ -49,6 +50,7 @@ def fast_config():
         retaint_cooldown_seconds=0.1,
         single_event_max=TaintLevel.HIGH,
         amber_threshold=TaintLevel.HIGH,
+        min_dwell_seconds=0.0,  # Disabled for existing tests
     )
 
 
@@ -566,3 +568,175 @@ class TestEdgeCases:
         for _ in range(config.clean_ops_per_decay):
             state.apply_clean_op(config)
         assert state.level == TaintLevel.LOW
+
+
+# ─────────────────────────────────────────────────────
+# P2-8: Tightened decay + minimum dwell time tests
+# ─────────────────────────────────────────────────────
+
+class TestP28TightenedDefaults:
+    """P2-8: Verify the new default values."""
+
+    def test_default_decay_interval_120(self):
+        """Default decay interval should be 120s (was 60s)."""
+        cfg = TaintDecayConfig()
+        assert cfg.decay_interval_seconds == 120.0
+
+    def test_default_clean_ops_20(self):
+        """Default clean ops per decay should be 20 (was 10)."""
+        cfg = TaintDecayConfig()
+        assert cfg.clean_ops_per_decay == 20
+
+    def test_default_min_dwell_30(self):
+        """Default minimum dwell time should be 30s."""
+        cfg = TaintDecayConfig()
+        assert cfg.min_dwell_seconds == 30.0
+
+
+class TestMinimumDwellTime:
+    """P2-8: Minimum dwell time prevents rapid taint wash attacks."""
+
+    def test_time_decay_blocked_during_dwell(self):
+        """Time-based decay should not fire within dwell period."""
+        cfg = TaintDecayConfig(
+            decay_interval_seconds=10.0,
+            min_dwell_seconds=30.0,
+        )
+        state = TaintState()
+        state.apply_taint("search_web", cfg)
+        assert state.level == TaintLevel.MEDIUM
+
+        # Even if decay_interval has passed (10s), dwell (30s) blocks decay
+        state.last_taint_event = time.time() - 15  # 15s ago (past interval, within dwell)
+        result = state.apply_decay(cfg)
+        assert result == TaintLevel.MEDIUM  # No decay
+
+    def test_time_decay_allowed_after_dwell(self):
+        """Time-based decay should fire after dwell period expires.
+
+        With dwell=30s and interval=60s, we need >30s for dwell,
+        and elapsed/interval determines levels dropped.
+        At 65s: past dwell, elapsed/60 = 1 level → MEDIUM(2) - 1 = LOW.
+        """
+        cfg = TaintDecayConfig(
+            decay_interval_seconds=60.0,
+            min_dwell_seconds=30.0,
+        )
+        state = TaintState()
+        state.apply_taint("search_web", cfg)
+        assert state.level == TaintLevel.MEDIUM
+
+        # 65s ago — past dwell (30s), elapsed/60 = 1 level
+        state.last_taint_event = time.time() - 65
+        result = state.apply_decay(cfg)
+        assert result == TaintLevel.LOW
+
+    def test_op_decay_blocked_during_dwell(self):
+        """Op-based decay should not fire within dwell period."""
+        cfg = TaintDecayConfig(
+            clean_ops_per_decay=5,
+            min_dwell_seconds=30.0,
+        )
+        state = TaintState()
+        state.apply_taint("search_web", cfg)
+
+        # Spam 20 clean ops immediately — dwell blocks all decay
+        for _ in range(20):
+            state.apply_clean_op(cfg)
+        assert state.level == TaintLevel.MEDIUM  # No decay despite 20 ops
+
+    def test_op_decay_allowed_after_dwell(self):
+        """Op-based decay fires after dwell period."""
+        cfg = TaintDecayConfig(
+            clean_ops_per_decay=5,
+            min_dwell_seconds=30.0,
+        )
+        state = TaintState()
+        state.apply_taint("search_web", cfg)
+
+        # Move past dwell
+        state.last_taint_event = time.time() - 31
+
+        # Now clean ops should work
+        for _ in range(5):
+            state.apply_clean_op(cfg)
+        assert state.level == TaintLevel.LOW
+
+    def test_ops_still_counted_during_dwell(self):
+        """Clean ops are counted during dwell, even though they don't trigger decay."""
+        cfg = TaintDecayConfig(
+            clean_ops_per_decay=5,
+            min_dwell_seconds=30.0,
+        )
+        state = TaintState()
+        state.apply_taint("search_web", cfg)
+
+        # 3 ops during dwell
+        for _ in range(3):
+            state.apply_clean_op(cfg)
+        assert state.clean_ops_since_taint == 3
+
+    def test_dwell_zero_disables(self):
+        """min_dwell_seconds=0 should disable the dwell check (backwards compat)."""
+        cfg = TaintDecayConfig(
+            clean_ops_per_decay=5,
+            min_dwell_seconds=0.0,
+        )
+        state = TaintState()
+        state.apply_taint("search_web", cfg)
+
+        for _ in range(5):
+            state.apply_clean_op(cfg)
+        assert state.level == TaintLevel.LOW  # Immediate decay allowed
+
+
+class TestTaintWashAttack:
+    """P2-8: Proves the taint wash attack is defeated."""
+
+    def test_40_rapid_ops_no_longer_clears_taint(self):
+        """The original attack: 40 clean ops in rapid succession.
+
+        Before P2-8: 40 ops / 10 per level = 4 levels of decay → NONE
+        After P2-8: Dwell time blocks ALL op-based decay during first 30s.
+        """
+        cfg = TaintDecayConfig()  # Use defaults (P2-8 values)
+        state = TaintState()
+
+        # Taint to CRITICAL
+        state.apply_taint("search_web", cfg)
+        state.last_taint_event = time.time() - cfg.retaint_cooldown_seconds - 1
+        state.apply_taint("fetch_url", cfg)
+        state.last_taint_event = time.time() - cfg.retaint_cooldown_seconds - 1
+        state.apply_taint("read_email", cfg)
+        assert state.level == TaintLevel.CRITICAL
+
+        # Attacker fires 100 rapid clean ops
+        for _ in range(100):
+            state.apply_clean_op(cfg)
+
+        # Taint should NOT have decayed — dwell time blocks it
+        assert state.level == TaintLevel.CRITICAL
+
+    def test_4_minutes_wait_does_clear_critical(self):
+        """Legitimate decay: 4+ minutes from CRITICAL should clear.
+
+        CRITICAL=4, decay_interval=120s, dwell=30s
+        Need 4 * 120s = 480s (8 minutes) for full time-based decay.
+        """
+        cfg = TaintDecayConfig()  # P2-8 defaults
+        state = TaintState()
+
+        state.level = TaintLevel.CRITICAL
+        state.last_taint_event = time.time() - 500  # 500s ago (past dwell + 4 intervals)
+        result = state.apply_decay(cfg)
+        assert result == TaintLevel.NONE
+
+    def test_120s_from_high_drops_one_level(self):
+        """With P2-8 defaults: 120s interval drops HIGH to MEDIUM."""
+        cfg = TaintDecayConfig()  # P2-8 defaults
+        state = TaintState()
+        state.level = TaintLevel.HIGH
+        state.last_taint_event = time.time() - 130  # Past dwell (30) and interval (120)
+
+        result = state.apply_decay(cfg)
+        assert result == TaintLevel.MEDIUM

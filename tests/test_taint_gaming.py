@@ -36,13 +36,14 @@ from unwind.enforcement.taint_decay import (
 
 @pytest.fixture
 def config():
-    """Standard config matching production defaults."""
+    """Standard config matching pre-P2-8 defaults (dwell=0 for compat)."""
     return TaintDecayConfig(
         decay_interval_seconds=60.0,
         clean_ops_per_decay=10,
         retaint_cooldown_seconds=5.0,
         single_event_max=TaintLevel.HIGH,
         amber_threshold=TaintLevel.HIGH,
+        min_dwell_seconds=0.0,
     )
 
 
@@ -55,6 +56,7 @@ def fast_config():
         retaint_cooldown_seconds=0.1,
         single_event_max=TaintLevel.HIGH,
         amber_threshold=TaintLevel.HIGH,
+        min_dwell_seconds=0.0,
     )
 
 
