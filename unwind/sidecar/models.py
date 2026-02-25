@@ -134,6 +134,41 @@ class HealthResponse:
 
 
 # ---------------------------------------------------------------------------
+# Ghost Mode (P3-10)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class GhostStatusResponse:
+    """Ghost mode shadow VFS status."""
+    ghost_mode: bool = False
+    files_buffered: int = 0
+    paths: list = field(default_factory=list)
+    total_size_bytes: int = 0
+
+    def to_wire(self) -> dict:
+        return {
+            "ghostMode": self.ghost_mode,
+            "filesBuffered": self.files_buffered,
+            "paths": self.paths,
+            "totalSizeBytes": self.total_size_bytes,
+        }
+
+
+@dataclass
+class GhostActionResponse:
+    """Response for ghost approve/discard actions."""
+    status: str  # "approved", "discarded"
+    files_count: int = 0
+    errors: list = field(default_factory=list)
+
+    def to_wire(self) -> dict:
+        result: dict = {"status": self.status, "filesCount": self.files_count}
+        if self.errors:
+            result["errors"] = self.errors
+        return result
+
+
+# ---------------------------------------------------------------------------
 # Error
 # ---------------------------------------------------------------------------
 
