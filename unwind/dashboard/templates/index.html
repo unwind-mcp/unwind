@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UNWIND — Trust Dashboard</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface-2: #1c2128;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-dim: #8b949e;
+      --green: #3fb950;
+      --green-bg: rgba(63,185,80,0.12);
+      --amber: #d29922;
+      --amber-bg: rgba(210,153,34,0.12);
+      --red: #f85149;
+      --red-bg: rgba(248,81,73,0.12);
+      --blue: #58a6ff;
+      --purple: #bc8cff;
+      --ghost: #8957e5;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    /* ─── Header ───────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 2px;
+    }
+    .header h1 span { color: var(--text-dim); font-weight: 400; font-size: 13px; letter-spacing: 0; margin-left: 12px; }
+
+    /* ─── Trust Light ──────────────────────────── */
+    .trust-light {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .trust-orb {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      transition: all 0.6s ease;
+    }
+    .trust-orb.green {
+      background: var(--green);
+      box-shadow: 0 0 20px rgba(63,185,80,0.5), 0 0 60px rgba(63,185,80,0.2);
+    }
+    .trust-orb.amber {
+      background: var(--amber);
+      box-shadow: 0 0 20px rgba(210,153,34,0.5), 0 0 60px rgba(210,153,34,0.2);
+      animation: pulse-amber 2s ease-in-out infinite;
+    }
+    .trust-orb.red {
+      background: var(--red);
+      box-shadow: 0 0 20px rgba(248,81,73,0.5), 0 0 60px rgba(248,81,73,0.2);
+      animation: pulse-red 1s ease-in-out infinite;
+    }
+    @keyframes pulse-amber { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    @keyframes pulse-red { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+    .trust-info h2 { font-size: 20px; font-weight: 600; }
+    .trust-info .subtitle { color: var(--text-dim); font-size: 13px; }
+    .trust-stats {
+      margin-left: auto;
+      display: flex;
+      gap: 24px;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* ─── Tab Bar ──────────────────────────────── */
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      padding: 0 24px;
+    }
+    .tab {
+      padding: 10px 16px;
+      font-size: 13px;
+      color: var(--text-dim);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--text); border-bottom-color: var(--blue); }
+
+    /* ─── Content ──────────────────────────────── */
+    .content { max-width: 960px; margin: 0 auto; padding: 16px 24px; }
+
+    /* ─── Timeline ─────────────────────────────── */
+    .timeline-event {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 2px;
+      transition: background 0.15s;
+    }
+    .timeline-event:hover { background: var(--surface-2); }
+    .timeline-event.ghost { opacity: 0.7; border-left: 3px solid var(--ghost); }
+    .timeline-event.blocked { border-left: 3px solid var(--red); }
+    .timeline-event.tainted { border-left: 3px solid var(--amber); }
+
+    .event-time {
+      font-size: 12px;
+      color: var(--text-dim);
+      min-width: 50px;
+      font-variant-numeric: tabular-nums;
+      padding-top: 2px;
+    }
+    .event-icon { font-size: 16px; min-width: 24px; text-align: center; padding-top: 1px; }
+    .event-body { flex: 1; min-width: 0; }
+    .event-tool { font-size: 13px; font-weight: 600; }
+    .event-target {
+      font-size: 12px;
+      color: var(--text-dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .event-badges { display: flex; gap: 6px; margin-top: 3px; }
+    .badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge.green { background: var(--green-bg); color: var(--green); }
+    .badge.amber { background: var(--amber-bg); color: var(--amber); }
+    .badge.red { background: var(--red-bg); color: var(--red); }
+    .badge.ghost { background: rgba(137,87,229,0.15); color: var(--ghost); }
+
+    .event-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .undo-btn {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .undo-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--blue); }
+
+    .status-icon { font-size: 14px; min-width: 20px; text-align: center; }
+
+    /* ─── Away Mode Panel ──────────────────────── */
+    .away-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .away-panel h3 { margin-bottom: 12px; font-size: 16px; }
+    .away-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .away-stat {
+      background: var(--surface-2);
+      border-radius: 6px;
+      padding: 12px;
+      text-align: center;
+    }
+    .away-stat .val { font-size: 24px; font-weight: 700; }
+    .away-stat .lbl { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .review-item {
+      background: var(--red-bg);
+      border: 1px solid rgba(248,81,73,0.3);
+      border-radius: 6px;
+      padding: 12px;
+      margin: 8px 0;
+      font-size: 13px;
+    }
+    .review-item .ri-tool { font-weight: 600; }
+    .review-item .ri-reason { color: var(--text-dim); margin-top: 4px; }
+
+    /* ─── Chain Verification ───────────────────── */
+    .verify-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      text-align: center;
+    }
+    .verify-result { font-size: 48px; margin: 16px 0; }
+    .verify-text { font-size: 14px; }
+
+    /* ─── Empty State ──────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 48px;
+      color: var(--text-dim);
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+    /* ─── Loading ──────────────────────────────── */
+    .loading { text-align: center; padding: 32px; color: var(--text-dim); }
+
+    /* ─── Utility ──────────────────────────────── */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>UNWIND <span>See Everything. Undo Anything. Test Anything Safely.</span></h1>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span id="chain-badge" class="badge green" style="font-size:11px;cursor:pointer;" onclick="verifyChain()" title="Click to verify">&#x1f512; Chain OK</span>
+      <span id="poll-indicator" style="font-size:10px;color:var(--text-dim);">&#x25cf; Live</span>
+    </div>
+  </div>
+
+  <!-- Trust Light -->
+  <div class="trust-light">
+    <div id="trust-orb" class="trust-orb green"></div>
+    <div class="trust-info">
+      <h2 id="trust-label">All Clear</h2>
+      <div class="subtitle" id="trust-subtitle">Loading...</div>
+    </div>
+    <div class="trust-stats">
+      <div class="stat">
+        <div class="stat-value" id="stat-total">—</div>
+        <div class="stat-label">Actions</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="stat-blocked">—</div>
+        <div class="stat-label">Blocked</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="stat-ghost">—</div>
+        <div class="stat-label">Ghost</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="stat-tainted">—</div>
+        <div class="stat-label">Tainted</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <div class="tab active" data-tab="timeline" onclick="switchTab('timeline')">Timeline</div>
+    <div class="tab" data-tab="away" onclick="switchTab('away')">Away Mode</div>
+    <div class="tab" data-tab="verify" onclick="switchTab('verify')">Chain Verify</div>
+  </div>
+
+  <!-- Content Panels -->
+  <div class="content">
+    <!-- Timeline -->
+    <div id="panel-timeline">
+      <div id="timeline-container" class="loading">Loading events...</div>
+    </div>
+
+    <!-- Away Mode -->
+    <div id="panel-away" class="hidden">
+      <div id="away-container" class="loading">Generating summary...</div>
+    </div>
+
+    <!-- Chain Verify -->
+    <div id="panel-verify" class="hidden">
+      <div class="verify-panel">
+        <div class="verify-result" id="verify-icon">&#x1f512;</div>
+        <div class="verify-text" id="verify-text">Click to verify CR-AFT hash chain integrity</div>
+        <button class="undo-btn" style="margin-top:16px;padding:8px 20px;font-size:13px;" onclick="verifyChain()">Verify Now</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ─── State ────────────────────────────────────
+  let pollTimer = null;
+  const POLL_INTERVAL = 3000; // 3 seconds
+
+  // ─── Tool icons ───────────────────────────────
+  const TOOL_ICONS = {
+    send_email: '&#x1f4e7;', read_email: '&#x1f4e8;',
+    post_message: '&#x1f4ac;', read_slack: '&#x1f4ac;',
+    fs_write: '&#x1f4dd;', fs_read: '&#x1f4c4;', fs_delete: '&#x1f5d1;&#xfe0f;',
+    fs_rename: '&#x1f4c1;', fs_mkdir: '&#x1f4c1;',
+    fetch_web: '&#x1f310;', search_web: '&#x1f50d;', http_post: '&#x1f310;',
+    bash_exec: '&#x1f4bb;',
+    create_calendar_event: '&#x1f4c5;', modify_calendar_event: '&#x1f4c5;',
+    upload_file: '&#x2b06;&#xfe0f;', api_call: '&#x26a1;',
+    disable_security_audit: '&#x1f6a8;', extract_system_keys: '&#x1f6a8;',
+    grant_admin_access: '&#x1f6a8;', override_safety_limits: '&#x1f6a8;',
+  };
+
+  const STATUS_ICONS = {
+    success: '&#x2705;',
+    blocked: '&#x1f6d1;',
+    ghost_success: '&#x1f47b;',
+    pending: '&#x23f3;',
+    error: '&#x274c;',
+    red_alert: '&#x1f6a8;',
+  };
+
+  const TRUST_LABELS = {
+    green: 'All Clear',
+    amber: 'Attention Required',
+    red: 'Alert',
+  };
+
+  // ─── API Helpers ──────────────────────────────
+  async function api(path) {
+    const res = await fetch(path);
+    return res.json();
+  }
+
+  async function apiPost(path, body = {}) {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  }
+
+  // ─── Trust State ──────────────────────────────
+  async function refreshTrustState() {
+    try {
+      const data = await api('/api/trust-state');
+      const orb = document.getElementById('trust-orb');
+      const label = document.getElementById('trust-label');
+      const subtitle = document.getElementById('trust-subtitle');
+
+      orb.className = 'trust-orb ' + data.trust_state;
+      label.textContent = TRUST_LABELS[data.trust_state] || data.trust_state;
+
+      const h = data.last_hour;
+      subtitle.textContent =
+        `${h.total} actions in the last hour` +
+        (h.blocked > 0 ? ` \u2022 ${h.blocked} blocked` : '') +
+        (h.tainted > 0 ? ` \u2022 ${h.tainted} tainted` : '');
+
+      document.getElementById('stat-total').textContent = h.total;
+      document.getElementById('stat-blocked').textContent = h.blocked;
+      document.getElementById('stat-ghost').textContent = h.ghost;
+      document.getElementById('stat-tainted').textContent = h.tainted;
+    } catch (e) {
+      console.error('Trust state fetch failed:', e);
+    }
+  }
+
+  // ─── Timeline ─────────────────────────────────
+  function formatTime(ts) {
+    const d = new Date(ts * 1000);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function truncTarget(target, max = 60) {
+    if (!target) return '';
+    return target.length > max ? '...' + target.slice(-max + 3) : target;
+  }
+
+  function renderEvent(event) {
+    const icon = TOOL_ICONS[event.tool] || '&#x2022;';
+    const statusIcon = STATUS_ICONS[event.status] || '';
+    const classes = ['timeline-event'];
+    if (event.ghost_mode) classes.push('ghost');
+    if (event.status === 'blocked' || event.trust_state === 'red') classes.push('blocked');
+    if (event.session_tainted) classes.push('tainted');
+
+    const badges = [];
+    if (event.trust_state === 'amber') badges.push('<span class="badge amber">amber</span>');
+    if (event.trust_state === 'red') badges.push('<span class="badge red">red</span>');
+    if (event.ghost_mode) badges.push('<span class="badge ghost">ghost</span>');
+    if (event.status === 'blocked') badges.push('<span class="badge red">blocked</span>');
+
+    const hasSnapshot = event.tool_class === 'actuator' && event.status === 'success';
+
+    return `
+      <div class="${classes.join(' ')}">
+        <div class="event-time">${formatTime(event.timestamp)}</div>
+        <div class="event-icon">${icon}</div>
+        <div class="event-body">
+          <div class="event-tool">${event.tool}</div>
+          <div class="event-target" title="${event.target || ''}">${truncTarget(event.target)}</div>
+          ${event.result_summary ? `<div class="event-target">${truncTarget(event.result_summary, 80)}</div>` : ''}
+          <div class="event-badges">${badges.join('')}</div>
+        </div>
+        <div class="event-actions">
+          ${hasSnapshot ? `<button class="undo-btn" onclick="undoEvent('${event.event_id}')">&#x21a9;&#xfe0f; Undo</button>` : ''}
+        </div>
+        <div class="status-icon">${statusIcon}</div>
+      </div>
+    `;
+  }
+
+  async function refreshTimeline() {
+    try {
+      const data = await api('/api/events?limit=100');
+      const container = document.getElementById('timeline-container');
+
+      if (data.events.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon">&#x1f6e1;&#xfe0f;</div>
+            <div>No events recorded yet.</div>
+            <div style="margin-top:8px;font-size:13px;">Events will appear here when the agent starts working.</div>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = data.events.map(renderEvent).join('');
+    } catch (e) {
+      console.error('Timeline fetch failed:', e);
+    }
+  }
+
+  // ─── Away Mode ────────────────────────────────
+  async function refreshAway() {
+    try {
+      const data = await api('/api/away-summary');
+      const container = document.getElementById('away-container');
+
+      const trustColors = { green: 'var(--green)', amber: 'var(--amber)', red: 'var(--red)' };
+
+      let reviewHtml = '';
+      if (data.review_items && data.review_items.length > 0) {
+        reviewHtml = `
+          <h4 style="margin-top:16px;color:var(--amber);">&#x26a0;&#xfe0f; ${data.review_items.length} item(s) for your review:</h4>
+          ${data.review_items.map(item => `
+            <div class="review-item">
+              <div class="ri-tool">${TOOL_ICONS[item.tool] || ''} ${item.tool} &rarr; ${truncTarget(item.target, 50)}</div>
+              <div class="ri-reason">${item.reason}</div>
+            </div>
+          `).join('')}
+        `;
+      }
+
+      container.innerHTML = `
+        <div class="away-panel">
+          <h3>Welcome back! While you were away (${data.duration_human}):</h3>
+          <div style="margin:12px 0;">
+            <span style="font-size:20px;color:${trustColors[data.trust_state] || trustColors.green};">&#x25cf;</span>
+            <strong>Trust State: ${TRUST_LABELS[data.trust_state] || data.trust_state}</strong>
+          </div>
+          <div class="away-grid">
+            <div class="away-stat"><div class="val">${data.total_actions}</div><div class="lbl">Total Actions</div></div>
+            <div class="away-stat"><div class="val">${data.emails_sent}</div><div class="lbl">Emails Sent</div></div>
+            <div class="away-stat"><div class="val">${data.messages_sent}</div><div class="lbl">Messages</div></div>
+            <div class="away-stat"><div class="val">${data.files_modified + data.files_created}</div><div class="lbl">Files Changed</div></div>
+            <div class="away-stat"><div class="val">${data.calendar_events}</div><div class="lbl">Calendar</div></div>
+            <div class="away-stat"><div class="val">${data.web_searches}</div><div class="lbl">Searches</div></div>
+            <div class="away-stat"><div class="val" style="color:var(--red);">${data.blocked_actions}</div><div class="lbl">Blocked</div></div>
+            <div class="away-stat"><div class="val">${data.undoable_count}</div><div class="lbl">Undoable</div></div>
+          </div>
+          ${reviewHtml}
+          ${data.high_risk_events && data.high_risk_events.length > 0 ? `
+            <div style="margin-top:12px;font-size:13px;color:var(--text-dim);">
+              ${data.high_risk_events.length} high-risk event(s) logged.
+              <a href="#" onclick="switchTab('timeline');return false;" style="color:var(--blue);">View Full Timeline</a>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    } catch (e) {
+      console.error('Away summary fetch failed:', e);
+    }
+  }
+
+  // ─── Chain Verify ─────────────────────────────
+  async function verifyChain() {
+    const icon = document.getElementById('verify-icon');
+    const text = document.getElementById('verify-text');
+    const badge = document.getElementById('chain-badge');
+
+    icon.innerHTML = '&#x23f3;';
+    text.textContent = 'Verifying...';
+
+    try {
+      const data = await api('/api/verify');
+      if (data.valid) {
+        icon.innerHTML = '&#x2705;';
+        text.textContent = 'CR-AFT hash chain is intact. No tampering detected.';
+        badge.className = 'badge green';
+        badge.innerHTML = '&#x1f512; Chain OK';
+      } else {
+        icon.innerHTML = '&#x274c;';
+        text.textContent = 'Chain integrity violation: ' + (data.error || 'Unknown error');
+        badge.className = 'badge red';
+        badge.innerHTML = '&#x1f513; Chain Broken';
+      }
+    } catch (e) {
+      icon.innerHTML = '&#x274c;';
+      text.textContent = 'Verification failed: ' + e.message;
+    }
+  }
+
+  // ─── Undo ─────────────────────────────────────
+  async function undoEvent(eventId) {
+    if (!confirm(`Undo event ${eventId}?`)) return;
+    try {
+      const result = await apiPost(`/api/undo/${eventId}`);
+      if (result.status === 'success') {
+        alert(`Restored: ${result.message}`);
+        refreshTimeline();
+      } else {
+        alert(`Undo failed: ${result.message}`);
+      }
+    } catch (e) {
+      alert('Undo error: ' + e.message);
+    }
+  }
+
+  // ─── Tab Switching ────────────────────────────
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    document.getElementById('panel-timeline').classList.toggle('hidden', tab !== 'timeline');
+    document.getElementById('panel-away').classList.toggle('hidden', tab !== 'away');
+    document.getElementById('panel-verify').classList.toggle('hidden', tab !== 'verify');
+
+    if (tab === 'away') refreshAway();
+    if (tab === 'verify') verifyChain();
+  }
+
+  // ─── Polling ──────────────────────────────────
+  function startPolling() {
+    refreshTrustState();
+    refreshTimeline();
+    pollTimer = setInterval(() => {
+      refreshTrustState();
+      refreshTimeline();
+    }, POLL_INTERVAL);
+  }
+
+  // ─── Init ─────────────────────────────────────
+  startPolling();
+</script>
+</body>
+</html>

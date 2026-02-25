@@ -1,0 +1,112 @@
+openapi: 3.1.0
+info:
+  title: UNWIND Sidecar API
+  version: 1.0.0
+  summary: HTTP contract between OpenClaw TypeScript plugin and Python UNWIND sidecar.
+  description: |
+    Fail-closed rule: If plugin does not receive valid /policy/check response within timeout, MUST block.
+    API versioning: URL prefix /v1, header X-UNWIND-API-Version mandatory.
+    Auth: localhost-only, Bearer shared_secret, constant-time validation.
+
+servers:
+  - url: http://127.0.0.1:9100/v1
+
+security:
+  - SidecarBearerAuth: []
+
+paths:
+  /policy/check:
+    post:
+      operationId: policyCheck
+      summary: Evaluate tool call against UNWIND policy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [toolName, params, agentId, sessionKey]
+              properties:
+                toolName: { type: string, minLength: 1, maxLength: 128 }
+                params: { type: object, additionalProperties: true }
+                agentId: { type: string, minLength: 1, maxLength: 128 }
+                sessionKey: { type: string, minLength: 1, maxLength: 256 }
+                requestId: { type: string, format: uuid }
+                timestamp: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Policy decision (allow/block/mutate)
+        '400': { description: Malformed request }
+        '401': { description: Missing/invalid bearer token }
+        '403': { description: Non-loopback caller }
+        '422': { description: Schema validation failed }
+        '429': { description: Rate limited }
+        '500': { description: Internal error }
+        '503': { description: Policy engine not ready }
+
+  /telemetry/event:
+    post:
+      operationId: telemetryEvent
+      summary: Ingest after_tool_call telemetry (best-effort).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [toolName, params, durationMs]
+              properties:
+                toolName: { type: string, minLength: 1, maxLength: 128 }
+                params: { type: object, additionalProperties: true }
+                result: { description: Tool result payload }
+                error: { type: [string, 'null'], maxLength: 8192 }
+                durationMs: { type: integer, minimum: 0, maximum: 3600000 }
+                agentId: { type: string, minLength: 1, maxLength: 128 }
+                sessionKey: { type: string, minLength: 1, maxLength: 256 }
+                eventId: { type: string, format: uuid }
+                timestamp: { type: string, format: date-time }
+      responses:
+        '202': { description: Telemetry accepted }
+
+  /health:
+    get:
+      operationId: health
+      summary: Sidecar liveness and readiness.
+      responses:
+        '200':
+          description: Health payload
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, uptimeMs, engineVersion, lastPolicyCheckTs]
+                properties:
+                  status: { type: string, enum: [up, degraded, down] }
+                  uptimeMs: { type: integer, minimum: 0 }
+                  engineVersion: { type: string }
+                  lastPolicyCheckTs: { type: [string, 'null'], format: date-time }
+
+x-timeout-behavior:
+  policy_check:
+    default_timeout_ms: 500
+    on_timeout: block with SIDECAR_TIMEOUT
+  telemetry_event:
+    default_timeout_ms: 250
+    on_timeout: continue (best-effort)
+  health_check:
+    default_timeout_ms: 250
+    on_timeout: mark_sidecar_down
+
+x-client-status-mapping:
+  policy_check:
+    '200': parse decision
+    '400': block SIDECAR_BAD_REQUEST
+    '401': block SIDECAR_UNAUTHORIZED
+    '403': block SIDECAR_FORBIDDEN
+    '422': block SIDECAR_SCHEMA_INVALID
+    '429': block SIDECAR_RATE_LIMITED
+    '500': block SIDECAR_INTERNAL_ERROR
+    '503': block SIDECAR_UNAVAILABLE
+    default: block SIDECAR_UNEXPECTED_STATUS
