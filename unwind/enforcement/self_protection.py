@@ -106,7 +106,7 @@ class SelfProtectionCheck:
             target: File path target (for fs.* tools)
             command: Shell command string (for bash_exec)
         """
-        if target:
+        if target and "://" not in target:
             result = self.check_path(target)
             if result:
                 return result
