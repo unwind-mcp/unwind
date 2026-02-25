@@ -1,0 +1,217 @@
+{
+  "certificate_id": "R-GO-CERT-001",
+  "started_at": "2026-02-22T15:49:36.144336+00:00",
+  "completed_at": "2026-02-22T15:49:36.188330+00:00",
+  "commit_hash": "4eca805bf1517bbb02102d63ea0c7db06127c562",
+  "verdict": "GO",
+  "summary": {
+    "machine_passed": 19,
+    "machine_total": 19,
+    "operational_passed": 6,
+    "operational_total": 6,
+    "total_passed": 25,
+    "total_checks": 25
+  },
+  "checks": [
+    {
+      "gate": "gate_1",
+      "item_id": "G1-01",
+      "description": "Evidence bundle exists and is versioned",
+      "passed": true,
+      "detail": "File: evidence_bundle_preprod.json, SHA256: aa31709f38109e68...",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_1",
+      "item_id": "G1-02",
+      "description": "Strict switch matrix verification included (R-STRICT-001)",
+      "passed": true,
+      "detail": "Referenced in specs_received: True",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_1",
+      "item_id": "G1-03",
+      "description": "Telemetry + budget idempotency reason codes present",
+      "passed": true,
+      "detail": "All 3 codes in enforcement codebase: True",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_1",
+      "item_id": "G1-04",
+      "description": "All drill reports present and passing",
+      "passed": true,
+      "detail": "drill_report_rollback.json: PASS (46/46); drill_report_breakglass.json: PASS (45/45); drill_report_key_rotation.json: PASS (40/40)",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_1",
+      "item_id": "G1-05",
+      "description": "Config hashes and commit hash present",
+      "passed": true,
+      "detail": "Config hashes: 21 files, commit: 4eca805bf1517bbb02102d63ea0c7db06127c562",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_1",
+      "item_id": "G1-06",
+      "description": "All referenced tests pass",
+      "passed": true,
+      "detail": "932/932 passed",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_2",
+      "item_id": "G2-01",
+      "description": "Breakglass callback wired to SOC/PagerDuty",
+      "passed": true,
+      "detail": "Confirmed by SENTINEL/owner",
+      "type": "operational"
+    },
+    {
+      "gate": "gate_2",
+      "item_id": "G2-02",
+      "description": "24h post-incident review runbook active",
+      "passed": true,
+      "detail": "Confirmed by SENTINEL/owner",
+      "type": "operational"
+    },
+    {
+      "gate": "gate_2",
+      "item_id": "G2-03",
+      "description": "On-call acknowledges alert routing",
+      "passed": true,
+      "detail": "Confirmed by SENTINEL/owner",
+      "type": "operational"
+    },
+    {
+      "gate": "gate_2",
+      "item_id": "G2-04",
+      "description": "Drill artifact retention documented",
+      "passed": true,
+      "detail": "Confirmed by SENTINEL/owner",
+      "type": "operational"
+    },
+    {
+      "gate": "gate_3",
+      "item_id": "G3-01",
+      "description": "strict.enabled=true",
+      "passed": true,
+      "detail": "Pipeline strict=True",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_3",
+      "item_id": "G3-02",
+      "description": "digest_provider required in strict mode",
+      "passed": true,
+      "detail": "DIGEST_PROVIDER_MISSING block path present",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_3",
+      "item_id": "G3-03",
+      "description": "digest_provider on_error=fail_closed",
+      "passed": true,
+      "detail": "DIGEST_PROVIDER_ERROR block path present",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_3",
+      "item_id": "G3-04",
+      "description": "require_all_legs enforced in strict mode",
+      "passed": true,
+      "detail": "TRUST_LEG_MISSING block path + require_all_legs flag",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_3",
+      "item_id": "G3-05",
+      "description": "Lockfile HMAC required + reject fallback key in strict",
+      "passed": true,
+      "detail": "HMAC compute/verify: True, reject fallback: True",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_3",
+      "item_id": "G3-06",
+      "description": "Supply chain verifier required (non-overridable)",
+      "passed": true,
+      "detail": "NON-OVERRIDABLE annotation present",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_3",
+      "item_id": "G3-07",
+      "description": "Key store HMAC integrity verification",
+      "passed": true,
+      "detail": "HMAC sidecar + tamper detection present",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_3",
+      "item_id": "G3-08",
+      "description": "TOFU disabled in production (breakglass-only)",
+      "passed": true,
+      "detail": "tofu_on_first_use is a breakglass override flag, not default",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_3",
+      "item_id": "G3-09",
+      "description": "Breakglass default disabled (no active tokens)",
+      "passed": true,
+      "detail": "Active tokens at startup: 0",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_3",
+      "item_id": "G3-10",
+      "description": "Config integrity NO_DRIFT",
+      "passed": true,
+      "detail": "NO_DRIFT",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_4",
+      "item_id": "G4-01",
+      "description": "Canary scope defined",
+      "passed": true,
+      "detail": "Confirmed by SENTINEL/owner",
+      "type": "operational"
+    },
+    {
+      "gate": "gate_4",
+      "item_id": "G4-02",
+      "description": "Abort criteria with thresholds",
+      "passed": true,
+      "detail": "Confirmed by SENTINEL/owner",
+      "type": "operational"
+    },
+    {
+      "gate": "gate_4",
+      "item_id": "G4-03",
+      "description": "Rollback dry-run hash match",
+      "passed": true,
+      "detail": "Rollback drill verdict: PASS",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_4",
+      "item_id": "G4-04",
+      "description": "Trust-gate behavior verified (no unexpected ALLOW on high-risk paths)",
+      "passed": true,
+      "detail": "All 3 drills PASS: True",
+      "type": "machine"
+    },
+    {
+      "gate": "gate_4",
+      "item_id": "G4-05",
+      "description": "Post-canary state clean (no active breakglass)",
+      "passed": true,
+      "detail": "Active tokens: 0, active overrides: 0",
+      "type": "machine"
+    }
+  ]
+}

@@ -1,0 +1,396 @@
+{
+  "drill": "key_rotation_drill",
+  "spec": "SENTINEL pre-prod punch list #5",
+  "timestamp": "2026-02-22T15:25:35.707821+00:00",
+  "elapsed_seconds": 0.032,
+  "total_checks": 40,
+  "passed": 40,
+  "failed": 0,
+  "verdict": "PASS",
+  "steps": [
+    {
+      "description": "[A] Initial: 2/2 tools ALLOW with key-old",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.699631+00:00"
+    },
+    {
+      "description": "[A] key-old still ACTIVE during overlap",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.699691+00:00"
+    },
+    {
+      "description": "[A] key-new is ACTIVE",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.699693+00:00"
+    },
+    {
+      "description": "[A] Overlap: old-signed lockfile still works (2/2)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.699953+00:00"
+    },
+    {
+      "description": "[A] Migration: new-signed lockfile works (2/2)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.700283+00:00"
+    },
+    {
+      "description": "[A] Provider now signed with key-new (verdict=valid)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.700369+00:00"
+    },
+    {
+      "description": "[A] key-old deprecated",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.700456+00:00"
+    },
+    {
+      "description": "[A] key-old state is DEPRECATED",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.700459+00:00"
+    },
+    {
+      "description": "[A] key-old has deprecated_at timestamp",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.700461+00:00"
+    },
+    {
+      "description": "[A] Deprecated key still verifies old signatures",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.700556+00:00"
+    },
+    {
+      "description": "[A] key-old revoked",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.700590+00:00"
+    },
+    {
+      "description": "[A] key-old state is REVOKED",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.700592+00:00"
+    },
+    {
+      "description": "[A] key-old has revoked_at timestamp",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.700594+00:00"
+    },
+    {
+      "description": "[A] Revoked key fails: key_revoked",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.700600+00:00"
+    },
+    {
+      "description": "[A] Post-revoke: new-signed lockfile still works (2/2)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.700862+00:00"
+    },
+    {
+      "description": "[A] Zero SIGNATURE_INVALID events during rotation (got 0)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.700871+00:00"
+    },
+    {
+      "description": "[A] Exactly 1 active key remaining",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.700876+00:00"
+    },
+    {
+      "description": "[A] Exactly 1 revoked key",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.700878+00:00"
+    },
+    {
+      "description": "[B] Pre-revoke: 2/2 tools ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.701591+00:00"
+    },
+    {
+      "description": "[B] key-compromised revoked",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.701629+00:00"
+    },
+    {
+      "description": "[B] Revoke propagation latency: 0.0000s (< 1s target)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.701632+00:00"
+    },
+    {
+      "description": "[B] Post-revoke: 2/2 tools BLOCKED",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.701805+00:00"
+    },
+    {
+      "description": "[B] Telemetry: 2 SIGNATURE_INVALID events",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.701809+00:00"
+    },
+    {
+      "description": "[B] Zero TRUSTED events after revocation",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.701812+00:00"
+    },
+    {
+      "description": "[B] Key state is REVOKED",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.701816+00:00"
+    },
+    {
+      "description": "[B] revoked_at timestamp present",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.701818+00:00"
+    },
+    {
+      "description": "[C1] Pre-revoke: 5/5 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.703787+00:00"
+    },
+    {
+      "description": "[C1] Post-revoke: 5/5 BLOCKED",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.703793+00:00"
+    },
+    {
+      "description": "[C2] Cache warmed: 2/2 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.704482+00:00"
+    },
+    {
+      "description": "[C2] Stale cache: 2/2 ALLOW (expected \u2014 cache not cleared)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.704846+00:00"
+    },
+    {
+      "description": "[C2] After cache clear: 0/2 BLOCKED (fail closed)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.704849+00:00"
+    },
+    {
+      "description": "[C2] OPERATIONAL NOTE: clear_cache() MUST be called after revocation",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.704852+00:00"
+    },
+    {
+      "description": "[C3] key-A signed lockfile: 2/2 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.705538+00:00"
+    },
+    {
+      "description": "[C3] key-B signed lockfile: 2/2 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.705839+00:00"
+    },
+    {
+      "description": "[C3] key-A deprecated, still verifies: 2/2 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.706127+00:00"
+    },
+    {
+      "description": "[C3] key-A revoked, fails: 0/2 BLOCKED",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.706342+00:00"
+    },
+    {
+      "description": "[C3] key-B still works: 2/2 ALLOW",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.706588+00:00"
+    },
+    {
+      "description": "[C4] Initial: key-good works (2/2)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.707259+00:00"
+    },
+    {
+      "description": "[C4] Rollback: deprecated key-good still verifies (2/2)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.707562+00:00"
+    },
+    {
+      "description": "[C4] Restored: key-good active again (2/2)",
+      "status": "PASS",
+      "timestamp": "2026-02-22T15:25:35.707791+00:00"
+    }
+  ],
+  "timeline": [
+    {
+      "timestamp": "2026-02-22T15:25:35.676145+00:00",
+      "elapsed_s": 0.0,
+      "event": "DRILL_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.676972+00:00",
+      "elapsed_s": 0.001,
+      "event": "A_INITIAL"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.699643+00:00",
+      "elapsed_s": 0.024,
+      "event": "A_OVERLAP_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.699957+00:00",
+      "elapsed_s": 0.024,
+      "event": "A_MIGRATION"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.700373+00:00",
+      "elapsed_s": 0.024,
+      "event": "A_DEPRECATE_OLD"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.700560+00:00",
+      "elapsed_s": 0.025,
+      "event": "A_REVOKE_OLD"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.700865+00:00",
+      "elapsed_s": 0.025,
+      "event": "A_VERIFICATION"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.700879+00:00",
+      "elapsed_s": 0.025,
+      "event": "A_COMPLETE"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.701213+00:00",
+      "elapsed_s": 0.025,
+      "event": "B_SETUP"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.701595+00:00",
+      "elapsed_s": 0.026,
+      "event": "B_REVOKE_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.701636+00:00",
+      "elapsed_s": 0.026,
+      "event": "B_REVOKE_COMPLETE",
+      "detail": "latency=0.0000s"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.701639+00:00",
+      "elapsed_s": 0.026,
+      "event": "B_VERIFY_BLOCKED"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.701814+00:00",
+      "elapsed_s": 0.026,
+      "event": "B_AUDIT"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.701820+00:00",
+      "elapsed_s": 0.026,
+      "event": "B_COMPLETE"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.701831+00:00",
+      "elapsed_s": 0.026,
+      "event": "C1_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.703795+00:00",
+      "elapsed_s": 0.028,
+      "event": "C1_COMPLETE"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.703801+00:00",
+      "elapsed_s": 0.028,
+      "event": "C2_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.704853+00:00",
+      "elapsed_s": 0.029,
+      "event": "C2_COMPLETE"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.704857+00:00",
+      "elapsed_s": 0.029,
+      "event": "C3_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.706591+00:00",
+      "elapsed_s": 0.031,
+      "event": "C3_COMPLETE"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.706595+00:00",
+      "elapsed_s": 0.031,
+      "event": "C4_START"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.707794+00:00",
+      "elapsed_s": 0.032,
+      "event": "C4_COMPLETE"
+    },
+    {
+      "timestamp": "2026-02-22T15:25:35.707818+00:00",
+      "elapsed_s": 0.032,
+      "event": "DRILL_COMPLETE"
+    }
+  ],
+  "scenarios": {
+    "A": {
+      "scenario": "A_ROUTINE_ROTATION",
+      "key_transitions": [
+        {
+          "key": "key-old",
+          "state": "active",
+          "ts": "2026-02-22T15:25:35.699640+00:00"
+        },
+        {
+          "key": "key-new",
+          "state": "active",
+          "ts": "2026-02-22T15:25:35.699955+00:00"
+        },
+        {
+          "key": "key-old",
+          "state": "deprecated",
+          "ts": "2026-02-22T15:25:35.700462+00:00"
+        },
+        {
+          "key": "key-old",
+          "state": "revoked",
+          "ts": "2026-02-22T15:25:35.700596+00:00"
+        }
+      ],
+      "telemetry_summary": {
+        "total_events": 8,
+        "by_type": {
+          "trust_gate_trusted": 8
+        }
+      },
+      "key_store_summary": {
+        "total": 2,
+        "by_state": {
+          "revoked": 1,
+          "active": 1
+        }
+      }
+    },
+    "B": {
+      "scenario": "B_EMERGENCY_REVOCATION",
+      "revoke_latency_s": 0.0,
+      "telemetry_summary": {
+        "total_events": 4,
+        "by_type": {
+          "trust_gate_trusted": 2,
+          "trust_gate_signature_invalid": 2
+        }
+      },
+      "key_store_summary": {
+        "total": 1,
+        "by_state": {
+          "revoked": 1
+        }
+      }
+    },
+    "C": {
+      "scenario": "C_REQUIRED_DRILL_SET",
+      "drills": [
+        "c1_revoke_under_load",
+        "c2_stale_cache",
+        "c3_overlap",
+        "c4_rollback"
+      ]
+    }
+  }
+}
