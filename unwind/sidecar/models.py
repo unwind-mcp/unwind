@@ -113,6 +113,9 @@ class HealthResponse:
     watchdog_stale: bool = False           # True if no policy check within threshold
     watchdog_threshold_ms: int = 0         # Configured threshold
     active_sessions: int = 0              # Number of sessions with recent activity
+    # P0-2: Enforcement-in-path verification
+    mediation_active: bool = False        # True after first successful policy check
+    tool_calls_processed: int = 0         # Count of policy checks processed
 
     def to_wire(self) -> dict:
         result = {
@@ -125,6 +128,8 @@ class HealthResponse:
             result["watchdogStale"] = True
         result["watchdogThresholdMs"] = self.watchdog_threshold_ms
         result["activeSessions"] = self.active_sessions
+        result["mediationActive"] = self.mediation_active
+        result["toolCallsProcessed"] = self.tool_calls_processed
         return result
 
 
