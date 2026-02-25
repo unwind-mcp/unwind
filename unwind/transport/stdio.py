@@ -666,7 +666,11 @@ class UnwindStdioServer:
             tools = msg.result["tools"]
             self._upstream_tools = tools  # Cache full list for reference
 
-        # Get session permission tier
+        # Get/bind session permission tier
+        # tools/list can arrive before initialize in some clients; ensure
+        # we still bind a stable session id for canary name rotation.
+        if not self._session_id:
+            self._session_id = f"sess_{uuid.uuid4().hex[:12]}"
         session = self.proxy.get_or_create_session(self._session_id)
         tier = session.permission_tier
         extra = session.extra_tools
@@ -680,7 +684,7 @@ class UnwindStdioServer:
         )
 
         # Add canary honeypot definitions (always visible — they're traps)
-        canaries = self.proxy.get_tool_list()
+        canaries = self.proxy.get_tool_list(session_id=session.session_id)
         all_tools = visible_tools + canaries
 
         hidden_count = len(tools) - len(visible_tools)
