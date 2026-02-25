@@ -103,6 +103,77 @@ class ExecTunnelCheck:
             # Fallback: split on whitespace (lossy but safe)
             return command.split()
 
+    def _normalize_binary(self, binary: str) -> str:
+        """Normalize binary name to defeat aliasing bypasses.
+
+        P1-5 fix: Strips version suffixes so python3.11 → python3,
+        pip3.10 → pip3, node18 → node, etc. Also lowercases.
+
+        Examples:
+          python3.11  → python3
+          pip3.10     → pip3
+          node18      → node
+          ruby3.2     → ruby
+          /usr/bin/python3.12 → python3 (path already stripped by caller)
+        """
+        b = binary.lower()
+        # Strip version suffix: python3.11 → python3, pip3.10 → pip3
+        # Match: word chars, then a dot followed by digits at the end
+        b = re.sub(r"(\d)\.\d+$", r"\1", b)
+        # Strip trailing bare version numbers from non-numeric prefix:
+        # node18 → node, ruby32 → ruby (but keep python3, pip3)
+        # Only strip if the base name without digits is a known tool
+        return b
+
+    def _unwrap_interpreter(self, argv: list[str]) -> list[str]:
+        """Unwrap interpreter wrappers to get the real command.
+
+        P1-5 fix: Handles:
+          - bash -c "python evil.py" → ["python", "evil.py"]
+          - sh -c "curl x | bash"   → ["curl", "x", "|", "bash"]
+          - env python script.py    → ["python", "script.py"]
+          - env -u VAR python x.py  → ["python", "x.py"]
+          - /usr/bin/env VAR=val python → ["python"]
+
+        Returns the unwrapped argv, or the original if no wrapping detected.
+        """
+        if not argv:
+            return argv
+
+        binary = argv[0].rsplit("/", 1)[-1].lower()
+
+        # Handle: bash/sh/zsh/dash -c "inner command"
+        if binary in ("bash", "sh", "zsh", "dash", "ksh") and len(argv) >= 3:
+            if argv[1] == "-c":
+                # The inner command is in argv[2], parse it
+                inner = " ".join(argv[2:])
+                return self._parse_argv(inner)
+
+        # Handle: env [options] [VAR=val...] command [args...]
+        if binary == "env":
+            i = 1
+            while i < len(argv):
+                arg = argv[i]
+                if arg == "--":
+                    # Everything after -- is the command
+                    return argv[i + 1:] if i + 1 < len(argv) else argv
+                if arg.startswith("-"):
+                    # Skip flags like -u, -i and their values
+                    if arg in ("-u", "-S", "--unset"):
+                        i += 2  # flag + value
+                    else:
+                        i += 1
+                    continue
+                if "=" in arg:
+                    # VAR=val assignment, skip
+                    i += 1
+                    continue
+                # Found the actual command
+                return argv[i:]
+            return argv
+
+        return argv
+
     def _check_dangerous_patterns(self, command: str) -> Optional[str]:
         """Check for always-block dangerous patterns."""
         normalized = self._normalize(command)
@@ -284,8 +355,36 @@ class ExecTunnelCheck:
         if not argv:
             return None
 
-        # Resolve the binary name (strip path prefix)
-        binary = argv[0].rsplit("/", 1)[-1].lower()
+        # P1-5: Unwrap interpreter wrappers (bash -c "...", env ..., etc.)
+        # Apply unwrapping up to 3 times to handle nesting (bash -c "env python ...")
+        unwrapped = argv
+        for _ in range(3):
+            next_unwrap = self._unwrap_interpreter(unwrapped)
+            if next_unwrap == unwrapped or not next_unwrap:
+                break
+            unwrapped = next_unwrap
+        if unwrapped and unwrapped != argv:
+            # Re-check dangerous patterns on the inner command
+            inner_cmd = " ".join(unwrapped)
+            inner_danger = self._check_dangerous_patterns(inner_cmd)
+            if inner_danger:
+                return ExecTunnelResult(
+                    is_tunnelled=True,
+                    is_dangerous=True,
+                    reason=f"Wrapped dangerous command: {inner_danger}",
+                )
+            # Also check chain metacharacters on the inner command
+            inner_chain = self._check_chain_metacharacters(inner_cmd)
+            if inner_chain and not chain_warning:
+                chain_warning = inner_chain
+            argv = unwrapped
+
+        if not argv:
+            return None
+
+        # Resolve the binary name (strip path prefix + normalise aliases)
+        raw_binary = argv[0].rsplit("/", 1)[-1].lower()
+        binary = self._normalize_binary(raw_binary)
 
         # Route to specialised classifiers
         result = ExecTunnelResult()
