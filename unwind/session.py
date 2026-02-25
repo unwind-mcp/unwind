@@ -118,6 +118,31 @@ class Session:
         """Clear the shadow VFS when ghost mode is toggled off."""
         self.shadow_vfs.clear()
 
+    def ghost_status(self) -> dict:
+        """Return a summary of the current ghost shadow VFS state.
+
+        P3-10: Provides visibility into what ghost mode has buffered.
+        """
+        if not self.ghost_mode:
+            return {
+                "ghost_mode": False,
+                "files_buffered": 0,
+                "paths": [],
+                "total_size_bytes": 0,
+            }
+
+        paths = sorted(self.shadow_vfs.keys())
+        total_size = sum(
+            len(v.encode("utf-8")) if isinstance(v, str) else len(v)
+            for v in self.shadow_vfs.values()
+        )
+        return {
+            "ghost_mode": True,
+            "files_buffered": len(self.shadow_vfs),
+            "paths": paths,
+            "total_size_bytes": total_size,
+        }
+
     def kill(self) -> None:
         """Kill the session (canary tripped or critical violation)."""
         self.killed = True

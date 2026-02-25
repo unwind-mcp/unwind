@@ -326,6 +326,138 @@ class UnwindProxy:
             )
             return {"status": "success"}
 
+    # --- P3-10: Ghost Mode status / approve / discard ---
+
+    def ghost_status(self, session_id: str) -> dict:
+        """Return the current ghost mode shadow VFS status for a session.
+
+        P3-10: Gives visibility into what ghost mode has buffered.
+        """
+        session = self.sessions.get(session_id)
+        if not session:
+            return {"error": "Session not found"}
+        return session.ghost_status()
+
+    async def ghost_approve(self, session_id: str) -> dict:
+        """Commit all ghost-buffered writes to the real filesystem.
+
+        P3-10: Approve = make ghost writes real, then clear shadow VFS.
+        Safety: validates every path stays within workspace_root (path jail).
+        """
+        session = self.sessions.get(session_id)
+        if not session:
+            return {"error": "Session not found"}
+        if not session.ghost_mode:
+            return {"error": "Ghost mode is not active on this session"}
+        if not session.shadow_vfs:
+            return {"error": "Nothing buffered in ghost mode"}
+
+        # --- Path jail validation (pre-flight) ---
+        import os
+        workspace = os.path.realpath(str(self.config.workspace_root))
+        jail_violations = []
+        for path in session.shadow_vfs:
+            real = os.path.realpath(path)
+            if not real.startswith(workspace + os.sep) and real != workspace:
+                jail_violations.append(path)
+
+        if jail_violations:
+            return {
+                "error": "Path jail violation — refusing to approve",
+                "violations": jail_violations,
+            }
+
+        # --- Commit writes ---
+        files_written = 0
+        errors = []
+        for path, content in session.shadow_vfs.items():
+            try:
+                real_path = os.path.realpath(path)
+                os.makedirs(os.path.dirname(real_path), exist_ok=True)
+                if isinstance(content, bytes):
+                    with open(real_path, "wb") as f:
+                        f.write(content)
+                else:
+                    with open(real_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                files_written += 1
+            except Exception as e:
+                errors.append({"path": path, "error": str(e)})
+
+        # --- Log event ---
+        event_id = self.event_store.write_pending(
+            session_id=session.session_id,
+            tool="_ghost_approve",
+            tool_class="ghost_management",
+            target=None,
+            parameters={"files_approved": files_written},
+            session_tainted=session.is_tainted,
+            trust_state=session.trust_state.value,
+            ghost_mode=True,
+        )
+        await self.event_store.complete_event_async(
+            event_id, EventStatus.SUCCESS,
+            result_summary=f"Ghost approved: {files_written} files committed",
+        )
+
+        # --- Clear shadow VFS ---
+        session.clear_ghost()
+
+        logger.info(
+            "GHOST APPROVED: session %s — %d files committed",
+            session_id, files_written,
+        )
+
+        result = {
+            "status": "approved",
+            "files_written": files_written,
+        }
+        if errors:
+            result["errors"] = errors
+        return result
+
+    async def ghost_discard(self, session_id: str) -> dict:
+        """Discard all ghost-buffered writes without committing.
+
+        P3-10: Discard = throw away shadow VFS, agent starts fresh.
+        """
+        session = self.sessions.get(session_id)
+        if not session:
+            return {"error": "Session not found"}
+        if not session.ghost_mode:
+            return {"error": "Ghost mode is not active on this session"}
+
+        files_discarded = len(session.shadow_vfs)
+
+        # --- Log event ---
+        event_id = self.event_store.write_pending(
+            session_id=session.session_id,
+            tool="_ghost_discard",
+            tool_class="ghost_management",
+            target=None,
+            parameters={"files_discarded": files_discarded},
+            session_tainted=session.is_tainted,
+            trust_state=session.trust_state.value,
+            ghost_mode=True,
+        )
+        await self.event_store.complete_event_async(
+            event_id, EventStatus.SUCCESS,
+            result_summary=f"Ghost discarded: {files_discarded} files dropped",
+        )
+
+        # --- Clear shadow VFS ---
+        session.clear_ghost()
+
+        logger.info(
+            "GHOST DISCARDED: session %s — %d files dropped",
+            session_id, files_discarded,
+        )
+
+        return {
+            "status": "discarded",
+            "files_discarded": files_discarded,
+        }
+
     async def approve_amber(self, event_id: str, session_id: str) -> dict:
         """User approves an amber-gated action. Re-run with approval."""
         session = self.sessions.get(session_id)
