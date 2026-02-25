@@ -209,6 +209,8 @@ class UnwindConfig:
 
     # --- Flight Recorder ---
     read_collapse_interval_seconds: float = 300.0  # 5 minutes
+    events_retention_days: int = 90  # P1-6: Delete events older than this (0 = keep forever)
+    events_max_rows: int = 500_000   # P1-6: Hard cap on event count (0 = unlimited)
 
     @property
     def events_db_path(self) -> Path:
