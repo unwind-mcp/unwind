@@ -116,13 +116,13 @@ Ghost Mode intercepts writes (returns fake success to agent) and optionally bloc
 
 ```bash
 # Run all tests
-python -m pytest --tb=short -q
+python -m pytest --tb=short -q  # Mac; on Pi use: .venv/bin/python -m pytest --tb=short -q
 
 # Run canary contract tests only (ecosystem drift detection)
 python -m pytest tests/canary -v
 
 # Run a specific test file
-python -m pytest tests/test_ghost_egress.py -v
+python -m pytest tests/test_ghost_egress.py -v  # Mac; on Pi prefix with .venv/bin/
 ```
 
 ### Canary Tests (tests/canary/)
@@ -273,10 +273,10 @@ test -f tests/test_ghost_egress.py && echo "test_ghost_egress.py: OK" || echo "t
 test -f tests/canary/test_canary_contracts.py && echo "canary tests: OK" || echo "canary tests: MISSING"
 
 # 2. Run canary tests (fast — should take <1s)
-python -m pytest tests/canary -q
+python -m pytest tests/canary -q  # Mac; on Pi use: .venv/bin/python -m pytest tests/canary -q
 
 # 3. Run full suite
-python -m pytest --tb=short -q
+python -m pytest --tb=short -q  # Mac; on Pi use: .venv/bin/python -m pytest --tb=short -q
 
 # 4. Check git state (Mac only)
 git rev-parse --short HEAD
@@ -356,7 +356,7 @@ Read these files in this order:
 3. `docs/ARCHITECTURE_V2.md`
 4. `unwind/config.py` (tool classifications)
 5. `unwind/enforcement/pipeline.py` (the spine)
-6. Run `python -m pytest --tb=short -q` to confirm current state
+6. Run `python -m pytest --tb=short -q  # Mac; on Pi use: .venv/bin/python -m pytest --tb=short -q` to confirm current state
 
 ## 16. For a Brand New SENTINEL Session
 
@@ -366,4 +366,4 @@ Read these files in this order:
 3. `docs/THREAT_MODEL_BOUNDARIES.md`
 4. `docs/GHOST_EGRESS_GUARD_SPEC.md`
 5. `tests/canary/canary-mapping.md`
-6. Run `python -m pytest --tb=short -q` to confirm current state
+6. Run `python -m pytest --tb=short -q  # Mac; on Pi use: .venv/bin/python -m pytest --tb=short -q` to confirm current state
