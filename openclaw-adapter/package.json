@@ -1,0 +1,13 @@
+{
+  "name": "@unwind/openclaw-adapter",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "openclaw": {
+    "extensions": ["./src/index.ts"]
+  },
+  "scripts": {
+    "test": "echo \"TODO: add tests\""
+  }
+}

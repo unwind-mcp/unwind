@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ghostmode"
+version = "0.1.0"
+description = "Dry-run proxy for AI agents. See what it would do, without letting it do anything."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "UNWIND Project"},
+]
+keywords = ["mcp", "ai-agents", "ghost-mode", "dry-run", "proxy", "safety"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+ghostmode = "ghostmode.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/unwind-mcp/ghostmode"
+Repository = "https://github.com/unwind-mcp/ghostmode"
+"Full Security Suite" = "https://github.com/unwind-mcp/unwind"
+
+[tool.setuptools.packages.find]
+include = ["ghostmode*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
