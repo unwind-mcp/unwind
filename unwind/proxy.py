@@ -40,6 +40,9 @@ class UnwindProxy:
         self.config = config
         self.pipeline = EnforcementPipeline(config)
         self.canary_check = CanaryCheck(config)
+        # Share the same canary registry between manifest injection and
+        # pipeline detection (session-randomised names must match stage-1 kill).
+        self.pipeline.canary = self.canary_check
         self.event_store = EventStore(config.events_db_path)
         self.snapshot_manager = SnapshotManager(config)
         self.sessions: dict[str, Session] = {}
@@ -127,15 +130,14 @@ class UnwindProxy:
         self.sessions[sid] = session
         return session
 
-    def get_tool_list(self) -> list[dict]:
-        """Return the tool list including canary honeypot tools.
+    def get_tool_list(self, session_id: Optional[str] = None) -> list[dict]:
+        """Return canary honeypot tools for manifest injection.
 
-        This is called when the agent requests the tool manifest.
-        Real upstream tools + injected canary tools.
+        If session_id is provided, visible canary names are randomised
+        per-session (P2-9 hardening). Without session_id, legacy static
+        definitions are returned for backwards-compatibility tests.
         """
-        # In a full implementation, this would query upstream for its tools
-        # and append the canaries. For now, just return canaries.
-        return self.canary_check.get_canary_tool_definitions()
+        return self.canary_check.get_canary_tool_definitions(session_id=session_id)
 
     def _extract_target(self, tool_name: str, params: Optional[dict]) -> Optional[str]:
         """Extract the target (path or URL) from tool parameters."""
