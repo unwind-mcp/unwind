@@ -79,6 +79,10 @@ def create_app(
     if config is None:
         config = UnwindConfig()
 
+    # --- Startup validation: refuse to start on misconfigured values ---
+    from ..startup_validator import validate_and_enforce
+    validate_and_enforce(config)
+
     # --- Immutable policy source (ADD NOW #3) ---
     if policy_source is None:
         policy_source = ImmutablePolicySource(unwind_home=config.unwind_home)
