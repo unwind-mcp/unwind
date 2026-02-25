@@ -46,10 +46,12 @@ class TaintDecayConfig:
     """Tuning knobs for taint decay behaviour."""
 
     # Time-based decay: drop one level every N seconds of no new taint
-    decay_interval_seconds: float = 60.0  # 1 minute per level
+    # P2-8: Tightened from 60 → 120 (SENTINEL recommendation)
+    decay_interval_seconds: float = 120.0  # 2 minutes per level
 
     # Operation-based decay: drop one level every N clean operations
-    clean_ops_per_decay: int = 10
+    # P2-8: Tightened from 10 → 20 (SENTINEL recommendation)
+    clean_ops_per_decay: int = 20
 
     # Re-taint cooldown: ignore duplicate sensor calls within N seconds
     # (prevents a single search_web + 5 result fetches from hitting CRITICAL)
@@ -61,6 +63,10 @@ class TaintDecayConfig:
 
     # Amber threshold: taint at or above this triggers amber gates
     amber_threshold: TaintLevel = TaintLevel.HIGH
+
+    # P2-8: Minimum dwell time — taint cannot decay within this many seconds
+    # of being applied. Defeats the "rapid clean ops" taint wash attack.
+    min_dwell_seconds: float = 30.0
 
 
 @dataclass
@@ -140,6 +146,12 @@ class TaintState:
         now = time.time()
         reference_time = self.last_taint_event or self.last_level_change or now
 
+        # P2-8: Minimum dwell time — no decay until dwell period has passed
+        if self.last_taint_event is not None:
+            since_taint = now - self.last_taint_event
+            if since_taint < config.min_dwell_seconds:
+                return self.level
+
         elapsed = now - reference_time
         if elapsed <= 0:
             return self.level
@@ -174,6 +186,13 @@ class TaintState:
         """
         if self.level == TaintLevel.NONE:
             return self.level
+
+        # P2-8: Minimum dwell time — no op-based decay until dwell period has passed
+        if self.last_taint_event is not None:
+            since_taint = time.time() - self.last_taint_event
+            if since_taint < config.min_dwell_seconds:
+                self.clean_ops_since_taint += 1  # Still count ops, just don't decay
+                return self.level
 
         self.clean_ops_since_taint += 1
 
