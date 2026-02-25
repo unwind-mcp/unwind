@@ -158,9 +158,9 @@ class EnforcementPipeline:
             return False
         return True
 
-    def classify_tool(self, tool_name: str) -> str:
+    def classify_tool(self, tool_name: str, session_id: Optional[str] = None) -> str:
         """Classify a tool as sensor, actuator, read, or canary."""
-        if tool_name in self.config.canary_tools:
+        if self.canary.is_canary(tool_name, session_id=session_id):
             return "canary"
         if tool_name in self.config.sensor_tools:
             return "sensor"
@@ -188,7 +188,7 @@ class EnforcementPipeline:
         Returns:
             PipelineResult with action to take
         """
-        tool_class = self.classify_tool(tool_name)
+        tool_class = self.classify_tool(tool_name, session_id=session.session_id)
         canonical_target = target
 
         # --- 0a. Session kill check ---
@@ -415,7 +415,7 @@ class EnforcementPipeline:
             )
 
         # --- 1. Canary check (before anything else — instant kill) ---
-        canary_result = self.canary.check(tool_name)
+        canary_result = self.canary.check(tool_name, session_id=session.session_id)
         if canary_result:
             session.kill()
             return PipelineResult(
@@ -461,7 +461,10 @@ class EnforcementPipeline:
                 # Tunnelled tool detected → reclassify
                 if tunnel.virtual_tool:
                     # Re-classify the tunnelled tool
-                    tunnelled_class = self.classify_tool(tunnel.virtual_tool)
+                    tunnelled_class = self.classify_tool(
+                        tunnel.virtual_tool,
+                        session_id=session.session_id,
+                    )
 
                     # If tunnelled tool is a sensor, taint the session
                     if tunnel.virtual_tool.startswith("git_") and tunnel.virtual_tool.split("_", 1)[1] in (
