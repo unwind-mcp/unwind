@@ -635,6 +635,10 @@ def main() -> None:
     args = parser.parse_args()
     config = UnwindConfig()
 
+    # --- Startup validation: refuse to start on misconfigured values ---
+    from ..startup_validator import validate_and_enforce
+    validate_and_enforce(config)
+
     if args.command == "status":
         cmd_status(config)
     elif args.command == "log":

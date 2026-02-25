@@ -24,6 +24,10 @@ def create_app(config: UnwindConfig = None) -> Flask:
     if config is None:
         config = UnwindConfig()
 
+    # --- Startup validation: refuse to start on misconfigured values ---
+    from ..startup_validator import validate_and_enforce
+    validate_and_enforce(config)
+
     template_dir = Path(__file__).parent / "templates"
     app = Flask(__name__, template_folder=str(template_dir))
     app.config["UNWIND_CONFIG"] = config
