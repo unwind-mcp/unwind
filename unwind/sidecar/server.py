@@ -137,6 +137,9 @@ def create_app(
     startup_ts = time.monotonic()
     last_policy_check_ts: list[Optional[str]] = [None]  # Mutable container
     last_policy_check_mono: list[float] = [0.0]         # Monotonic for watchdog
+    # P0-2: Enforcement-in-path mediation tracking
+    mediation_active: list[bool] = [False]               # True after first policy check
+    tool_calls_processed: list[int] = [0]                # Count of policy checks
 
     # --- Watchdog configuration ---
     # If no policy check arrives within this threshold during an active session,
@@ -269,6 +272,8 @@ def create_app(
             watchdog_stale=watchdog_stale,
             watchdog_threshold_ms=int(WATCHDOG_THRESHOLD_SECONDS * 1000),
             active_sessions=active_count,
+            mediation_active=mediation_active[0],
+            tool_calls_processed=tool_calls_processed[0],
         )
         return JSONResponse(status_code=200, content=resp.to_wire())
 
@@ -356,6 +361,9 @@ def create_app(
             last_policy_check_ts[0] = datetime.now(timezone.utc).isoformat()
             last_policy_check_mono[0] = time.monotonic()
             session_last_seen[check_req.session_key] = time.monotonic()
+            # P0-2: Mark mediation as active after first successful policy check
+            mediation_active[0] = True
+            tool_calls_processed[0] += 1
 
             # --- Map pipeline result to wire response ---
             response = _map_pipeline_result(result)

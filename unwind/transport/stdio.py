@@ -206,12 +206,30 @@ class UnwindStdioServer:
         self._shutdown = False
         # Track upstream tools for manifest merging
         self._upstream_tools: list[dict] = []
+        # P0-2: Enforcement-in-path mediation proof
+        self._mediation_nonce: str = f"unwind_{uuid.uuid4().hex[:16]}"
+        self._tool_calls_processed: int = 0
         # Amber mediator persistence (R-AMBER-MED-001)
         self._amber_store = AmberEventStore(config.events_db_path)
         # Amber mediator telemetry (GO-09)
         self._amber_telemetry = AmberTelemetry()
         # Amber mediator rollout gate (GO-10): off | shadow | enforce
         self._amber_mode = DEFAULT_MODE  # OFF by default — safe
+
+    @property
+    def mediation_nonce(self) -> str:
+        """P0-2: The mediation proof nonce injected into initialize response."""
+        return self._mediation_nonce
+
+    @property
+    def tool_calls_processed(self) -> int:
+        """P0-2: Count of tool calls processed through enforcement pipeline."""
+        return self._tool_calls_processed
+
+    @property
+    def mediation_active(self) -> bool:
+        """P0-2: True if at least one tool call has been enforced."""
+        return self._tool_calls_processed > 0
 
     def set_amber_mode(self, mode: str) -> None:
         """Set the amber mediator rollout mode (off/shadow/enforce).
@@ -354,9 +372,9 @@ class UnwindStdioServer:
             self._session_id, client_name,
         )
 
-        # Forward to upstream
+        # Forward to upstream — tag so we can inject mediation proof into response
         upstream_id = self._next_upstream_id()
-        self._pending_requests[upstream_id] = msg.id
+        self._pending_requests[upstream_id] = ("initialize", msg.id)
         await self.upstream.send({
             "jsonrpc": "2.0",
             "id": upstream_id,
@@ -419,6 +437,9 @@ class UnwindStdioServer:
             session_id=self._session_id,
             upstream_handler=upstream_handler,
         )
+
+        # P0-2: Track that a tool call was processed through enforcement
+        self._tool_calls_processed += 1
 
         # Convert proxy result to MCP tools/call response
         if "error" in result:
@@ -595,6 +616,19 @@ class UnwindStdioServer:
             # Check for special tagged requests
             if isinstance(pending, tuple):
                 tag, original_id = pending
+
+                if tag == "initialize":
+                    # P0-2: Inject mediation proof nonce into initialize response
+                    response = {"jsonrpc": "2.0", "id": original_id}
+                    if msg.result is not None:
+                        result = dict(msg.result) if isinstance(msg.result, dict) else msg.result
+                        if isinstance(result, dict):
+                            result["_unwind_mediation_nonce"] = self._mediation_nonce
+                        response["result"] = result
+                    if msg.error is not None:
+                        response["error"] = msg.error
+                    await self.agent_transport.write_message(response)
+                    return
 
                 if tag == "tools_list":
                     # Inject canary tools into the tool list
