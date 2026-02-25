@@ -40,6 +40,8 @@ from .models import (
     TelemetryEvent,
     TelemetryEventResponse,
     HealthResponse,
+    GhostStatusResponse,
+    GhostActionResponse,
     ErrorResponse,
 )
 
@@ -424,6 +426,173 @@ def create_app(
             logger.debug("[sidecar] telemetry parse error (swallowed)", exc_info=True)
             resp = TelemetryEventResponse()
             return JSONResponse(status_code=202, content=resp.to_wire())
+
+    # -----------------------------------------------------------------------
+    # P3-10: Ghost Mode status / approve / discard
+    # -----------------------------------------------------------------------
+
+    @app.get("/v1/ghost/status")
+    async def ghost_status(request: Request):
+        """Return the current ghost mode shadow VFS status.
+
+        Query param: sessionKey (required) — identifies which session to query.
+        """
+        session_key = request.query_params.get("sessionKey", "")
+        if not session_key:
+            error = ErrorResponse(
+                code="BAD_REQUEST",
+                message="Missing required query parameter: sessionKey",
+            )
+            return JSONResponse(status_code=400, content=error.to_wire())
+
+        session = sessions.get(session_key)
+        if not session:
+            error = ErrorResponse(
+                code="NOT_FOUND",
+                message=f"Session not found: {session_key}",
+            )
+            return JSONResponse(status_code=404, content=error.to_wire())
+
+        status = session.ghost_status()
+        resp = GhostStatusResponse(
+            ghost_mode=status["ghost_mode"],
+            files_buffered=status["files_buffered"],
+            paths=status["paths"],
+            total_size_bytes=status["total_size_bytes"],
+        )
+        return JSONResponse(status_code=200, content=resp.to_wire())
+
+    @app.post("/v1/ghost/approve")
+    async def ghost_approve(request: Request):
+        """Commit all ghost-buffered writes to the real filesystem.
+
+        Validates paths stay within workspace_root (path jail).
+        """
+        try:
+            body = await request.json()
+        except Exception:
+            error = ErrorResponse(
+                code="SCHEMA_INVALID",
+                message="Request body is not valid JSON.",
+            )
+            return JSONResponse(status_code=422, content=error.to_wire())
+
+        session_key = body.get("sessionKey", "") if isinstance(body, dict) else ""
+        if not session_key:
+            error = ErrorResponse(
+                code="BAD_REQUEST",
+                message="Missing required field: sessionKey",
+            )
+            return JSONResponse(status_code=400, content=error.to_wire())
+
+        session = sessions.get(session_key)
+        if not session:
+            error = ErrorResponse(
+                code="NOT_FOUND",
+                message=f"Session not found: {session_key}",
+            )
+            return JSONResponse(status_code=404, content=error.to_wire())
+
+        if not session.ghost_mode:
+            error = ErrorResponse(
+                code="GHOST_NOT_ACTIVE",
+                message="Ghost mode is not active on this session.",
+            )
+            return JSONResponse(status_code=409, content=error.to_wire())
+
+        if not session.shadow_vfs:
+            error = ErrorResponse(
+                code="GHOST_EMPTY",
+                message="Nothing buffered in ghost mode.",
+            )
+            return JSONResponse(status_code=409, content=error.to_wire())
+
+        # --- Path jail validation ---
+        import os
+        workspace = os.path.realpath(str(config.workspace_root))
+        jail_violations = []
+        for path in session.shadow_vfs:
+            real = os.path.realpath(path)
+            if not real.startswith(workspace + os.sep) and real != workspace:
+                jail_violations.append(path)
+
+        if jail_violations:
+            error = ErrorResponse(
+                code="PATH_JAIL_VIOLATION",
+                message="One or more paths escape the workspace root.",
+                details={"violations": jail_violations},
+            )
+            return JSONResponse(status_code=403, content=error.to_wire())
+
+        # --- Commit writes ---
+        files_written = 0
+        errors = []
+        for path, content in session.shadow_vfs.items():
+            try:
+                real_path = os.path.realpath(path)
+                os.makedirs(os.path.dirname(real_path), exist_ok=True)
+                if isinstance(content, bytes):
+                    with open(real_path, "wb") as f:
+                        f.write(content)
+                else:
+                    with open(real_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                files_written += 1
+            except Exception as e:
+                errors.append({"path": path, "error": str(e)})
+
+        session.clear_ghost()
+
+        resp = GhostActionResponse(
+            status="approved",
+            files_count=files_written,
+            errors=errors,
+        )
+        return JSONResponse(status_code=200, content=resp.to_wire())
+
+    @app.post("/v1/ghost/discard")
+    async def ghost_discard(request: Request):
+        """Discard all ghost-buffered writes without committing."""
+        try:
+            body = await request.json()
+        except Exception:
+            error = ErrorResponse(
+                code="SCHEMA_INVALID",
+                message="Request body is not valid JSON.",
+            )
+            return JSONResponse(status_code=422, content=error.to_wire())
+
+        session_key = body.get("sessionKey", "") if isinstance(body, dict) else ""
+        if not session_key:
+            error = ErrorResponse(
+                code="BAD_REQUEST",
+                message="Missing required field: sessionKey",
+            )
+            return JSONResponse(status_code=400, content=error.to_wire())
+
+        session = sessions.get(session_key)
+        if not session:
+            error = ErrorResponse(
+                code="NOT_FOUND",
+                message=f"Session not found: {session_key}",
+            )
+            return JSONResponse(status_code=404, content=error.to_wire())
+
+        if not session.ghost_mode:
+            error = ErrorResponse(
+                code="GHOST_NOT_ACTIVE",
+                message="Ghost mode is not active on this session.",
+            )
+            return JSONResponse(status_code=409, content=error.to_wire())
+
+        files_discarded = len(session.shadow_vfs)
+        session.clear_ghost()
+
+        resp = GhostActionResponse(
+            status="discarded",
+            files_count=files_discarded,
+        )
+        return JSONResponse(status_code=200, content=resp.to_wire())
 
     return app
 
