@@ -40,16 +40,16 @@ UNWIND is a security middleware (sidecar proxy) for AI agents. It sits between a
 ### Sync Workflow
 
 ```
-Mac → Pi:   bash ~/Downloads/UNWIND/tools/sync-to-pi.sh
-Pi → Mac:   bash ~/Downloads/UNWIND/tools/sync-from-pi.sh
-Mac → GitHub: cd ~/Downloads/UNWIND && git add -A && git commit -m "message" && git push
+Mac → Pi (safe preview):   bash ~/Downloads/UNWIND/tools/sync-to-pi.safe.sh
+Pi → Mac (safe preview):   bash ~/Downloads/UNWIND/tools/sync-from-pi.safe.sh
+Apply sync:                add --apply
+Destructive prune:         add --apply --prune (requires confirmation + backup)
+Mac → GitHub:              cd ~/Downloads/UNWIND && git add -A && git commit -m "message" && git push
 ```
 
-**IMPORTANT:** `sync-from-pi.sh` uses `--exclude='.git'` to avoid wiping the git history. If `.git` disappears, reinitialise with:
-```bash
-cd ~/Downloads/UNWIND && git init && git remote add origin https://github.com/brugai/unwind.git
-git pull origin main --allow-unrelated-histories --no-rebase
-```
+**IMPORTANT:** use `*.safe.sh` scripts as default. They always dry-run first, default non-destructive, and require explicit `--prune` for deletions.
+
+Legacy scripts (`sync-to-pi.sh` / `sync-from-pi.sh`) are retained for reference only and should not be used for routine syncs.
 
 Git credentials are cached via `osxkeychain` — no token pasting needed after first use.
 
@@ -58,7 +58,7 @@ Git credentials are cached via `osxkeychain` — no token pasting needed after f
 **GitHub `main` is canonical.** When Pi and Mac diverge:
 1. Check which has the more recent tested commit (`git log --oneline -3` on Mac, check Pi files)
 2. If Mac is ahead: sync Mac → Pi, then push to GitHub
-3. If Pi is ahead: sync Pi → Mac (`sync-from-pi.sh`), then push to GitHub
+3. If Pi is ahead: sync Pi → Mac (`sync-from-pi.safe.sh --apply`), then push to GitHub
 4. If both changed different files: sync Pi → Mac first (SENTINEL's work is harder to recreate), resolve conflicts, push to GitHub
 5. **Never force-push.** If push is rejected, pull first with `--no-rebase`.
 
@@ -112,7 +112,7 @@ Ghost Mode intercepts writes (returns fake success to agent) and optionally bloc
 
 ## 5. Test Suite
 
-**Current count: 1313 tests, all passing.**
+**Current count: 1382 tests, all passing.**
 
 ```bash
 # Run all tests
@@ -250,11 +250,11 @@ See `tests/canary/canary-mapping.md` for canary-to-test mappings.
 This block lets a rebooted session verify it's reading current continuity, not stale.
 
 ```
-last_known_good_commit: 3aadf3f (GitHub main)
+last_known_good_commit: 44e9e4a (GitHub main before local sync-safety commit)
 branch: main
-test_count: 1313
-last_canary_run: 2026-02-25 (24/24 passed)
-last_sync_direction: Mac → GitHub (commit 3aadf3f)
+test_count: 1382
+last_canary_run: 2026-02-25 (canary suite included in full green run)
+last_sync_direction: GitHub → Pi (pull origin main)
 continuity_updated: 2026-02-25
 ```
 
@@ -283,7 +283,7 @@ git rev-parse --short HEAD
 git status --short
 ```
 
-If any file is MISSING or tests fail, the Pi and Mac are out of sync. Run the appropriate sync script before doing any work.
+If any file is MISSING or tests fail, the Pi and Mac are out of sync. Run the appropriate `*.safe.sh` sync script before doing any work.
 
 ---
 
@@ -325,8 +325,8 @@ Next action: [specific task]
 - Canary contract test suite (24 tests, 5 categories)
 - Ecosystem intel framework (watchlist, scoring, triage templates)
 - GitHub repo setup (github.com/brugai/unwind, private)
-- Sync scripts (Mac ↔ Pi)
-- 1313 tests all passing
+- Safe sync scripts (Mac ↔ Pi) with dry-run default, prune guard, backups, integrity report
+- 1382 tests all passing
 
 ### Queued
 
