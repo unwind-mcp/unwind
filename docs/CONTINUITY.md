@@ -53,6 +53,15 @@ git pull origin main --allow-unrelated-histories --no-rebase
 
 Git credentials are cached via `osxkeychain` — no token pasting needed after first use.
 
+### Source of Truth (Conflict Rule)
+
+**GitHub `main` is canonical.** When Pi and Mac diverge:
+1. Check which has the more recent tested commit (`git log --oneline -3` on Mac, check Pi files)
+2. If Mac is ahead: sync Mac → Pi, then push to GitHub
+3. If Pi is ahead: sync Pi → Mac (`sync-from-pi.sh`), then push to GitHub
+4. If both changed different files: sync Pi → Mac first (SENTINEL's work is harder to recreate), resolve conflicts, push to GitHub
+5. **Never force-push.** If push is rejected, pull first with `--no-rebase`.
+
 ---
 
 ## 4. Architecture — 15-Stage Pipeline
@@ -236,7 +245,78 @@ See `tests/canary/canary-mapping.md` for canary-to-test mappings.
 
 ---
 
-## 10. Current State (update after each session)
+## 10. State Fingerprint (update after each session)
+
+This block lets a rebooted session verify it's reading current continuity, not stale.
+
+```
+last_known_good_commit: 3aadf3f (GitHub main)
+branch: main
+test_count: 1313
+last_canary_run: 2026-02-25 (24/24 passed)
+last_sync_direction: Mac → GitHub (commit 3aadf3f)
+continuity_updated: 2026-02-25
+```
+
+---
+
+## 11. Continuity Integrity Check
+
+Run this on reboot to verify the codebase matches what this doc claims:
+
+```bash
+# 1. Verify key files exist
+echo "=== File check ===" && \
+test -f unwind/enforcement/ghost_egress.py && echo "ghost_egress.py: OK" || echo "ghost_egress.py: MISSING" && \
+test -f unwind/enforcement/pipeline.py && echo "pipeline.py: OK" || echo "pipeline.py: MISSING" && \
+test -f tests/test_ghost_egress.py && echo "test_ghost_egress.py: OK" || echo "test_ghost_egress.py: MISSING" && \
+test -f tests/canary/test_canary_contracts.py && echo "canary tests: OK" || echo "canary tests: MISSING"
+
+# 2. Run canary tests (fast — should take <1s)
+python -m pytest tests/canary -q
+
+# 3. Run full suite
+python -m pytest --tb=short -q
+
+# 4. Check git state (Mac only)
+git rev-parse --short HEAD
+git status --short
+```
+
+If any file is MISSING or tests fail, the Pi and Mac are out of sync. Run the appropriate sync script before doing any work.
+
+---
+
+## 12. Post-Reboot Verification Checklist (2 minutes)
+
+For Claude or SENTINEL after losing context:
+
+- [ ] Read this file (`docs/CONTINUITY.md`)
+- [ ] Run integrity check (section 11)
+- [ ] Compare `git rev-parse --short HEAD` with fingerprint above
+- [ ] Compare test count with fingerprint above
+- [ ] If on Pi: `openclaw status` and `openclaw models status`
+- [ ] If mismatches found: sync before doing any work
+
+---
+
+## 13. Incident / Handoff Template
+
+When handing off between sessions or reporting an issue, use this format:
+
+```
+HANDOFF — [date]
+What changed: [brief description]
+Evidence: [commit SHA, test output, error message]
+Rollback: [command to undo if needed]
+Open risk: [anything unresolved]
+Next owner: [Claude / SENTINEL / David]
+Next action: [specific task]
+```
+
+---
+
+## 14. Current State (update after each session)
 
 ### Completed
 - 15-stage enforcement pipeline (all stages implemented and tested)
@@ -249,19 +329,26 @@ See `tests/canary/canary-mapping.md` for canary-to-test mappings.
 - 1313 tests all passing
 
 ### Queued
-- Known-secret exact matching (secret registry)
-- Session-level sequence detection for split exfil (v2)
-- Honeytokens v2 (optional per SENTINEL)
-- Ghost Mode semantic mocking for stateful APIs (v2)
+
+| Item | Owner | Lane | Blocking? | Notes |
+|------|-------|------|-----------|-------|
+| Known-secret exact matching (secret registry) | Claude | 1 | No | Agreed with SENTINEL as "worth doing now" |
+| Session-level sequence detection for split exfil | Claude | 2 | No | v2 feature |
+| Honeytokens v2 | SENTINEL | 3 | No | Optional per SENTINEL |
+| Ghost Mode semantic mocking for stateful APIs | Claude | 3 | No | v2 feature |
 
 ### Pre-Launch
-- Solicitor consultation on UK software liability (~£150-200)
-- Professional indemnity insurance (~£300-500/year)
-- Audit all remaining "safe" language → "no violations detected"
+
+| Item | Owner | Blocking? | Notes |
+|------|-------|-----------|-------|
+| Solicitor consultation on UK software liability | David | Yes | ~£150-200 |
+| Professional indemnity insurance | David | Yes | ~£300-500/year |
+| Audit "safe" language → "no violations detected" | Claude + SENTINEL | Yes | Liability requirement |
+| Rotate GitHub token (exposed in chat) | David | No | Settings → Developer settings → PAT |
 
 ---
 
-## 11. For a Brand New Claude Session
+## 15. For a Brand New Claude Session
 
 Read these files in this order:
 1. This file (`docs/CONTINUITY.md`)
@@ -271,7 +358,7 @@ Read these files in this order:
 5. `unwind/enforcement/pipeline.py` (the spine)
 6. Run `python -m pytest --tb=short -q` to confirm current state
 
-## 12. For a Brand New SENTINEL Session
+## 16. For a Brand New SENTINEL Session
 
 Read these files in this order:
 1. This file (`docs/CONTINUITY.md`)
