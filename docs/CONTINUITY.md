@@ -228,6 +228,30 @@ See `tests/canary/canary-mapping.md` for canary-to-test mappings.
 - **Lane 2 (this week):** Compatibility-critical — MCP/spec/protocol/API changes
 - **Lane 3 (monthly):** Opportunity — new tools/workflows, never interrupts core roadmap
 
+### Intel Source Validation (mandatory)
+
+#### Source trust rubric (0–3)
+- **Tier 3 (authoritative/actionable):** official repo/advisory/CVE records (GitHub Advisories, NVD, OSV, CISA KEV), or vendor advisories with reproducible fix/version details.
+- **Tier 2 (high-signal, needs confirmation):** reputable researcher or vendor analysis without direct authoritative artifact.
+- **Tier 1 (lead-only):** social/community/AI-summary sources (X, Reddit, HN, Discord, Grok/Gemini/LLM summaries).
+- **Tier 0 (noise):** unverifiable or contradictory claims with no evidence.
+
+#### Action policy by tier
+- Tier 3: may trigger lane assignment, patch planning, and release gate decisions.
+- Tier 2: may open investigation and prep tests, but no release-impact decisions without Tier 3 corroboration.
+- Tier 1: intake only; corroborate before any engineering action.
+- Tier 0: discard.
+
+#### Daily triage checklist (15 minutes)
+1. Intake max 10 candidate items.
+2. Tag each item with source tier + evidence link(s).
+3. Corroborate with at least one Tier 3 source before action.
+4. Score (0–5): relevance, exploitability/breakage, urgency, blast radius.
+5. Route to lane (1/2/3), assign owner and due date.
+6. Log decision in weekly triage template.
+
+**Hard rule:** Tier-1/AI/social claims are intake only. No engineering or release action without Tier-3 confirmation.
+
 ---
 
 ## 9. Key Documents
