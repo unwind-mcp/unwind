@@ -51,6 +51,12 @@ class EventType:
     STRICT_MODE_BLOCK = "strict_mode_block"
     STRICT_MODE_BREAKGLASS_OVERRIDE = "strict_mode_breakglass_override"
 
+    # Ghost Egress Guard events (stage 3b)
+    GHOST_EGRESS_BLOCK = "ghost_egress_block"
+    GHOST_EGRESS_ASK = "ghost_egress_ask"
+    GHOST_EGRESS_ALLOW = "ghost_egress_allow"
+    GHOST_EGRESS_DLP_HIT = "ghost_egress_dlp_hit"
+
     # Pipeline verdict events
     PIPELINE_ALLOW = "pipeline_allow"
     PIPELINE_BLOCK = "pipeline_block"

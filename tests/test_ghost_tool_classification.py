@@ -223,16 +223,16 @@ class TestGhostModePipelineGate(unittest.TestCase):
         result = self.pipeline.check(session, "delete_s3_object")
         self.assertEqual(result.action, CheckResult.GHOST)
 
-    def test_http_get_passes_in_ghost_mode(self):
-        """http_get should NOT be ghosted — it's a read.
+    def test_http_get_ghosted_by_egress_guard(self):
+        """http_get is caught by Ghost Egress Guard (stage 3b) in Ghost Mode.
 
-        Note: we omit the target to avoid SSRF/egress checks (tested elsewhere).
-        The point here is that http_get is not ghost-intercepted.
+        Even though http_get is not in state_modifying_tools, the Ghost Egress
+        Guard blocks network-capable tools to prevent read-channel exfiltration.
         """
         session = self._make_session()
-        # Without a target, SSRF/egress stages are skipped
         result = self.pipeline.check(session, "http_get")
-        self.assertEqual(result.action, CheckResult.ALLOW)
+        self.assertEqual(result.action, CheckResult.GHOST)
+        self.assertIn("GHOST_MODE_NETWORK_BLOCKED", result.block_reason or "")
 
     def test_fs_read_passes_in_ghost_mode(self):
         """fs_read should pass through even in Ghost Mode."""
