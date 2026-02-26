@@ -117,8 +117,8 @@ Before key exchange, C and P perform a version negotiation handshake:
 
 #### 4.2.2 Bootstrap inputs
 
-- `IKM` (input keying material): Derived from the authenticated transport handshake. For TLS 1.3: use a TLS Keying Material Exporter (RFC 5705 / RFC 8446 Section 7.5) with the label `"CRAFT/v4/ikm"` and a context value of `session_id`. For Noise: use the handshake hash from the completed Noise pattern (e.g., Noise_XX or Noise_IK). Implementations MUST NOT extract the raw ECDH shared secret directly.
-- `salt0`: Derived deterministically from the transport handshake transcript. For TLS 1.3: use a second exporter with the label `"CRAFT/v4/salt"`. For Noise: use the chaining key at handshake completion. This eliminates a network round-trip and prevents MITM alteration of the salt.
+- `IKM` (input keying material): Derived from the authenticated transport handshake. For TLS 1.3: use a TLS Keying Material Exporter (RFC 8446 Section 7.5) with label `"CRAFT/v4/ikm"`, context = `session_id`, and output length = 32 bytes. For Noise: CRAFT v4 normatively uses `Noise_XX_25519_ChaChaPoly_BLAKE2s` with prologue `"CRAFT/v4"`; derive `IKM` as the final handshake hash (`h`) at handshake completion (32 bytes). Implementations MUST NOT extract the raw ECDH shared secret directly.
+- `salt0`: Derived deterministically from the transport handshake transcript. For TLS 1.3: use a second exporter with label `"CRAFT/v4/salt"`, context = `session_id`, output length = 32 bytes. For Noise: derive `salt0` from the final chaining key (`ck`) at handshake completion (32 bytes). This eliminates a network round-trip and prevents MITM alteration of the salt.
 - `ctx`: Canonical context string containing protocol version and binding tuple (serialised per Section 4.4):
   - `proto_version`
   - `session_id`
@@ -242,8 +242,9 @@ Verifier stores per-session, per-direction, per-epoch replay state:
 
 Acceptance policy:
 
-- Reject if `seq <= 0` or `seq` is not strictly greater than `highest_accepted_seq` (strict FIFO).
-- Reject if `seq` previously seen in the bitmap.
+- Reject if `seq <= 0`.
+- Reject unless `seq == highest_accepted_seq + 1` (strict FIFO, no gaps).
+- Reject if `seq` previously seen in the bitmap for the current epoch.
 - Reject if `epoch` does not match the current session epoch.
 
 **Timestamp handling:** `ts_ms` is treated as an **advisory anomaly signal**, not a rejection gate. The verifier MAY log anomalies when `ts_ms` deviates significantly from server time (e.g., >1 hour), but MUST NOT reject messages solely on timestamp grounds. Replay resistance is provided by `seq` + state chain + epoch, not by timestamps. This prevents availability degradation from clock skew, NTP drift, or attacker-induced packet delay.
@@ -303,7 +304,7 @@ After rekey:
 
 - `seq` resets to `1` for the new epoch.
 - `state_commit_0` is recomputed for the new epoch.
-- Replay bitmap is cleared for the new epoch.
+- Replay bitmap is cleared for the new epoch (replay tracking is epoch-scoped).
 - Envelopes bearing any previous epoch value are rejected.
 - Both sides MUST persist `PRK_new` before accepting messages in the new epoch.
 
@@ -350,8 +351,8 @@ P MUST walk the state hash forward through the missing envelopes to verify the c
 #### 4.10.3 Resync invariants (MUST-level)
 
 - **No rollback:** `new_highest_seq >= old_highest_seq` at all times. The verifier MUST NOT move its sequence counter backwards.
-- **No replay window reset:** The replay bitmap MUST NOT permit re-accepting an already-accepted sequence number, even across resync.
-- **Resync is a rekey event:** On successful resync, the session advances to a new epoch (Section 4.9). Old-epoch envelopes are rejected. This prevents any previously valid envelopes from becoming replayable in the post-resync state.
+- **No replay within epoch:** Within an epoch, the replay bitmap MUST NOT permit re-accepting an already-accepted sequence number.
+- **Resync is a rekey event:** On successful resync, the session advances to a new epoch (Section 4.9). Old-epoch envelopes are rejected, preventing replay of pre-resync envelopes into post-resync state.
 - **Bounded resync rate:** Maximum 5 resync attempts per session per 60-second window, with exponential backoff. Exceeding this limit terminates the session.
 
 #### 4.10.4 Fail mode policy
@@ -494,7 +495,7 @@ Arg and target constraints must be validated against canonical, security-relevan
 - Validate against `scheme + host + port` AND the resolved IP address range.
 - Block RFC 1918, loopback (127.0.0.0/8), and link-local (169.254.0.0/16) addresses unless explicitly allowed in the constraint.
 - Cache DNS resolution results for the token TTL to prevent DNS rebinding attacks.
-- Normalise hostnames: lowercase, punycode-decode IDN, strip trailing dots.
+- Normalise hostnames to ASCII A-label form (IDNA ToASCII / punycode-encode), lowercase, and strip trailing dots before policy comparison.
 
 #### 5.5.2 Filesystem target constraints
 
@@ -504,9 +505,9 @@ Arg and target constraints must be validated against canonical, security-relevan
 
 #### 5.5.3 Argument constraints
 
-- `arg_constraints` = `SHA-256(JSON Schema)` + allowed value set (exact values or range bounds).
-- The verifier computes `SHA-256(canonical(actual_args_schema))` and compares against the constraint digest.
-- Value validation: exact match, range check (numeric), or regex match (string) as declared in the constraint.
+- `arg_constraints` = `schema_digest` (`SHA-256` of canonical JSON Schema) + allowed value set (exact values or range bounds).
+- At use-time, the verifier loads the schema identified by `schema_digest` (from a trusted local schema registry), verifies digest equality, then validates actual runtime args against that schema.
+- Value validation: exact match, range check (numeric), enum membership, or regex match (string) as declared in the constraint.
 
 #### 5.5.4 Reference validator
 
