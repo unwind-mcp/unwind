@@ -33,5 +33,8 @@ Thumbs.db
 htmlcov/
 .coverage
 
+# Sentinel runtime state
+.sentinel/
+
 # Exports
 unwind_export_*
