@@ -207,7 +207,7 @@ Base64 encoding (where used in JSON wire format): MUST use base64url (RFC 4648 S
   "msg_type": "user_instruction|control|control_close",
   "direction": "c2p|p2c",
   "payload": {"text": "...", "meta": {...}},
-  "mac": "<base64url(HMAC-SHA256(K_msg_{direction}, canonical_envelope_without_mac))>"
+  "mac": "<base64url(HMAC-SHA256(K_msg_{direction}, MAC_input(envelope)))>"
 }
 ```
 
@@ -229,7 +229,7 @@ The state commitment chain provides cryptographic ordering and integrity verific
 state_commit_n = HMAC-SHA256(K_state_{direction}, state_commit_{n-1} || envelope_n.mac)
 ```
 
-By chaining the envelope MAC (which already covers all canonical fields including seq, nonce, context, msg_type, and payload), the state commitment avoids variable-length concatenation ambiguity and ensures complete metadata coverage.
+By chaining the envelope MAC (which already covers all canonical fields including seq, context, msg_type, direction, epoch, and payload), the state commitment avoids variable-length concatenation ambiguity and ensures complete metadata coverage.
 
 **Strict FIFO requirement:** The state commitment chain is inherently sequential. Verifier P MUST process envelopes in strict sequence order. Out-of-order delivery is NOT permitted on the command provenance path. If message N+1 arrives before N, P MUST hold N+1 until N arrives or reject after a bounded timeout (configurable, default 5 seconds). Privileged messages (requiring capability tokens) MUST reject on any sequence gap with zero tolerance.
 
@@ -660,7 +660,7 @@ The following items are not required for initial single-proxy deployment but sho
 [^1]: Nasr, M., Carlini, N., et al. **"The Attacker Moves Second: Stronger Adaptive Attacks Bypass Defenses Against LLM Jailbreaks and Prompt Injections."** arXiv:2510.09023 (2025). Abstract states: "we bypass 12 recent defenses ... with attack success rate above 90% for most."
       https://arxiv.org/abs/2510.09023
 
-[^2]: UK NCSC. **"Prompt injection is not SQL injection (it may be worse)."** (Published 8 December 2025). States: "it's very possible that prompt injection attacks may never be totally mitigated in the way that SQL injection attacks can be."
+[^2]: UK NCSC. **"Prompt injection is not SQL injection (it may be worse)."** States: "it's very possible that prompt injection attacks may never be totally mitigated in the way that SQL injection attacks can be."
       https://www.ncsc.gov.uk/blog-post/prompt-injection-is-not-sql-injection
       PDF: https://www.ncsc.gov.uk/pdfs/blog-post/prompt-injection-is-not-sql-injection.pdf
 
@@ -684,15 +684,19 @@ function verify_and_admit(envelope, direction, session):
     require envelope.epoch == session.current_epoch
     require envelope.direction == direction
 
-    body = canonicalize(remove_mac(envelope))
+    canonical_fields = canonicalize(remove_mac(envelope))
+    mac_input = build_mac_input(canonical_fields)
     K_msg = session.keys[direction].K_msg
 
-    if !hmac_eq(envelope.mac, HMAC(K_msg, body)):
+    if !hmac_eq(envelope.mac, HMAC(K_msg, mac_input)):
         return reject(ERR_ENVELOPE_INVALID)  # generic, pre-auth
 
     # Phase 2: Post-auth checks (detailed errors)
     if !context_bind_ok(envelope, session):
         return reject(ERR_CONTEXT_MISMATCH)
+
+    if envelope.seq != session.highest_seq[direction] + 1:
+        return reject(ERR_REPLAY)  # strict FIFO gap/rollback
 
     if replay_detected(envelope.seq, session.replay_bitmap[direction]):
         return reject(ERR_REPLAY)
@@ -752,7 +756,7 @@ Example envelope before MAC computation (JCS-canonical output):
 MAC input bytes (for K_msg_c2p):
 
 ```text
-UTF-8 bytes of the above JCS string, without the "mac" field.
+Binary `MAC_input(envelope)` as defined in Section 4.4: length-prefixed concatenation of canonical field bytes, including `seq` as uint64 big-endian, `state_commit` as raw 32 bytes, and payload as UTF-8 bytes of JCS-canonical JSON.
 ```
 
 State commitment input bytes:
@@ -788,4 +792,4 @@ This version (v4) incorporates findings from three independent adversarial revie
 - **Context binding extended** (Collab 3, Finding 13): conversation_id added to binding tuple.
 - **Error disclosure** (Collab 3, Finding 16): Generic pre-auth, detailed post-auth only.
 - **TLS/Noise IKM extraction** (Collab 3, Finding 17): Exporter labels specified.
-- **NCSC date corrected** (Collabs 1/3): December 2025.
+- **NCSC citation tightened** (Collabs 1/3): direct wording preserved without over-claiming chronology in-text.
