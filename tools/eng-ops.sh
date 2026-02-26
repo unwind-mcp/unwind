@@ -187,9 +187,19 @@ elif actual_count is not None and claimed_count != actual_count:
 if claimed_commit is None:
     out['drift']=True
     out['items'].append('CONTINUITY missing last_known_good_commit')
-elif claimed_commit != actual_commit:
-    out['drift']=True
-    out['items'].append(f'commit drift: claimed={claimed_commit} actual={actual_commit}')
+else:
+    # Allow claimed commit to match HEAD or HEAD~1.
+    # This avoids impossible self-reference when CONTINUITY.md itself is updated.
+    allowed={actual_commit}
+    try:
+        parent=subprocess.check_output(['git','-C',str(root),'rev-parse','--short','HEAD~1'],text=True).strip()
+        if parent:
+            allowed.add(parent)
+    except Exception:
+        pass
+    if claimed_commit not in allowed:
+        out['drift']=True
+        out['items'].append(f'commit drift: claimed={claimed_commit} actual={actual_commit}')
 
 required=[
     root/'unwind'/'enforcement'/'ghost_egress.py',
