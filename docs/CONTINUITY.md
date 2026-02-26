@@ -112,7 +112,7 @@ Ghost Mode intercepts writes (returns fake success to agent) and optionally bloc
 
 ## 5. Test Suite
 
-**Current count: 1449 tests, all passing.**
+**Current count: 1479 tests, all passing.**
 
 ```bash
 # Run all tests
@@ -275,9 +275,9 @@ See `tests/canary/canary-mapping.md` for canary-to-test mappings.
 This block lets a rebooted session verify it's reading current continuity, not stale.
 
 ```
-last_known_good_commit: 3dc29b2 (GitHub main)
+last_known_good_commit: 1965994 (GitHub main)
 branch: main
-test_count: 1449
+test_count: 1479
 last_canary_run: 2026-02-25 (included in full green run)
 last_sync_direction: GitHub → Pi (pull origin main)
 continuity_updated: 2026-02-25
@@ -352,7 +352,7 @@ Next action: [specific task]
 - Canary contract suite + dynamic per-session canary naming.
 - Ecosystem intel framework (watchlist, scoring, triage templates).
 - Safe sync scripts (Mac ↔ Pi) with dry-run default, prune guard, backups, integrity report.
-- 1449 tests all passing.
+- 1479 tests all passing.
 
 ### Queued
 
@@ -387,7 +387,7 @@ Release gate must remain green before tagging/release.
 - [x] **Retention ✅**
   - `EventStore.enforce_retention()` implemented + retention tests (`tests/test_events_retention.py`) green.
 - [x] **Full suite ✅**
-  - Latest Pi run: `1449 passed, 22 subtests passed, 0 failed`.
+  - Latest Pi run: `1479 passed, 22 subtests passed, 0 failed`.
 
 ---
 
