@@ -1,0 +1,455 @@
+# CRAFT: Cryptographic Relay Authentication for Faithful Transmission (v3)
+
+**Author:** David Russell (Brug.AI)  
+**Contributing reviewer:** SENTINEL  
+**Date:** February 2026  
+**Status:** Working Draft v3 (surgical rewrite)
+
+---
+
+## Abstract
+
+Prompt injection remains a high-impact security risk in LLM agent systems, especially where untrusted content can influence tool execution. CRAFT introduces a **transport-layer command provenance protocol**: it authenticates user-origin instructions before they are admitted into agent execution pipelines.
+
+CRAFT is intentionally scoped. It does **not** claim to solve all prompt injection. Instead, it provides cryptographic guarantees for:
+
+1. origin authenticity of user commands,
+2. ordering/integrity of command stream state,
+3. replay resistance,
+4. resistance to off-path instruction forgery.
+
+This narrows a major class of scalable attacks (message spoofing, relay tampering, replay, and session confusion), and strengthens downstream policy enforcement (e.g., UNWIND) by ensuring privileged actions can be bound to authenticated user intent.
+
+---
+
+## 1) Claim Reframe (v2 → v3)
+
+### 1.1 Correct security claim
+
+**v3 claim:** CRAFT is a **cryptographic command provenance and anti-spoofing layer** for agent transports.
+
+### 1.2 Claims removed from v2
+
+The following over-claims are explicitly removed:
+
+- “Prompt injection is solved.”
+- “Indirect injection via tool outputs is blocked entirely by CRAFT alone.”
+- “Model-layer controls become unnecessary in all contexts.”
+
+### 1.3 Precise positioning
+
+CRAFT is one control in a defense-in-depth stack:
+
+- **CRAFT:** authenticates *who* issued privileged instructions and *when/where* they are valid.
+- **UNWIND pipeline:** constrains *what* actions are allowed and under what policy.
+- **Model/runtime safeguards:** reduce unsafe interpretation and unsafe planning behavior.
+
+---
+
+## 2) Formal Security Goals and Non-Goals
+
+### 2.1 Security Goals
+
+- **G1 — Command authenticity:** Proxy accepts privileged command-bearing messages only when MAC-valid under session keys bound to an authenticated client identity.
+- **G2 — Command integrity:** Any in-transit mutation of authenticated envelope fields is detected.
+- **G3 — Ordering guarantees:** Message stream tampering (insert/remove/reorder) is detectable.
+- **G4 — Replay resistance:** Reuse of previously accepted envelopes outside replay window or nonce constraints is rejected.
+- **G5 — Context binding:** Authenticated commands are bound to session/account/channel/context identifiers to prevent confused routing.
+- **G6 — Delegation safety:** Tool execution can require a short-lived capability token minted from authenticated user intent.
+- **G7 — Deterministic verifier behavior:** Verify path is canonical, constant policy, fail-closed for privileged actions.
+
+### 2.2 Non-Goals
+
+- **N1 — Semantic intent validation:** CRAFT does not determine whether a user’s authenticated command is wise, safe, or non-malicious.
+- **N2 — Tool output trust:** CRAFT does not make model/tool outputs trustworthy; downstream policy still required.
+- **N3 — Full prompt-injection elimination:** CRAFT does not by itself stop all indirect prompt injection in model reasoning over untrusted data.
+- **N4 — Host compromise immunity:** If client or proxy host is fully compromised, software-only protocol controls are insufficient.
+
+---
+
+## 3) Threat Model and Assumptions
+
+### 3.1 In scope
+
+- On-path message tampering and replay between client shim and proxy.
+- Off-path forgery attempts from untrusted content sources (web pages, email content, docs, tool output text).
+- Session confusion and cross-context command routing errors.
+- Confused-deputy misuse where an authenticated session is abused to trigger unintended privileged tools.
+
+### 3.2 Out of scope / partially mitigated
+
+- Fully compromised endpoint with live key use.
+- Fully compromised proxy host or verifier binary.
+- Social engineering of legitimate user intent.
+- Malicious but authenticated insider behavior.
+
+### 3.3 Trust assumptions
+
+- Cryptographic primitives are correctly implemented (HMAC-SHA-256, HKDF-SHA-256, Ed25519/ECDH where used).
+- Key material remains protected in client trust anchor (TPM/Secure Enclave/HSM where available).
+- Verifier state store is integrity-protected and crash-consistent.
+
+---
+
+## 4) Hardened Protocol Specification
+
+### 4.1 Entities
+
+- **C**: CRAFT client shim (user device)
+- **P**: CRAFT verifier (proxy-side)
+- **A**: Agent runtime / model orchestrator
+- **T**: Tool execution layer
+
+### 4.2 Session bootstrap and key schedule (HKDF)
+
+> **Design change from v2:** no raw key concatenation; use explicit KDF + domain separation.
+
+### 4.2.1 Bootstrap inputs
+
+- `IKM` (input keying material): ECDH shared secret from C↔P authenticated handshake (mTLS, Noise, or equivalent).
+- `salt0`: 32-byte session salt generated by P (cryptographically random).
+- `ctx`: canonical context string containing protocol version and binding tuple:
+  - `proto_version`
+  - `session_id`
+  - `account_id`
+  - `channel_id`
+  - `device_pubkey_fpr`
+
+### 4.2.2 Derivation
+
+```text
+PRK      = HKDF-Extract(salt = salt0, IKM = IKM)
+K_msg    = HKDF-Expand(PRK, info = "CRAFT/v1/msg" || ctx, L=32)
+K_state  = HKDF-Expand(PRK, info = "CRAFT/v1/state" || ctx, L=32)
+K_cap    = HKDF-Expand(PRK, info = "CRAFT/v1/cap" || ctx, L=32)
+K_resync = HKDF-Expand(PRK, info = "CRAFT/v1/resync" || ctx, L=32)
+```
+
+- `K_msg`: envelope MAC key
+- `K_state`: state commitment key
+- `K_cap`: capability token MAC key
+- `K_resync`: resynchronization challenge key
+
+### 4.3 Canonical encoding (mandatory)
+
+All authenticated fields MUST be serialized with a deterministic canonical format to prevent parser ambiguity attacks.
+
+**Recommended:** RFC 8785 JSON Canonicalization Scheme (JCS) for JSON payloads.
+
+If binary framing is used, define:
+
+- exact field order,
+- integer width/endian,
+- UTF-8 normalization form,
+- map key ordering,
+- forbidden duplicate keys,
+- explicit null/empty handling.
+
+### 4.4 Authenticated envelope
+
+```json
+{
+  "v": 1,
+  "session_id": "...",
+  "account_id": "...",
+  "channel_id": "...",
+  "context_type": "dm|group|plugin|api",
+  "seq": 1234,
+  "nonce": "96-bit random",
+  "ts_ms": 1739999999123,
+  "state_commit": "base64(32B)",
+  "msg_type": "user_instruction|control",
+  "payload": {"text": "...", "meta": {...}},
+  "mac": "base64(HMAC-SHA256(K_msg, canonical_envelope_without_mac))"
+}
+```
+
+### 4.5 State commitment
+
+To retain chain-of-custody without fragile timing dependence, v3 uses deterministic state commitments:
+
+```text
+state_commit_n = HMAC-SHA256(
+  K_state,
+  state_commit_{n-1} || seq_n || canonical(payload_n)
+)
+```
+
+This replaces implicit “timing fingerprint as primary authenticator” design. Timing can remain an auxiliary anomaly signal, not a cryptographic root.
+
+### 4.6 Nonce/counter and anti-replay window
+
+Verifier stores per-session replay state:
+
+- highest accepted `seq`
+- bitmap/sliding window of recent sequence slots (e.g., width 1024)
+- nonce cache for in-window duplicates
+
+Acceptance policy:
+
+- reject if `seq` too old (`seq < highest - window`)
+- reject if `(seq, nonce)` previously seen
+- reject if `ts_ms` outside skew tolerance (configurable, e.g., ±120s)
+- allow bounded out-of-order only if policy permits; default strict in privileged mode
+
+### 4.7 Verification algorithm (proxy)
+
+1. Parse envelope with strict schema.
+2. Recreate canonical encoding.
+3. Verify MAC using `K_msg`.
+4. Validate context binding tuple (`session/account/channel/context`).
+5. Validate replay constraints (`seq`, `nonce`, window).
+6. Validate state transition (`state_commit_{n-1} -> state_commit_n`).
+7. If privileged action requested, require valid capability token (Section 5).
+8. Commit state atomically (`accepted` and state update in one transaction).
+
+On failure: reject with typed error; no partial state updates.
+
+### 4.8 Failure and resynchronization protocol
+
+### 4.8.1 Failure classes
+
+- `ERR_MAC_INVALID`
+- `ERR_REPLAY`
+- `ERR_STATE_DIVERGED`
+- `ERR_CONTEXT_MISMATCH`
+- `ERR_CAP_REQUIRED`
+- `ERR_CAP_INVALID`
+
+### 4.8.2 Resync flow
+
+For recoverable divergence (packet loss/restart), use authenticated challenge-response:
+
+```text
+P -> C: RESYNC_CHALLENGE {sid, expected_seq, challenge, mac_resync}
+C -> P: RESYNC_PROOF {sid, challenge, client_state_commit, seq, mac_resync}
+```
+
+If verified, P can re-anchor to agreed checkpoint under policy constraints (never silently).
+
+### 4.8.3 Fail mode policy
+
+- **Privileged tool paths:** fail-closed.
+- **Low-risk conversational paths:** configurable fail-open with audit flag, if operator permits.
+
+---
+
+## 5) Confused-Deputy Mitigation via Capability Tokens (Required Subsystem)
+
+> This is a first-class protocol component in v3, not an optional bullet.
+
+### 5.1 Problem
+
+Even authenticated user sessions can trigger unintended privileged actions when context is ambiguous (e.g., cross-channel/account routing, stale intent, delegated execution mismatch). This is the classic confused-deputy class.
+
+### 5.2 Capability token model
+
+Before sensitive tool execution, P issues a short-lived capability token bound to explicit intent.
+
+### 5.2.1 Token claims
+
+- `cap_id`
+- `session_id`, `account_id`, `channel_id`, `context_type`
+- `subject` (user/device binding)
+- `allowed_tools` (exact tool IDs)
+- `arg_constraints` (schema hash + allowed ranges/patterns)
+- `target_constraints` (host/domain/path allowlist digest where relevant)
+- `issued_at`, `exp` (TTL, e.g., 30–120s)
+- `max_uses` (default 1)
+- `bind_seq` (command sequence number that requested capability)
+- `purpose` (human-readable intent string)
+
+### 5.2.2 Token MAC/signature
+
+```text
+cap_mac = HMAC-SHA256(K_cap, canonical(cap_claims))
+```
+
+(or Ed25519 signature for multi-verifier deployments with key distribution requirements).
+
+### 5.2.3 Enforcement
+
+At tool dispatch, UNWIND must verify:
+
+1. token validity and expiry,
+2. exact context binding,
+3. tool ID in `allowed_tools`,
+4. args satisfy `arg_constraints`,
+5. target satisfies `target_constraints`,
+6. token use count not exceeded,
+7. token not revoked.
+
+If any check fails: deny and log deterministic reason code.
+
+### 5.2.4 Security effect
+
+This constrains delegated authority to the minimum necessary scope/time and blocks many “authenticated but misrouted/mis-scoped” action chains.
+
+---
+
+## 6) Security Analysis (Reframed)
+
+### 6.1 What CRAFT robustly improves
+
+- Off-path forged instruction injection into transport.
+- Replay/reorder tampering of authenticated command stream.
+- Cross-context/session confusion when binding checks are enforced.
+- Unauthorized privileged action attempts lacking valid capability tokens.
+
+### 6.2 What CRAFT does not, by itself, eliminate
+
+- Semantic manipulation of model behavior via untrusted tool content already admitted by legitimate workflows.
+- Harmful but genuinely user-authenticated commands.
+- Host-level compromise of verifier or signer environment.
+
+### 6.3 Economic shift
+
+CRAFT shifts attacks from cheap, scalable relay/message forgery to costlier targeted operations (endpoint compromise, social engineering, host compromise), while enabling stronger deterministic gates in UNWIND.
+
+---
+
+## 7) Explicit Out-of-Scope / Infixable (for this layer)
+
+1. **Fully compromised client endpoint** with active key usage capability.
+2. **Fully compromised proxy/verifier host** (attacker can alter verification logic/state).
+3. **Social engineering** of a legitimate user into issuing dangerous but authenticated commands.
+4. **Malicious trusted tool server outputs** unless separately constrained by policy/taint/approval controls.
+5. **Purely semantic prompt manipulation** that remains policy-compliant and does not violate transport authenticity checks.
+6. **Opaque encrypted attachment channels** where content-level inspection is unavailable (transport provenance still works, content safety remains separate).
+
+---
+
+## 8) Performance and Operational Targets
+
+### 8.1 Performance targets
+
+- Envelope verify + replay check: p95 < 0.5 ms on commodity hardware.
+- Capability validation at tool dispatch: p95 < 0.3 ms.
+- No external network dependency in hot path.
+
+### 8.2 State/storage requirements
+
+- Per-session replay window (bitset + nonce cache).
+- Persistent `state_commit` checkpoint with atomic writes.
+- Capability token cache/revocation table with TTL eviction.
+
+### 8.3 Availability controls
+
+- Bounded verifier queue depth.
+- Rate limit invalid MAC floods by source/session.
+- Deterministic error codes for operator triage.
+
+---
+
+## 9) UNWIND/MCP Integration Guidance
+
+1. Insert CRAFT verification at **front of ingress path** (before model/tool planning).
+2. Bind CRAFT context tuple to UNWIND principal model (`account_id + channel_id + context_type`).
+3. Require capability tokens for sensitive tool classes (`exec`, filesystem writes, external egress, credential operations).
+4. Persist cryptographic decision logs in tamper-evident recorder chain.
+5. Run GhostMode first for capability policies, then staged enforcement.
+
+---
+
+## 10) Evaluation Plan (Publication-ready)
+
+### 10.1 Security tests
+
+- MAC forgery attempts
+- replay/reorder/duplicate injection
+- context confusion (session/account/channel mismatch)
+- resync abuse and downgrade attempts
+- capability overreach (tool, args, target, TTL, reuse)
+
+### 10.2 Robustness tests
+
+- packet loss/out-of-order traffic
+- client restart and verifier restart
+- concurrent sends/race handling
+- long-session state rollover
+
+### 10.3 Metrics
+
+- false reject rate for valid traffic
+- false accept rate under adversarial replay/tamper corpus
+- mean time to detection for replay/tamper attempts
+- p95 and p99 latency contribution
+
+---
+
+## 11) Exact Wording Replacements (for prior draft text)
+
+Use these replacements exactly where v2 made stronger claims:
+
+1. **Replace:** “CRAFT solves prompt injection.”  
+   **With:** “CRAFT provides cryptographic provenance and anti-spoofing for user-origin commands; it does not by itself solve all prompt injection semantics.”
+
+2. **Replace:** “Injected web/tool instructions are blocked entirely.”  
+   **With:** “Unauthenticated command injection into the transport is blocked; untrusted content handling in model/tool pipelines still requires downstream policy controls.”
+
+3. **Replace:** “Model-layer defenses become unnecessary.”  
+   **With:** “CRAFT reduces reliance on model-layer trust decisions for command authenticity, but remains complementary to model/runtime and policy-layer safeguards.”
+
+4. **Replace:** “Temporal fingerprint is unforgeable.”  
+   **With:** “Timing data is treated as auxiliary anomaly context; core security relies on keyed cryptographic verification and deterministic replay/state controls.”
+
+5. **Replace:** “Variable secret windows provide core security.”  
+   **With:** “Windowed counters are optional replay heuristics; core authenticity/integrity is provided by MAC + sequence + state commitment under derived session keys.”
+
+---
+
+## 12) Citation-tightened Evidence Notes
+
+- The “12 defenses, >90% ASR for most under adaptive attacks” claim is now grounded in a specific citation and should be quoted conservatively as reported by the paper authors.[^1]
+- The NCSC guidance claim is tightened to direct wording from NCSC’s own publication: prompt injection may not be fully mitigable like SQL injection, and should not be treated as an equivalent class.[^2][^3]
+
+---
+
+## References
+
+[^1]: Nasr, M., Carlini, N., et al. **“The Attacker Moves Second: Stronger Adaptive Attacks Bypass Defenses Against LLM Jailbreaks and Prompt Injections.”** arXiv:2510.09023 (2025). Abstract states: “we bypass 12 recent defenses ... with attack success rate above 90% for most.”  
+      https://arxiv.org/abs/2510.09023
+
+[^2]: UK NCSC. **“Prompt injection is not SQL injection (it may be worse).”** (PDF/blog publication, Feb 2026). States: “it’s very possible that prompt injection attacks may never be totally mitigated in the way that SQL injection attacks can be.”  
+      https://www.ncsc.gov.uk/blog-post/prompt-injection-is-not-sql-injection  
+      PDF: https://www.ncsc.gov.uk/pdfs/blog-post/prompt-injection-is-not-sql-injection.pdf
+
+[^3]: UK NCSC (with CISA and partners). **“Guidelines for secure AI system development.”** Recommends layered controls and secure-by-design treatment of AI risk.  
+      https://www.ncsc.gov.uk/collection/guidelines-secure-ai-system-development
+
+[^4]: OWASP. **LLM Top 10: Prompt Injection (LLM01).** Industry risk taxonomy reference for generative AI applications.  
+      https://genai.owasp.org/llmrisk/llm01-prompt-injection/
+
+[^5]: Greshake, K., et al. **“Not what you’ve signed up for: Compromising real-world LLM-integrated applications with indirect prompt injection.”** arXiv:2302.12173 (2023).  
+      https://arxiv.org/abs/2302.12173
+
+---
+
+## Appendix A: Minimal Verifier Pseudocode
+
+```text
+function verify_and_admit(envelope):
+    require schema_valid(envelope)
+    body = canonicalize(remove_mac(envelope))
+
+    if !hmac_eq(envelope.mac, HMAC(K_msg, body)):
+        return reject(ERR_MAC_INVALID)
+
+    if !context_bind_ok(envelope.session_id, envelope.account_id,
+                        envelope.channel_id, envelope.context_type):
+        return reject(ERR_CONTEXT_MISMATCH)
+
+    if replay_detected(envelope.seq, envelope.nonce, envelope.ts_ms):
+        return reject(ERR_REPLAY)
+
+    if !state_commit_ok(envelope):
+        return reject(ERR_STATE_DIVERGED)
+
+    if requires_privilege(envelope):
+        cap = envelope.payload.capability
+        if !cap_valid_and_scoped(cap, envelope):
+            return reject(ERR_CAP_INVALID)
+
+    atomic_commit_state(envelope)
+    return admit()
+```
