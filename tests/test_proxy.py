@@ -279,6 +279,88 @@ class TestProxy(unittest.TestCase):
         self.assertTrue(valid)
 
 
+class TestCraftProxyIntegration(unittest.TestCase):
+    """Smoke tests for CRAFT integration scaffolding on UnwindProxy."""
+
+    def setUp(self):
+        self.config = TestConfig.create()
+        self.proxy = UnwindProxy(self.config)
+        self.proxy.startup()
+
+    def tearDown(self):
+        self.proxy.shutdown()
+
+    @staticmethod
+    def _signed_env(craft, seq: int) -> dict:
+        from unwind.craft.canonical import mac_input_bytes
+        from unwind.craft.crypto import b64url_encode, hmac_sha256
+
+        env = {
+            "v": 4,
+            "epoch": craft.current_epoch,
+            "session_id": craft.session_id,
+            "account_id": craft.account_id,
+            "channel_id": craft.channel_id,
+            "conversation_id": craft.conversation_id,
+            "context_type": craft.context_type,
+            "seq": str(seq),
+            "ts_ms": 1739999999123,
+            "state_commit": "",
+            "msg_type": "user_instruction",
+            "direction": "c2p",
+            "payload": {"text": f"msg-{seq}", "meta": {}},
+            "mac": "",
+        }
+        raw_mac = hmac_sha256(craft.keys_c2p.k_msg, mac_input_bytes(env))
+        env["mac"] = b64url_encode(raw_mac)
+        prev = craft.last_state_commit["c2p"]
+        commit = hmac_sha256(craft.keys_c2p.k_state, prev + raw_mac)
+        env["state_commit"] = b64url_encode(commit)
+        return env
+
+    def test_craft_create_and_verify(self):
+        craft = self.proxy.create_craft_session(
+            session_id="sess_craft",
+            account_id="acct_main",
+            channel_id="chan_main",
+            conversation_id="conv_main",
+            context_type="dm",
+            ikm=b"i" * 32,
+            salt0=b"s" * 32,
+            server_secret=b"k" * 32,
+            epoch=0,
+        )
+
+        env = self._signed_env(craft, 1)
+        out = self.proxy.verify_craft_envelope(session_id="sess_craft", envelope=env)
+
+        self.assertTrue(out["accepted"])
+        self.assertIsNone(out["error"])
+
+    def test_craft_rekey_and_teardown(self):
+        self.proxy.create_craft_session(
+            session_id="sess_craft2",
+            account_id="acct_main",
+            channel_id="chan_main",
+            conversation_id="conv_main",
+            context_type="dm",
+            ikm=b"i" * 32,
+            salt0=b"s" * 32,
+            server_secret=b"k" * 32,
+            epoch=0,
+        )
+        prep = self.proxy.craft_rekey_prepare("sess_craft2")
+        self.assertEqual(prep["action"], "rekey_prepare")
+
+        applied = self.proxy.craft_rekey_apply("sess_craft2", prep)
+        self.assertTrue(applied["ok"])
+        self.assertEqual(applied["epoch"], 1)
+
+        td = self.proxy.craft_teardown("sess_craft2")
+        self.assertTrue(td["ok"])
+        self.assertIsNotNone(td["tombstoned_until_ms"])
+
+
 class TestCLITimeParsing(unittest.TestCase):
     """Test CLI time parsing utility."""
 
