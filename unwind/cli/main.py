@@ -609,6 +609,22 @@ def main() -> None:
     # unwind tamper-check
     subparsers.add_parser("tamper-check", help="Run tamper detection checks")
 
+    # unwind sidecar serve
+    sidecar_parser = subparsers.add_parser(
+        "sidecar",
+        help="Manage the UNWIND sidecar policy server",
+    )
+    sidecar_sub = sidecar_parser.add_subparsers(dest="sidecar_command")
+    sidecar_serve = sidecar_sub.add_parser("serve", help="Start the sidecar policy server")
+    sidecar_serve.add_argument("--port", type=int, default=9100, help="Listen port (default: 9100)")
+    sidecar_serve.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
+    sidecar_serve.add_argument("--uds", help="Unix domain socket path (overrides host/port)")
+    sidecar_serve.add_argument("--log-level", default="info", help="Log level (default: info)")
+
+    # unwind ghost on|off
+    ghost_parser = subparsers.add_parser("ghost", help="Toggle Ghost Mode")
+    ghost_parser.add_argument("action", choices=["on", "off"], help="Enable or disable Ghost Mode")
+
     # unwind serve -- <upstream command>
     serve_parser = subparsers.add_parser(
         "serve",
@@ -670,6 +686,24 @@ def main() -> None:
         cmd_anchor(config)
     elif args.command == "tamper-check":
         cmd_tamper_check(config)
+    elif args.command == "sidecar":
+        if getattr(args, "sidecar_command", None) == "serve":
+            from ..sidecar import serve as sidecar_serve
+            sidecar_serve(
+                host=args.host,
+                port=args.port,
+                config=config,
+                log_level=args.log_level,
+                uds=args.uds,
+            )
+        else:
+            sidecar_parser.print_help()
+    elif args.command == "ghost":
+        action = args.action
+        config.ghost_mode = (action == "on")
+        config.save()
+        state = "ON" if config.ghost_mode else "OFF"
+        print(f"  Ghost Mode: {state}")
     elif args.command == "serve":
         cmd_serve(config, args)
     else:
