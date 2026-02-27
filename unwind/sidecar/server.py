@@ -34,6 +34,7 @@ from ..enforcement.pipeline import EnforcementPipeline, CheckResult
 from ..enforcement.policy_source import ImmutablePolicySource, PolicyLoadResult
 from ..session import Session
 from ..recorder.event_store import EventStore, EventStatus
+from ..snapshots.manager import SnapshotManager
 from .models import (
     PolicyCheckRequest,
     PolicyCheckResponse,
@@ -120,6 +121,7 @@ def create_app(
         read_collapse_seconds=config.read_collapse_interval_seconds,
     )
     event_store.initialize()
+    snapshot_manager = SnapshotManager(config)
 
     # --- Mandatory auth (CWE-306 fix) ---
     # Auth is now REQUIRED. If no secret is provided via parameter or env var,
@@ -378,6 +380,8 @@ def create_app(
             # --- Record event to flight recorder (dashboard data source) ---
             _record_sidecar_event(
                 event_store=event_store,
+                snapshot_manager=snapshot_manager,
+                config=config,
                 session=session,
                 request=check_req,
                 result=result,
@@ -784,6 +788,8 @@ def _event_summary_for_result(result: Any, tool_name: str) -> str:
 
 def _record_sidecar_event(
     event_store: EventStore,
+    snapshot_manager: SnapshotManager,
+    config: UnwindConfig,
     session: Session,
     request: PolicyCheckRequest,
     result: Any,
@@ -801,6 +807,34 @@ def _record_sidecar_event(
         trust_state=_trust_state_for_result(result, session),
         ghost_mode=session.ghost_mode,
     )
+
+    # Pre-write snapshot capture for rollback (non-blocking best effort)
+    if (
+        result.action == CheckResult.ALLOW
+        and target
+        and request.tool_name in config.state_modifying_tools
+    ):
+        try:
+            snapshot = snapshot_manager.snapshot_file_write(event_id, target)
+            if snapshot is not None:
+                event_store.store_snapshot(
+                    snapshot_id=snapshot.snapshot_id,
+                    event_id=event_id,
+                    timestamp=snapshot.timestamp,
+                    snapshot_type=snapshot.snapshot_type,
+                    original_path=snapshot.original_path,
+                    snapshot_path=snapshot.snapshot_path,
+                    original_size=snapshot.original_size,
+                    original_hash=snapshot.original_hash,
+                    metadata=snapshot.metadata,
+                    restorable=snapshot.restorable,
+                )
+        except Exception:
+            logger.debug(
+                "[sidecar] snapshot capture failed for %s",
+                target,
+                exc_info=True,
+            )
 
     event_store.complete_event(
         event_id=event_id,
