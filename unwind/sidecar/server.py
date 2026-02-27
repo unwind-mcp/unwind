@@ -33,6 +33,7 @@ from ..config import UnwindConfig
 from ..enforcement.pipeline import EnforcementPipeline, CheckResult
 from ..enforcement.policy_source import ImmutablePolicySource, PolicyLoadResult
 from ..session import Session
+from ..recorder.event_store import EventStore, EventStatus
 from .models import (
     PolicyCheckRequest,
     PolicyCheckResponse,
@@ -112,6 +113,13 @@ def create_app(
 
     if pipeline is None:
         pipeline = EnforcementPipeline(config)
+
+    # --- Flight recorder (dashboard/event timeline source) ---
+    event_store = EventStore(
+        config.events_db_path,
+        read_collapse_seconds=config.read_collapse_interval_seconds,
+    )
+    event_store.initialize()
 
     # --- Mandatory auth (CWE-306 fix) ---
     # Auth is now REQUIRED. If no secret is provided via parameter or env var,
@@ -366,6 +374,14 @@ def create_app(
             # P0-2: Mark mediation as active after first successful policy check
             mediation_active[0] = True
             tool_calls_processed[0] += 1
+
+            # --- Record event to flight recorder (dashboard data source) ---
+            _record_sidecar_event(
+                event_store=event_store,
+                session=session,
+                request=check_req,
+                result=result,
+            )
 
             # --- Map pipeline result to wire response ---
             response = _map_pipeline_result(result)
@@ -725,6 +741,73 @@ def _extract_payload(params: dict) -> Optional[str]:
         if key in params and isinstance(params[key], str):
             return params[key]
     return None
+
+
+def _event_status_for_result(result: Any) -> EventStatus:
+    """Map pipeline result to EventStore status."""
+    if result.action == CheckResult.ALLOW:
+        return EventStatus.SUCCESS
+    if result.action == CheckResult.BLOCK:
+        return EventStatus.BLOCKED
+    if result.action == CheckResult.KILL:
+        return EventStatus.RED_ALERT
+    if result.action == CheckResult.AMBER:
+        return EventStatus.BLOCKED
+    if result.action == CheckResult.GHOST:
+        return EventStatus.GHOST_SUCCESS
+    return EventStatus.ERROR
+
+
+def _trust_state_for_result(result: Any, session: Session) -> str:
+    """Derive trust state for sidecar-recorded event."""
+    if result.action in (CheckResult.BLOCK, CheckResult.KILL):
+        return "red"
+    if result.action == CheckResult.AMBER:
+        return "amber"
+    return session.trust_state.value
+
+
+def _event_summary_for_result(result: Any, tool_name: str) -> str:
+    """Build a concise result summary for dashboard timeline."""
+    if result.action == CheckResult.ALLOW:
+        return "OK (sidecar)"
+    if result.action == CheckResult.BLOCK:
+        return result.block_reason or "POLICY_BLOCK"
+    if result.action == CheckResult.KILL:
+        return result.block_reason or "SESSION_KILLED"
+    if result.action == CheckResult.AMBER:
+        return f"AMBER: {result.amber_reason or 'CHALLENGE_REQUIRED'}"
+    if result.action == CheckResult.GHOST:
+        return f"Ghost mode: would have called {tool_name}"
+    return f"UNKNOWN_PIPELINE_ACTION:{result.action}"
+
+
+def _record_sidecar_event(
+    event_store: EventStore,
+    session: Session,
+    request: PolicyCheckRequest,
+    result: Any,
+) -> None:
+    """Record a sidecar policy decision into EventStore for dashboard APIs."""
+    target = _extract_target(request.params)
+    event_id = event_store.write_pending(
+        session_id=request.session_key,
+        tool=request.tool_name,
+        tool_class=getattr(result, "tool_class", "unknown"),
+        target=target,
+        target_canonical=getattr(result, "canonical_target", None),
+        parameters=request.params,
+        session_tainted=session.is_tainted,
+        trust_state=_trust_state_for_result(result, session),
+        ghost_mode=session.ghost_mode,
+    )
+
+    event_store.complete_event(
+        event_id=event_id,
+        status=_event_status_for_result(result),
+        duration_ms=0.0,
+        result_summary=_event_summary_for_result(result, request.tool_name),
+    )
 
 
 def _map_pipeline_result(result) -> PolicyCheckResponse:
