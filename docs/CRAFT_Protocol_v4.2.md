@@ -174,7 +174,7 @@ HKDF info fields use explicit domain-separated labels plus `\0`, `uint16_be(len(
 - `state_commit_0` is defined as:
 
 ```text
-state_commit_0 = HMAC-SHA256(K_state_{direction}, "CRAFT/v4/state0\0" || len(ctx) || ctx)
+state_commit_0 = HMAC-SHA256(K_state_{direction}, "CRAFT/v4/state0\0" || uint16_be(len(ctx)) || ctx)
 ```
 
 This provides a deterministic, direction-bound genesis value that both sides can compute independently.
@@ -318,6 +318,8 @@ PRK_new = HKDF-Extract(
     IKM = PRK_current || "CRAFT/v4/rekey\0" || uint64_be(epoch_new)
 )
 ```
+
+**Rekey synchronisation (MUST):** P initiates rekey via an authenticated control envelope (`msg_type: "control"`, `payload.action: "rekey_prepare"`) containing `epoch_new` and boundary markers (`boundary_seq_c2p = highest_seq_c2p + 1`, `boundary_seq_p2c = highest_seq_p2c + 1`). C responds with authenticated `rekey_ack`. Both sides then snapshot the tuple `(state_commit_c2p_current, state_commit_p2c_current)` from the last committed values at that boundary for KDF input. If one direction is idle, its snapshot value is simply its last committed `state_commit` (unchanged). Epoch switch occurs exactly at the boundary: first accepted envelope in `epoch_new` uses `seq=1` for that direction.
 
 All directional keys (`K_msg_*`, `K_state_*`, `K_resync_*`) are re-derived from `PRK_new` using the HKDF info format from Section 4.2.3 (including `epoch_bytes`). `K_cap_srv` is re-derived from `PRK_cap_root` with the same epoch-bound info format.
 
@@ -864,3 +866,5 @@ This version (v4.2) incorporates findings from three independent adversarial rev
 - **Round-2 critical fix B:** separated ingress provenance verification from capability enforcement boundary (tool dispatch only).
 - **Final critical fix C:** codified Option-A MAC input (JCS UTF-8 bytes with `mac` + `state_commit` removed) for deterministic interop.
 - **Final critical fix D:** completed boundary consistency: ingress verifier is provenance-only; capability errors are dispatch-only.
+- **Final important fix E:** explicit rekey synchronisation protocol (P-initiated, boundary markers, idle-direction commit handling).
+- **Final minor fix F:** unified `state_commit_0` encoding to `uint16_be(len(ctx))` for KDF/input consistency.
