@@ -56,6 +56,19 @@ export interface ConfigValidationError {
 
 const VALID_MODES: ReadonlySet<string> = new Set(["off", "shadow", "enforce"]);
 
+function readEnvVar(name: string): string {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  const value = env?.[name];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function resolveSecretValue(value: string): string {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/);
+  if (!match) return trimmed;
+  return readEnvVar(match[1]);
+}
+
 /**
  * Validate and merge raw plugin config with defaults.
  *
@@ -65,7 +78,10 @@ export function parseConfig(
   raw: Record<string, unknown> | undefined
 ): { config: UnwindAdapterConfig; errors: ConfigValidationError[] } {
   const errors: ConfigValidationError[] = [];
-  const merged = { ...CONFIG_DEFAULTS };
+  const merged = {
+    ...CONFIG_DEFAULTS,
+    sidecarSecret: readEnvVar("UNWIND_SIDECAR_SHARED_SECRET") || CONFIG_DEFAULTS.sidecarSecret,
+  };
 
   if (!raw) {
     if (!merged.sidecarSecret) {
@@ -154,7 +170,7 @@ export function parseConfig(
         code: "CONFIG_INVALID_VALUE",
       });
     } else {
-      merged.sidecarSecret = raw.sidecarSecret;
+      merged.sidecarSecret = resolveSecretValue(raw.sidecarSecret);
     }
   }
   if (merged.mode === "enforce" && (!merged.sidecarSecret || merged.sidecarSecret.length < 32)) {

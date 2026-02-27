@@ -8,7 +8,8 @@
     "properties": {
       "mode": { "type": "string", "enum": ["off", "shadow", "enforce"] },
       "sidecarUrl": { "type": "string" },
-      "timeoutMs": { "type": "integer", "minimum": 1 }
+      "timeoutMs": { "type": "integer", "minimum": 1 },
+      "sidecarSecret": { "type": "string" }
     }
   }
 }
