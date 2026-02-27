@@ -83,6 +83,7 @@ def test_state_store_roundtrip_and_tombstones(tmp_path: Path) -> None:
     s.highest_seq["c2p"] = 9
     s.replay_bitmap["c2p"].mark(8)
     s.replay_bitmap["c2p"].mark(9)
+    s.cap_epoch_grace_until_ms = {0: 1_700_000_010_000}
 
     store = CraftStateStore(tmp_path / "craft_state.json")
     store.save_session(s)
@@ -93,6 +94,7 @@ def test_state_store_roundtrip_and_tombstones(tmp_path: Path) -> None:
     assert ok is True
     assert s2.highest_seq["c2p"] == 9
     assert 9 in s2.replay_bitmap["c2p"].seen
+    assert s2.cap_epoch_grace_until_ms.get(0) == 1_700_000_010_000
 
     now = 1_700_000_000_000
     store.save_tombstone("sess_dead", now + 10_000)

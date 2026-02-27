@@ -224,6 +224,7 @@ def test_previous_epoch_cap_allowed_within_grace_window() -> None:
     session.current_epoch = 1
     session.cap_keys_by_epoch = {0: issuer.cap_keys_by_epoch[0], 1: keys_epoch1.k_cap_srv}
     session.current_or_grace_epochs = {0, 1}
+    session.cap_epoch_grace_until_ms = {0: issuer.now_ms() + 60_000}
     issuer.cap_keys_by_epoch[1] = keys_epoch1.k_cap_srv
 
     out = issuer.enforce_at_tool_dispatch(token=token, tool_call=_tool_call(), session=session)
@@ -244,6 +245,7 @@ def test_previous_epoch_cap_rejected_outside_grace_window() -> None:
     session.current_epoch = 1
     session.cap_keys_by_epoch = {0: issuer.cap_keys_by_epoch[0], 1: keys_epoch1.k_cap_srv}
     session.current_or_grace_epochs = {1}
+    session.cap_epoch_grace_until_ms = {0: issuer.now_ms() - 1}
     issuer.cap_keys_by_epoch[1] = keys_epoch1.k_cap_srv
 
     out = issuer.enforce_at_tool_dispatch(token=token, tool_call=_tool_call(), session=session)

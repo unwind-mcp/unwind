@@ -68,6 +68,7 @@ class CraftSessionState:
     # Capability key lifecycle (current + grace epochs)
     cap_keys_by_epoch: dict[int, bytes] = field(default_factory=dict)
     current_or_grace_epochs: set[int] = field(default_factory=set)
+    cap_epoch_grace_until_ms: dict[int, int] = field(default_factory=dict)
 
     # Recent transcript commits used by transcript_consistent checks
     recent_state_commits: dict[str, list[str]] = field(

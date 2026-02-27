@@ -220,6 +220,7 @@ class UnwindProxy:
             if not craft.current_or_grace_epochs:
                 craft.current_or_grace_epochs = {craft.current_epoch}
 
+        self.craft_lifecycle.refresh_cap_epoch_grace(craft)
         self.craft_sessions[session_id] = craft
         self.craft_cap_issuers[session_id] = CapabilityIssuer(
             cap_keys_by_epoch=dict(craft.cap_keys_by_epoch),
@@ -244,6 +245,7 @@ class UnwindProxy:
             return {"accepted": False, "error": "ERR_CRAFT_SESSION_NOT_FOUND"}
 
         now = int(time.time() * 1000) if now_ms is None else int(now_ms)
+        self.craft_lifecycle.refresh_cap_epoch_grace(craft)
         if self.craft_state_store and self.craft_state_store.is_tombstoned(session_id, now):
             return {"accepted": False, "error": "ERR_CRAFT_SESSION_TOMBSTONED"}
         if craft.tombstoned_until_ms and now < craft.tombstoned_until_ms:
@@ -403,6 +405,7 @@ class UnwindProxy:
         # Runtime guard for craft-managed sessions: enforce tombstone + TTL on ingress/runtime path.
         craft = self.craft_sessions.get(session.session_id)
         if craft:
+            self.craft_lifecycle.refresh_cap_epoch_grace(craft)
             now_ms = int(time.time() * 1000)
             if (self.craft_state_store and self.craft_state_store.is_tombstoned(session.session_id, now_ms)) or (
                 craft.tombstoned_until_ms and now_ms < craft.tombstoned_until_ms
