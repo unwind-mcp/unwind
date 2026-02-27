@@ -88,6 +88,8 @@ def test_rekey_prepare_and_ack_resets_epoch_and_seq() -> None:
     assert session.highest_seq["p2c"] == 0
     assert 1 in session.cap_keys_by_epoch
     assert session.cap_keys_by_epoch[1] != old_cap_key
+    assert 0 in session.current_or_grace_epochs
+    assert session.cap_epoch_grace_until_ms[0] >= 1_700_000_001_000
 
 
 def test_resync_enforces_bounds_and_terminates_session() -> None:
@@ -225,6 +227,28 @@ def test_resync_invalid_proof_applies_exponential_backoff() -> None:
     out2 = lm.handle_resync(session, {})
     assert out2.ok is False
     assert out2.error == ResyncError.ERR_RESYNC_RATE_LIMIT
+
+
+def test_refresh_cap_epoch_grace_prunes_expired_epochs() -> None:
+    now = [1_700_000_030_000]
+
+    def clock():
+        return now[0]
+
+    session = _make_session()
+    lm = CraftLifecycleManager(now_ms_fn=clock)
+
+    # simulate rekey and grace set for epoch 0
+    prep = lm.initiate_rekey(session)
+    lm.apply_rekey_ack(session, prep)
+    assert 0 in session.current_or_grace_epochs
+
+    # advance beyond grace
+    now[0] += lm.cap_grace_ms + 1
+    lm.refresh_cap_epoch_grace(session)
+
+    assert session.current_or_grace_epochs == {session.current_epoch}
+    assert 0 not in session.cap_keys_by_epoch
 
 
 def test_session_ttl_and_teardown_tombstone() -> None:

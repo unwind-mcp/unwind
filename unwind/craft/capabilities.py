@@ -412,6 +412,15 @@ class CapabilityIssuer:
         epoch_keys = session.cap_keys_by_epoch or self.cap_keys_by_epoch
         allowed_epochs = session.current_or_grace_epochs or set(epoch_keys.keys())
 
+        now = self.now_ms()
+        # Time-bound grace: old epochs must be within grace deadline.
+        if cap_epoch != session.current_epoch:
+            grace_until = session.cap_epoch_grace_until_ms.get(cap_epoch)
+            if grace_until is None or now > int(grace_until):
+                return CapabilityDecision(
+                    False, CapabilityError.ERR_CAP_INVALID, CapabilitySubcode.CAP_EPOCH_MISMATCH
+                )
+
         if not self._verify_cap_mac(token, cap_epoch, key_map=epoch_keys):
             return CapabilityDecision(False, CapabilityError.ERR_CAP_INVALID, CapabilitySubcode.CAP_MAC_INVALID)
 
@@ -420,7 +429,6 @@ class CapabilityIssuer:
                 False, CapabilityError.ERR_CAP_INVALID, CapabilitySubcode.CAP_CLAIMS_HASH_MISMATCH
             )
 
-        now = self.now_ms()
         if now >= rec.exp:
             return CapabilityDecision(False, CapabilityError.ERR_CAP_INVALID, CapabilitySubcode.CAP_EXPIRED)
 
