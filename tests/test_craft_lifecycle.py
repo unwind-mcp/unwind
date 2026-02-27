@@ -90,7 +90,7 @@ def test_rekey_prepare_and_ack_resets_epoch_and_seq() -> None:
     assert session.cap_keys_by_epoch[1] != old_cap_key
 
 
-def test_resync_enforces_bounds() -> None:
+def test_resync_enforces_bounds_and_terminates_session() -> None:
     session = _make_session()
     lm = CraftLifecycleManager(max_missing_envelopes=2, now_ms_fn=lambda: 1_700_000_001_000)
 
@@ -115,6 +115,18 @@ def test_resync_enforces_bounds() -> None:
     out = lm.handle_resync(session, proof)
     assert out.ok is False
     assert out.error == ResyncError.ERR_RESYNC_BOUNDS
+    assert session.tombstoned_until_ms is not None
+
+
+def test_resync_rate_limit_terminates_and_sets_backoff() -> None:
+    ticks = iter([1_700_000_010_000, 1_700_000_010_100, 1_700_000_010_200])
+    session = _make_session()
+    lm = CraftLifecycleManager(max_resync_attempts_per_minute=0, now_ms_fn=lambda: next(ticks))
+
+    out = lm.handle_resync(session, {})
+    assert out.ok is False
+    assert out.error == ResyncError.ERR_RESYNC_RATE_LIMIT
+    assert session.tombstoned_until_ms is not None
 
 
 def test_resync_walks_state_then_rekeys() -> None:
@@ -194,6 +206,25 @@ def test_rekey_boundary_mismatch_rejected() -> None:
 
     with pytest.raises(ValueError):
         lm.apply_rekey_ack(session, bad)
+
+
+def test_resync_invalid_proof_applies_exponential_backoff() -> None:
+    now = [1_700_000_020_000]
+
+    def clock():
+        return now[0]
+
+    session = _make_session()
+    lm = CraftLifecycleManager(now_ms_fn=clock)
+
+    out1 = lm.handle_resync(session, {})
+    assert out1.ok is False
+    assert out1.error == ResyncError.ERR_RESYNC_PROOF_INVALID
+
+    # immediate retry should hit rate/backoff gate
+    out2 = lm.handle_resync(session, {})
+    assert out2.ok is False
+    assert out2.error == ResyncError.ERR_RESYNC_RATE_LIMIT
 
 
 def test_session_ttl_and_teardown_tombstone() -> None:
