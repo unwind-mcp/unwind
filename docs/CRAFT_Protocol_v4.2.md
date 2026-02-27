@@ -309,8 +309,12 @@ To reduce key lifetime (cryptoperiod) and limit blast radius, CRAFT sessions MUS
 
 ```text
 epoch_new = epoch_current + 1
+rekey_salt = HMAC-SHA256(
+    PRK_current,
+    "CRAFT/v4/rekey-salt\0" || state_commit_c2p_current || state_commit_p2c_current
+)
 PRK_new = HKDF-Extract(
-    salt = state_commit_current,
+    salt = rekey_salt,
     IKM = PRK_current || "CRAFT/v4/rekey\0" || uint64_be(epoch_new)
 )
 ```
@@ -319,7 +323,7 @@ All directional keys (`K_msg_*`, `K_state_*`, `K_resync_*`) are re-derived from 
 
 After rekey:
 
-- `seq` resets to `1` for the new epoch.
+- `seq` resets to `1` for each direction in the new epoch (`c2p`, `p2c`).
 - `state_commit_0` is recomputed for the new epoch.
 - Replay bitmap is cleared for the new epoch (replay tracking is epoch-scoped).
 - Envelopes bearing any previous epoch value are rejected.
@@ -554,15 +558,17 @@ Implementations SHOULD ship a `craft-normalize` reference function with test vec
 At tool dispatch, the enforcement layer (UNWIND) MUST verify. This is the **only** capability enforcement boundary (not ingress):
 
 1. Token `cap_id` exists in issuer table and is not revoked.
-2. Token has not expired (`exp`).
-3. Token use count has not been exceeded (`max_uses` / `remaining_uses`).
-4. `cap_epoch` is valid and maps to an active capability-verification key epoch.
-5. Exact context binding matches current execution context.
-6. `state_commit_at_issue` is consistent with the current transcript (no splicing).
-7. Tool ID is in `allowed_tools`.
-8. Arguments satisfy `arg_constraints` after normalisation.
-9. Target satisfies `target_constraints` after normalisation (Section 5.5).
-10. If `parent_cap_id` is present, parent capability was successfully used and lineage constraints hold.
+2. Token MAC/signature verifies under the epoch-appropriate capability verification key.
+3. `canonical_claims_hash(cap_claims)` matches issuer table record for `cap_id`.
+4. Token has not expired (`exp`).
+5. Token use count has not been exceeded (`max_uses` / `remaining_uses`).
+6. `cap_epoch` is valid and maps to an active capability-verification key epoch.
+7. Exact context binding matches current execution context (`session_id`, `account_id`, `channel_id`, `conversation_id`, `context_type`, `subject`).
+8. `state_commit_at_issue` is consistent with the current transcript (no splicing).
+9. Tool ID is in `allowed_tools`.
+10. Arguments satisfy `arg_constraints` after normalisation.
+11. Target satisfies `target_constraints` after normalisation (Section 5.5).
+12. If `parent_cap_id` is present, parent capability was successfully used and lineage constraints hold.
 
 If any check fails: deny and log a deterministic reason code.
 
@@ -573,6 +579,12 @@ For chained capabilities, issuer ordering is authoritative: child capability min
 Recommended dispatch error classes:
 - `ERR_CAP_REQUIRED` — privileged tool call attempted without capability token.
 - `ERR_CAP_INVALID` — capability token missing, malformed, expired, revoked, wrong epoch, or out-of-scope.
+
+Internal deterministic subcodes (for operator telemetry) SHOULD include:
+- `CAP_EXPIRED`, `CAP_REVOKED`, `CAP_USE_EXHAUSTED`, `CAP_EPOCH_MISMATCH`,
+- `CAP_SCOPE_MISMATCH`, `CAP_LINEAGE_INVALID`, `CAP_MAC_INVALID`, `CAP_CLAIMS_HASH_MISMATCH`.
+
+External callers SHOULD still receive only coarse class errors.
 
 ### 5.7 Security effect
 
@@ -631,7 +643,7 @@ CRAFT shifts attacks from cheap, scalable relay/message forgery to costlier targ
 - Persistent `state_commit` checkpoint with atomic writes.
 - Capability token issuer table with TTL eviction and revocation support.
 - Last 32 `state_commit` values for fast resync re-anchor.
-- Session tombstone list (2x replay window TTL).
+- Session tombstone list retention: 600s (10 min) or 2x max tolerated network delay, whichever is greater.
 
 ### 8.3 Availability controls
 
@@ -729,8 +741,8 @@ function verify_and_admit(envelope, direction, session):
     require envelope.epoch == session.current_epoch
     require envelope.direction == direction
 
-    canonical_fields = canonicalize(remove_fields(envelope, ["mac", "state_commit"]))
-    mac_input = build_mac_input(canonical_fields)
+    canonical_json = canonicalize(remove_fields(envelope, ["mac", "state_commit"]))
+    mac_input = utf8_bytes(canonical_json)  # Option A MAC_input
     K_msg = session.keys[direction].K_msg
 
     if !hmac_eq(envelope.mac, HMAC(K_msg, mac_input)):
@@ -763,16 +775,32 @@ function verify_and_admit(envelope, direction, session):
     return admit()
 
 
-function authorize_tool_dispatch(cap, tool_call, session):
+function handle_resync(proof, session):
+    require within_rate_limit(session.resync_attempts, max=5, per_seconds=60)
+    require proof.missing_envelopes_count <= 256
+    require proof.total_missing_envelopes_bytes <= 4 * MiB
+    require verify_resync_mac_and_nonce(proof, session)
+    require proof.client_highest_seq >= session.highest_seq
+    replay_and_verify_missing_envelopes(proof.missing_envelopes, session)
+    trigger_rekey(session)
+    return ok
+
+
+function enforce_at_tool_dispatch(cap, tool_call, session):
     require session.issuer_table.contains(cap.cap_id)
     entry = session.issuer_table[cap.cap_id]
     require !entry.revoked
+    require verify_cap_auth(cap, session.cap_keys[cap.cap_epoch])
+    require hash_canonical_claims(cap.claims) == entry.canonical_claims_hash
     require now_ms() < cap.exp
     require entry.remaining_uses > 0
     require cap.cap_epoch == session.current_or_grace_epoch
     require cap.session_id == session.id
+    require cap.account_id == tool_call.account_id
+    require cap.channel_id == tool_call.channel_id
     require cap.conversation_id == tool_call.conversation_id
     require cap.context_type == tool_call.context_type
+    require cap.subject == tool_call.subject
     require tool_call.seq >= cap.bind_seq
     require transcript_consistent(cap.state_commit_at_issue, session)
     require tool_in(tool_call.tool_id, cap.allowed_tools)
