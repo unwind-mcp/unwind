@@ -207,3 +207,45 @@ def test_tool_call_digest_bound_capability() -> None:
     out = issuer.enforce_at_tool_dispatch(token=token, tool_call=tc_bad, session=session)
     assert out.allowed is False
     assert out.subcode == CapabilitySubcode.CAP_SCOPE_MISMATCH
+
+
+def test_previous_epoch_cap_allowed_within_grace_window() -> None:
+    session, issuer = _make_session_and_issuer()
+    token = _mint_basic_token(session, issuer)
+
+    # Simulate rekey to epoch 1 while retaining epoch 0 grace verification key.
+    keys_epoch1 = derive_session_keys(
+        ikm=b"i" * 32,
+        salt0=b"s" * 32,
+        ctx=_ctx_bytes(),
+        epoch=1,
+        server_secret=b"k" * 32,
+    )
+    session.current_epoch = 1
+    session.cap_keys_by_epoch = {0: issuer.cap_keys_by_epoch[0], 1: keys_epoch1.k_cap_srv}
+    session.current_or_grace_epochs = {0, 1}
+    issuer.cap_keys_by_epoch[1] = keys_epoch1.k_cap_srv
+
+    out = issuer.enforce_at_tool_dispatch(token=token, tool_call=_tool_call(), session=session)
+    assert out.allowed is True
+
+
+def test_previous_epoch_cap_rejected_outside_grace_window() -> None:
+    session, issuer = _make_session_and_issuer()
+    token = _mint_basic_token(session, issuer)
+
+    keys_epoch1 = derive_session_keys(
+        ikm=b"i" * 32,
+        salt0=b"s" * 32,
+        ctx=_ctx_bytes(),
+        epoch=1,
+        server_secret=b"k" * 32,
+    )
+    session.current_epoch = 1
+    session.cap_keys_by_epoch = {0: issuer.cap_keys_by_epoch[0], 1: keys_epoch1.k_cap_srv}
+    session.current_or_grace_epochs = {1}
+    issuer.cap_keys_by_epoch[1] = keys_epoch1.k_cap_srv
+
+    out = issuer.enforce_at_tool_dispatch(token=token, tool_call=_tool_call(), session=session)
+    assert out.allowed is False
+    assert out.subcode == CapabilitySubcode.CAP_EPOCH_MISMATCH

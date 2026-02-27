@@ -120,15 +120,17 @@ class CapabilityIssuer:
         c = canonicalize_json(claims).encode("utf-8")
         return hashlib.sha256(c).hexdigest()
 
-    def _cap_mac(self, claims: dict[str, Any], epoch: int) -> str:
-        key = self.cap_keys_by_epoch.get(epoch)
+    def _cap_mac(self, claims: dict[str, Any], epoch: int, key_map: dict[int, bytes] | None = None) -> str:
+        keys = key_map or self.cap_keys_by_epoch
+        key = keys.get(epoch)
         if not key:
             raise ValueError(f"No capability key for epoch {epoch}")
         payload = canonicalize_json(claims).encode("utf-8")
         return b64url_encode(hmac_sha256(key, payload))
 
-    def _verify_cap_mac(self, token: CapabilityToken, epoch: int) -> bool:
-        key = self.cap_keys_by_epoch.get(epoch)
+    def _verify_cap_mac(self, token: CapabilityToken, epoch: int, key_map: dict[int, bytes] | None = None) -> bool:
+        keys = key_map or self.cap_keys_by_epoch
+        key = keys.get(epoch)
         if not key:
             return False
         payload = canonicalize_json(token.claims).encode("utf-8")
@@ -173,6 +175,14 @@ class CapabilityIssuer:
                 raise ValueError("parent capability invalid or unused")
 
         cap_id = self._cap_id()
+
+        # Prefer epoch keys tracked on session (supports grace window after rekey).
+        session_key_map = session.cap_keys_by_epoch or self.cap_keys_by_epoch
+        if epoch not in session_key_map:
+            raise ValueError(f"No capability key available for epoch {epoch}")
+        # keep issuer map in sync for current epoch lookup
+        self.cap_keys_by_epoch.setdefault(epoch, session_key_map[epoch])
+
         claims: dict[str, Any] = {
             "cap_id": cap_id,
             "session_id": session.session_id,
@@ -195,7 +205,7 @@ class CapabilityIssuer:
             "purpose": purpose,
             "tool_call_digest": tool_call_digest,
         }
-        mac = self._cap_mac(claims, epoch)
+        mac = self._cap_mac(claims, epoch, key_map=session_key_map)
         token = CapabilityToken(cap_id=cap_id, claims=claims, cap_mac=mac)
 
         self.issuer_table[cap_id] = IssuerRecord(
@@ -396,7 +406,13 @@ class CapabilityIssuer:
             return CapabilityDecision(False, CapabilityError.ERR_CAP_INVALID, CapabilitySubcode.CAP_REVOKED)
 
         claims = token.claims
-        if not self._verify_cap_mac(token, int(claims.get("cap_epoch", -1))):
+        cap_epoch = int(claims.get("cap_epoch", -1))
+
+        # Epoch key lookup prefers session map (current + grace), then issuer fallback.
+        epoch_keys = session.cap_keys_by_epoch or self.cap_keys_by_epoch
+        allowed_epochs = session.current_or_grace_epochs or set(epoch_keys.keys())
+
+        if not self._verify_cap_mac(token, cap_epoch, key_map=epoch_keys):
             return CapabilityDecision(False, CapabilityError.ERR_CAP_INVALID, CapabilitySubcode.CAP_MAC_INVALID)
 
         if self.canonical_claims_hash(claims) != rec.canonical_claims_hash:
@@ -413,14 +429,17 @@ class CapabilityIssuer:
                 False, CapabilityError.ERR_CAP_INVALID, CapabilitySubcode.CAP_USE_EXHAUSTED
             )
 
-        if int(claims.get("cap_epoch", -1)) not in self.cap_keys_by_epoch:
+        if cap_epoch not in epoch_keys:
             return CapabilityDecision(
                 False, CapabilityError.ERR_CAP_INVALID, CapabilitySubcode.CAP_EPOCH_MISMATCH
             )
 
-        if int(claims.get("cap_epoch", -1)) != session.current_epoch:
-            # Grace epochs can be added by providing extra keys and policy externally;
-            # milestone default is strict current-epoch match.
+        if cap_epoch not in allowed_epochs:
+            return CapabilityDecision(
+                False, CapabilityError.ERR_CAP_INVALID, CapabilitySubcode.CAP_EPOCH_MISMATCH
+            )
+
+        if rec.cap_epoch != cap_epoch:
             return CapabilityDecision(
                 False, CapabilityError.ERR_CAP_INVALID, CapabilitySubcode.CAP_EPOCH_MISMATCH
             )
