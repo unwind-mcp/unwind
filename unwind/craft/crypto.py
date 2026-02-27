@@ -71,6 +71,25 @@ class SessionKeys:
     prk_cap_root: bytes
 
 
+def derive_keys_from_prk(*, prk: bytes, prk_cap_root: bytes, ctx: bytes, epoch: int) -> SessionKeys:
+    """Derive directional/session keys from existing PRK material.
+
+    Used by rekey/resync epoch transitions.
+    """
+    c2p = DirectionalKeys(
+        k_msg=hkdf_expand(prk, build_hkdf_info("CRAFT/v4/msg/c2p", ctx, epoch), 32),
+        k_state=hkdf_expand(prk, build_hkdf_info("CRAFT/v4/state/c2p", ctx, epoch), 32),
+        k_resync=hkdf_expand(prk, build_hkdf_info("CRAFT/v4/resync/c2p", ctx, epoch), 32),
+    )
+    p2c = DirectionalKeys(
+        k_msg=hkdf_expand(prk, build_hkdf_info("CRAFT/v4/msg/p2c", ctx, epoch), 32),
+        k_state=hkdf_expand(prk, build_hkdf_info("CRAFT/v4/state/p2c", ctx, epoch), 32),
+        k_resync=hkdf_expand(prk, build_hkdf_info("CRAFT/v4/resync/p2c", ctx, epoch), 32),
+    )
+    k_cap_srv = hkdf_expand(prk_cap_root, build_hkdf_info("CRAFT/v4/cap", ctx, epoch), 32)
+    return SessionKeys(c2p=c2p, p2c=p2c, k_cap_srv=k_cap_srv, prk=prk, prk_cap_root=prk_cap_root)
+
+
 def derive_session_keys(
     *,
     ikm: bytes,
@@ -82,20 +101,7 @@ def derive_session_keys(
     """Derive session key bundle per CRAFT v4.2 format."""
     prk = hkdf_extract(salt=salt0, ikm=ikm)
     prk_cap_root = hkdf_extract(salt=b"CRAFT/v4.2/caproot", ikm=server_secret)
-
-    c2p = DirectionalKeys(
-        k_msg=hkdf_expand(prk, build_hkdf_info("CRAFT/v4/msg/c2p", ctx, epoch), 32),
-        k_state=hkdf_expand(prk, build_hkdf_info("CRAFT/v4/state/c2p", ctx, epoch), 32),
-        k_resync=hkdf_expand(prk, build_hkdf_info("CRAFT/v4/resync/c2p", ctx, epoch), 32),
-    )
-    p2c = DirectionalKeys(
-        k_msg=hkdf_expand(prk, build_hkdf_info("CRAFT/v4/msg/p2c", ctx, epoch), 32),
-        k_state=hkdf_expand(prk, build_hkdf_info("CRAFT/v4/state/p2c", ctx, epoch), 32),
-        k_resync=hkdf_expand(prk, build_hkdf_info("CRAFT/v4/resync/p2c", ctx, epoch), 32),
-    )
-
-    k_cap_srv = hkdf_expand(prk_cap_root, build_hkdf_info("CRAFT/v4/cap", ctx, epoch), 32)
-    return SessionKeys(c2p=c2p, p2c=p2c, k_cap_srv=k_cap_srv, prk=prk, prk_cap_root=prk_cap_root)
+    return derive_keys_from_prk(prk=prk, prk_cap_root=prk_cap_root, ctx=ctx, epoch=epoch)
 
 
 def state_commit_0(k_state: bytes, ctx: bytes) -> bytes:
