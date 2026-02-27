@@ -557,7 +557,7 @@ def cmd_serve(config: UnwindConfig, args) -> None:
     )
 
     from ..transport.stdio import run_stdio_proxy
-    asyncio.run(run_stdio_proxy(config, upstream_cmd))
+    asyncio.run(run_stdio_proxy(config, upstream_cmd, ghost=args.ghost))
 
 
 def main() -> None:
@@ -699,11 +699,24 @@ def main() -> None:
         else:
             sidecar_parser.print_help()
     elif args.command == "ghost":
+        import httpx
         action = args.action
-        config.ghost_mode = (action == "on")
-        config.save()
-        state = "ON" if config.ghost_mode else "OFF"
-        print(f"  Ghost Mode: {state}")
+        enabled = action == "on"
+        # Toggle ghost mode via sidecar API if running
+        try:
+            resp = httpx.post(
+                "http://127.0.0.1:9100/v1/ghost/toggle",
+                json={"enabled": enabled},
+                timeout=3.0,
+            )
+            if resp.status_code == 200:
+                print(f"  Ghost Mode: {'ON' if enabled else 'OFF'}")
+            else:
+                print(f"  Sidecar returned {resp.status_code}: {resp.text}")
+        except httpx.ConnectError:
+            print(f"  Cannot reach sidecar at 127.0.0.1:9100.")
+            print(f"  Start it first: unwind sidecar serve")
+            print(f"  Or use: unwind serve --ghost -- <upstream command>")
     elif args.command == "serve":
         cmd_serve(config, args)
     else:
