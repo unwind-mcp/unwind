@@ -251,6 +251,32 @@ def test_refresh_cap_epoch_grace_prunes_expired_epochs() -> None:
     assert 0 not in session.cap_keys_by_epoch
 
 
+def test_only_previous_epoch_can_be_grace_valid_after_multiple_rekeys() -> None:
+    now = [1_700_000_040_000]
+
+    def clock():
+        return now[0]
+
+    session = _make_session()
+    lm = CraftLifecycleManager(now_ms_fn=clock)
+
+    # epoch 0 -> 1
+    prep1 = lm.initiate_rekey(session)
+    lm.apply_rekey_ack(session, prep1)
+    assert session.current_epoch == 1
+    assert session.current_or_grace_epochs == {0, 1}
+
+    # quick epoch 1 -> 2
+    now[0] += 59_000
+    prep2 = lm.initiate_rekey(session)
+    lm.apply_rekey_ack(session, prep2)
+    assert session.current_epoch == 2
+
+    # epoch 0 must no longer be accepted as grace (only previous epoch 1)
+    assert session.current_or_grace_epochs == {1, 2}
+    assert 0 not in session.cap_keys_by_epoch
+
+
 def test_session_ttl_and_teardown_tombstone() -> None:
     now = 1_700_000_100_000
     session = _make_session()

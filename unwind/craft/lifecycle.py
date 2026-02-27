@@ -171,16 +171,28 @@ class CraftLifecycleManager:
         session.pending_envelopes["c2p"].clear()
         session.pending_envelopes["p2c"].clear()
 
-        # capability epoch lifecycle: time-bounded grace window for prior epochs
+        # capability epoch lifecycle: time-bounded grace window for previous epoch only
         now = self.now_ms()
-        old_epochs = [int(e) for e in session.cap_keys_by_epoch.keys() if int(e) != epoch_new]
+        previous_epoch = epoch_new - 1
+
         session.cap_keys_by_epoch[epoch_new] = keys_new.k_cap_srv
 
-        # Set/refresh grace expiry for old epochs.
-        for old in old_epochs:
-            session.cap_epoch_grace_until_ms[old] = now + self.cap_grace_ms
+        # Keep ONLY previous epoch in grace window.
+        if previous_epoch in session.cap_keys_by_epoch:
+            session.cap_epoch_grace_until_ms[previous_epoch] = now + self.cap_grace_ms
 
-        session.current_or_grace_epochs = {epoch_new, *old_epochs}
+        session.current_or_grace_epochs = {epoch_new}
+        if previous_epoch in session.cap_keys_by_epoch:
+            session.current_or_grace_epochs.add(previous_epoch)
+
+        # Drop all older epoch material immediately.
+        session.cap_keys_by_epoch = {
+            e: k for e, k in session.cap_keys_by_epoch.items() if e in session.current_or_grace_epochs
+        }
+        session.cap_epoch_grace_until_ms = {
+            e: t for e, t in session.cap_epoch_grace_until_ms.items() if e in session.current_or_grace_epochs
+        }
+
         self.refresh_cap_epoch_grace(session)
 
         session.last_rekey_at_ms = now
