@@ -55,8 +55,14 @@ export default function (api: any) {
     }
 
     // --- 5. Register hooks ---
-    api.registerHook("before_tool_call", beforeToolCall);
-    api.registerHook("after_tool_call", afterToolCall);
+    api.registerHook("before_tool_call", beforeToolCall, {
+      name: "unwind-before",
+      description: "UNWIND before_tool_call enforcement hook",
+    });
+    api.registerHook("after_tool_call", afterToolCall, {
+      name: "unwind-after",
+      description: "UNWIND after_tool_call telemetry hook",
+    });
 
     log.info?.("[unwind] adapter initialized", {
       mode: config.mode,
@@ -68,9 +74,15 @@ export default function (api: any) {
     // Absolute last resort — if init itself fails
     log.error?.("[unwind] CRITICAL: adapter init failed:", err);
     // Register a failsafe hook that blocks everything
-    api.registerHook("before_tool_call", async () => {
-      return { block: true, blockReason: "ADAPTER_INIT_FAILED" };
+    api.registerHook(
+      "before_tool_call",
+      async () => {
+        return { block: true, blockReason: "ADAPTER_INIT_FAILED" };
+      },
+      { name: "unwind-before-failsafe" }
+    );
+    api.registerHook("after_tool_call", async () => {}, {
+      name: "unwind-after-failsafe",
     });
-    api.registerHook("after_tool_call", async () => {});
   }
 }

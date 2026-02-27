@@ -77,6 +77,7 @@ export async function beforeToolCall(
   event: BeforeToolCallEvent,
   ctx: BeforeToolCallContext
 ): Promise<BeforeToolCallResult | void> {
+  console.log("[unwind-debug] before_tool_call ENTERED", { toolName: event?.toolName });
   try {
     return await handleBeforeToolCall(event, ctx);
   } catch (err) {
