@@ -46,12 +46,11 @@ def create_app(config: UnwindConfig = None) -> Flask:
 
     @app.route("/api/trust-state")
     def api_trust_state():
-        """Get current trust state and summary stats."""
-        events = store.query_events(limit=1)
-        current_trust = "green"
-        if events:
-            current_trust = events[0].get("trust_state", "green")
+        """Get current trust state and summary stats.
 
+        Trust reflects worst event seen in the last hour:
+          red > amber > green
+        """
         # Get aggregate stats for last hour
         one_hour_ago = time.time() - 3600
         recent = store.query_events(since=one_hour_ago, limit=10000)
@@ -61,6 +60,14 @@ def create_app(config: UnwindConfig = None) -> Flask:
         ghost = sum(1 for e in recent if e.get("status") == "ghost_success")
         tainted = sum(1 for e in recent if e.get("session_tainted"))
         red = sum(1 for e in recent if e.get("trust_state") == "red")
+
+        # Worst-of-window trust semantics
+        if red > 0:
+            current_trust = "red"
+        elif tainted > 0:
+            current_trust = "amber"
+        else:
+            current_trust = "green"
 
         return jsonify({
             "trust_state": current_trust,
