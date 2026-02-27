@@ -88,6 +88,23 @@ class CraftLifecycleManager:
     def is_session_expired(self, session: CraftSessionState) -> bool:
         return self.now_ms() - session.started_at_ms > self.session_ttl_ms
 
+    def refresh_cap_epoch_grace(self, session: CraftSessionState) -> None:
+        """Prune expired grace epochs and keep lifecycle maps consistent."""
+        now = self.now_ms()
+        keep_epochs = {session.current_epoch}
+
+        for epoch, until_ms in list(session.cap_epoch_grace_until_ms.items()):
+            if now <= int(until_ms):
+                keep_epochs.add(int(epoch))
+            else:
+                session.cap_epoch_grace_until_ms.pop(int(epoch), None)
+
+        # prune keys + allowed set to bounded valid epochs
+        session.current_or_grace_epochs = set(keep_epochs)
+        session.cap_keys_by_epoch = {
+            int(e): k for e, k in session.cap_keys_by_epoch.items() if int(e) in keep_epochs
+        }
+
     def initiate_rekey(self, session: CraftSessionState) -> RekeyPrepare:
         """P-initiated rekey with boundary markers."""
         return RekeyPrepare(
@@ -154,17 +171,19 @@ class CraftLifecycleManager:
         session.pending_envelopes["c2p"].clear()
         session.pending_envelopes["p2c"].clear()
 
-        # capability epoch lifecycle: keep previous epoch key in grace set
-        old_epochs = sorted(session.cap_keys_by_epoch.keys())
+        # capability epoch lifecycle: time-bounded grace window for prior epochs
+        now = self.now_ms()
+        old_epochs = [int(e) for e in session.cap_keys_by_epoch.keys() if int(e) != epoch_new]
         session.cap_keys_by_epoch[epoch_new] = keys_new.k_cap_srv
+
+        # Set/refresh grace expiry for old epochs.
+        for old in old_epochs:
+            session.cap_epoch_grace_until_ms[old] = now + self.cap_grace_ms
+
         session.current_or_grace_epochs = {epoch_new, *old_epochs}
+        self.refresh_cap_epoch_grace(session)
 
-        # trim grace epochs by age via tombstone table semantics (simple two-epoch policy)
-        if len(session.current_or_grace_epochs) > 2:
-            keep = {epoch_new, epoch_new - 1}
-            session.current_or_grace_epochs = {e for e in session.current_or_grace_epochs if e in keep}
-
-        session.last_rekey_at_ms = self.now_ms()
+        session.last_rekey_at_ms = now
 
     def issue_resync_challenge(self, session: CraftSessionState, direction: str) -> ResyncChallenge:
         if direction not in ("c2p", "p2c"):
@@ -352,3 +371,4 @@ class CraftLifecycleManager:
         session.keys_p2c = type(session.keys_p2c)(k_msg=b"", k_state=b"", k_resync=b"")
         session.cap_keys_by_epoch.clear()
         session.current_or_grace_epochs.clear()
+        session.cap_epoch_grace_until_ms.clear()

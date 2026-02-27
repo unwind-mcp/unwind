@@ -65,6 +65,7 @@ class CraftStateStore:
             "prk_cap_root": b64url_encode(session.prk_cap_root or b""),
             "cap_keys_by_epoch": {str(k): b64url_encode(v) for k, v in session.cap_keys_by_epoch.items()},
             "current_or_grace_epochs": sorted(list(session.current_or_grace_epochs)),
+            "cap_epoch_grace_until_ms": {str(k): int(v) for k, v in session.cap_epoch_grace_until_ms.items()},
             "queue_max": session.queue_max,
             "queue_timeout_ms": session.queue_timeout_ms,
         }
@@ -103,6 +104,9 @@ class CraftStateStore:
             int(k): b64url_decode(v) for k, v in raw.get("cap_keys_by_epoch", {}).items()
         }
         s.current_or_grace_epochs = set(int(x) for x in raw.get("current_or_grace_epochs", []))
+        s.cap_epoch_grace_until_ms = {
+            int(k): int(v) for k, v in raw.get("cap_epoch_grace_until_ms", {}).items()
+        }
         s.queue_max = int(raw.get("queue_max", s.queue_max))
         s.queue_timeout_ms = int(raw.get("queue_timeout_ms", s.queue_timeout_ms))
         return s
