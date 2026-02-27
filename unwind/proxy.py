@@ -24,6 +24,13 @@ from .enforcement.pipeline import EnforcementPipeline, CheckResult, PipelineResu
 from .enforcement.canary import CanaryCheck
 from .recorder.event_store import EventStore, EventStatus
 from .snapshots.manager import SnapshotManager, Snapshot
+from .craft import (
+    CraftVerifier,
+    CraftSessionState,
+    CraftLifecycleManager,
+    CraftStateStore,
+)
+from .craft.crypto import derive_session_keys, state_commit_0
 
 logger = logging.getLogger("unwind.proxy")
 
@@ -48,6 +55,12 @@ class UnwindProxy:
         self.sessions: dict[str, Session] = {}
         self._started = False
 
+        # CRAFT ingress runtime (v4.2 integration scaffolding)
+        self.craft_verifier = CraftVerifier()
+        self.craft_lifecycle = CraftLifecycleManager()
+        self.craft_state_store: CraftStateStore | None = None
+        self.craft_sessions: dict[str, CraftSessionState] = {}
+
     def startup(self) -> None:
         """Initialize UNWIND — create dirs, open DB, run exposure check."""
         self.config.ensure_dirs()
@@ -67,6 +80,7 @@ class UnwindProxy:
                     result["db_size_after"],
                 )
         self._run_exposure_check()
+        self.craft_state_store = CraftStateStore(self.config.unwind_home / "craft_state.json")
         self._started = True
         logger.info(
             "UNWIND started — proxy on %s:%d, upstream on %s:%d",
@@ -138,6 +152,120 @@ class UnwindProxy:
         definitions are returned for backwards-compatibility tests.
         """
         return self.canary_check.get_canary_tool_definitions(session_id=session_id)
+
+    # --- CRAFT ingress integration (v4.2 scaffolding) ---
+
+    def create_craft_session(
+        self,
+        *,
+        session_id: str,
+        account_id: str,
+        channel_id: str,
+        conversation_id: str,
+        context_type: str,
+        ikm: bytes,
+        salt0: bytes,
+        server_secret: bytes,
+        epoch: int = 0,
+    ) -> CraftSessionState:
+        """Create/register a CRAFT session state from handshake key material."""
+        ctx = (
+            f"CRAFT/v4.2|{session_id}|{account_id}|{channel_id}|{conversation_id}|{context_type}"
+        ).encode("utf-8")
+        keys = derive_session_keys(
+            ikm=ikm,
+            salt0=salt0,
+            ctx=ctx,
+            epoch=epoch,
+            server_secret=server_secret,
+        )
+        craft = CraftSessionState.from_session_keys(
+            session_id=session_id,
+            account_id=account_id,
+            channel_id=channel_id,
+            conversation_id=conversation_id,
+            context_type=context_type,
+            epoch=epoch,
+            keys=keys,
+            ctx=ctx,
+        )
+        craft.last_state_commit["c2p"] = state_commit_0(keys.c2p.k_state, ctx)
+        craft.last_state_commit["p2c"] = state_commit_0(keys.p2c.k_state, ctx)
+        craft.record_state_commit("c2p", craft.last_state_commit["c2p"])
+        craft.record_state_commit("p2c", craft.last_state_commit["p2c"])
+
+        # Restore persisted continuity if available
+        if self.craft_state_store:
+            self.craft_state_store.restore_session_into(craft)
+
+        self.craft_sessions[session_id] = craft
+        return craft
+
+    def verify_craft_envelope(
+        self,
+        *,
+        session_id: str,
+        envelope: dict,
+        now_ms: Optional[int] = None,
+    ) -> dict:
+        """Verify/hold one CRAFT envelope on ingress.
+
+        Returns a transport-friendly dict with accepted/held/error.
+        Capability enforcement remains dispatch-only and is not invoked here.
+        """
+        craft = self.craft_sessions.get(session_id)
+        if not craft:
+            return {"accepted": False, "error": "ERR_CRAFT_SESSION_NOT_FOUND"}
+
+        result = self.craft_verifier.verify_or_hold(envelope, craft, now_ms=now_ms)
+        if self.craft_state_store and (result.accepted or result.held):
+            self.craft_state_store.save_session(craft)
+
+        return {
+            "accepted": result.accepted,
+            "held": result.held,
+            "drained": result.drained,
+            "error": result.error.value if result.error else None,
+        }
+
+    def craft_rekey_prepare(self, session_id: str) -> dict:
+        craft = self.craft_sessions.get(session_id)
+        if not craft:
+            return {"error": "ERR_CRAFT_SESSION_NOT_FOUND"}
+        p = self.craft_lifecycle.initiate_rekey(craft)
+        return {
+            "action": p.action,
+            "session_id": p.session_id,
+            "epoch_new": p.epoch_new,
+            "boundary_seq_c2p": p.boundary_seq_c2p,
+            "boundary_seq_p2c": p.boundary_seq_p2c,
+        }
+
+    def craft_rekey_apply(self, session_id: str, prepare_msg: dict) -> dict:
+        craft = self.craft_sessions.get(session_id)
+        if not craft:
+            return {"ok": False, "error": "ERR_CRAFT_SESSION_NOT_FOUND"}
+        try:
+            prep = self.craft_lifecycle.initiate_rekey(craft)
+            # Validate caller intent matches expected transition envelope
+            if int(prepare_msg.get("epoch_new", -1)) != prep.epoch_new:
+                return {"ok": False, "error": "ERR_REKEY_EPOCH_MISMATCH"}
+            self.craft_lifecycle.apply_rekey_ack(craft, prep)
+            if self.craft_state_store:
+                self.craft_state_store.save_session(craft)
+            return {"ok": True, "epoch": craft.current_epoch}
+        except Exception as e:
+            return {"ok": False, "error": f"ERR_REKEY_APPLY: {e}"}
+
+    def craft_teardown(self, session_id: str, max_network_delay_ms: int = 5000) -> dict:
+        craft = self.craft_sessions.get(session_id)
+        if not craft:
+            return {"ok": False, "error": "ERR_CRAFT_SESSION_NOT_FOUND"}
+        self.craft_lifecycle.teardown_session(craft, max_network_delay_ms=max_network_delay_ms)
+        if self.craft_state_store and craft.tombstoned_until_ms:
+            self.craft_state_store.save_tombstone(session_id, craft.tombstoned_until_ms)
+            self.craft_state_store.save_session(craft)
+        return {"ok": True, "tombstoned_until_ms": craft.tombstoned_until_ms}
 
     def _extract_target(self, tool_name: str, params: Optional[dict]) -> Optional[str]:
         """Extract the target (path or URL) from tool parameters."""
