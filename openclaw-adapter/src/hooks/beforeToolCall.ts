@@ -69,6 +69,16 @@ interface BeforeToolCallResult {
   blockReason?: string;
 }
 
+const TOOL_NAME_MAP: Record<string, string> = {
+  read: "fs_read",
+  write: "fs_write",
+  edit: "fs_write",
+};
+
+function mapToolNameForPolicy(toolName: string): string {
+  return TOOL_NAME_MAP[toolName] || toolName;
+}
+
 /**
  * Exported hook handler. Registered via api.registerHook("before_tool_call", ...).
  * Outermost try/catch guarantees we NEVER throw.
@@ -78,6 +88,7 @@ export async function beforeToolCall(
   ctx: BeforeToolCallContext
 ): Promise<BeforeToolCallResult | void> {
   console.log("[unwind-debug] before_tool_call ENTERED", { toolName: event?.toolName });
+  console.log("[unwind-debug] params:", JSON.stringify(event?.params));
   try {
     return await handleBeforeToolCall(event, ctx);
   } catch (err) {
@@ -123,8 +134,10 @@ async function handleBeforeToolCall(
   }
 
   // --- Step 3-4: Build request + query sidecar ---
+  const mappedToolName = mapToolNameForPolicy(event.toolName);
+
   const result = await sidecarClient.policyCheck({
-    toolName: event.toolName,
+    toolName: mappedToolName,
     params: event.params,
     agentId: ctx.agentId || "unknown",
     sessionKey: ctx.sessionKey || "",
@@ -139,6 +152,7 @@ async function handleBeforeToolCall(
     }
     logger?.warn?.("[unwind] shadow: would block", {
       toolName: event.toolName,
+      mappedToolName,
       reason: result.blockReason,
     });
     return undefined;
