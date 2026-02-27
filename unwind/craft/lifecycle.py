@@ -99,13 +99,24 @@ class CraftLifecycleManager:
         """Apply rekey transition after authenticated rekey_ack.
 
         Uses last committed state_commit values (idle direction value unchanged).
+        Enforces boundary marker semantics from v4.2.
         """
         if session.prk is None or session.prk_cap_root is None or not session.ctx:
             raise ValueError("Session missing PRK/PRK_cap_root/ctx required for rekey")
 
+        if prepare.session_id != session.session_id:
+            raise ValueError("Rekey prepare session mismatch")
+
         epoch_new = int(prepare.epoch_new)
         if epoch_new != session.current_epoch + 1:
             raise ValueError("Invalid epoch transition")
+
+        expected_boundary_c2p = session.highest_seq["c2p"] + 1
+        expected_boundary_p2c = session.highest_seq["p2c"] + 1
+        if int(prepare.boundary_seq_c2p) != expected_boundary_c2p:
+            raise ValueError("Invalid rekey boundary_seq_c2p")
+        if int(prepare.boundary_seq_p2c) != expected_boundary_p2c:
+            raise ValueError("Invalid rekey boundary_seq_p2c")
 
         commit_c2p = session.last_state_commit.get("c2p")
         commit_p2c = session.last_state_commit.get("p2c")
@@ -283,8 +294,13 @@ class CraftLifecycleManager:
         if not hmac.compare_digest(client_state_commit, commit):
             return ResyncResult(False, ResyncError.ERR_RESYNC_STATE_DIVERGED)
 
+        # Enforce continuity: claimed highest seq must exactly match walked chain
+        walked_highest_seq = expected_seq - 1
+        if client_highest_seq != walked_highest_seq:
+            return ResyncResult(False, ResyncError.ERR_RESYNC_STATE_DIVERGED)
+
         # Commit walked state
-        session.highest_seq[direction] = client_highest_seq
+        session.highest_seq[direction] = walked_highest_seq
         session.last_state_commit[direction] = commit
 
         # Resync is a rekey event

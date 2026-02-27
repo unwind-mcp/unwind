@@ -146,6 +146,56 @@ def test_resync_walks_state_then_rekeys() -> None:
     assert session.current_epoch == 1
 
 
+def test_resync_rejects_unproven_seq_jump() -> None:
+    session = _make_session()
+    lm = CraftLifecycleManager(now_ms_fn=lambda: 1_700_000_003_000)
+
+    env1, commit1 = _signed_envelope(session, 1)
+
+    ch = lm.issue_resync_challenge(session, "c2p")
+    proof = {
+        "session_id": session.session_id,
+        "direction": "c2p",
+        "epoch": session.current_epoch,
+        "challenge_nonce": ch.challenge_nonce,
+        # Claims seq jump to 5 but only provides proof for seq 1
+        "client_highest_seq": 5,
+        "client_state_commit": b64url_encode(commit1),
+        "missing_envelopes": [env1],
+    }
+    proof["mac"] = b64url_encode(
+        hmac_sha256(
+            session.keys_c2p.k_resync,
+            canonicalize_json({k: v for k, v in proof.items() if k != "mac"}).encode("utf-8"),
+        )
+    )
+
+    out = lm.handle_resync(session, proof)
+    assert out.ok is False
+    assert out.error == ResyncError.ERR_RESYNC_STATE_DIVERGED
+
+
+def test_rekey_boundary_mismatch_rejected() -> None:
+    session = _make_session()
+    session.highest_seq["c2p"] = 2
+    session.highest_seq["p2c"] = 4
+    lm = CraftLifecycleManager(now_ms_fn=lambda: 1_700_000_004_000)
+
+    prep = lm.initiate_rekey(session)
+    bad = type(prep)(
+        session_id=prep.session_id,
+        epoch_new=prep.epoch_new,
+        boundary_seq_c2p=prep.boundary_seq_c2p + 1,
+        boundary_seq_p2c=prep.boundary_seq_p2c,
+        action=prep.action,
+    )
+
+    import pytest
+
+    with pytest.raises(ValueError):
+        lm.apply_rekey_ack(session, bad)
+
+
 def test_session_ttl_and_teardown_tombstone() -> None:
     now = 1_700_000_100_000
     session = _make_session()
