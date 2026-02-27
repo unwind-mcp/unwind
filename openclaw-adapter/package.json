@@ -2,9 +2,11 @@
   "name": "@unwind/openclaw-adapter",
   "version": "0.0.1",
   "type": "module",
-  "main": "src/index.ts",
+  "main": "index.ts",
   "openclaw": {
-    "extensions": ["./src/index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   },
   "scripts": {
     "test": "echo \"TODO: add tests\""
