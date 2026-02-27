@@ -24,6 +24,15 @@ from .verifier import (
     VerifyResult,
     VerifyError,
 )
+from .capabilities import (
+    CapabilityIssuer,
+    CapabilityToken,
+    CapabilityDecision,
+    CapabilityError,
+    CapabilitySubcode,
+    ToolCall,
+    StepUpChallenge,
+)
 
 __all__ = [
     "canonicalize_for_mac",
@@ -39,4 +48,11 @@ __all__ = [
     "CraftVerifier",
     "VerifyResult",
     "VerifyError",
+    "CapabilityIssuer",
+    "CapabilityToken",
+    "CapabilityDecision",
+    "CapabilityError",
+    "CapabilitySubcode",
+    "ToolCall",
+    "StepUpChallenge",
 ]
