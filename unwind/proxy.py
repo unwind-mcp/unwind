@@ -29,6 +29,7 @@ from .craft import (
     CraftSessionState,
     CraftLifecycleManager,
     CraftStateStore,
+    RekeyPrepare,
 )
 from .craft.crypto import derive_session_keys, state_commit_0
 
@@ -246,10 +247,13 @@ class UnwindProxy:
         if not craft:
             return {"ok": False, "error": "ERR_CRAFT_SESSION_NOT_FOUND"}
         try:
-            prep = self.craft_lifecycle.initiate_rekey(craft)
-            # Validate caller intent matches expected transition envelope
-            if int(prepare_msg.get("epoch_new", -1)) != prep.epoch_new:
-                return {"ok": False, "error": "ERR_REKEY_EPOCH_MISMATCH"}
+            prep = RekeyPrepare(
+                session_id=str(prepare_msg.get("session_id", "")),
+                epoch_new=int(prepare_msg.get("epoch_new", -1)),
+                boundary_seq_c2p=int(prepare_msg.get("boundary_seq_c2p", -1)),
+                boundary_seq_p2c=int(prepare_msg.get("boundary_seq_p2c", -1)),
+                action=str(prepare_msg.get("action", "rekey_prepare")),
+            )
             self.craft_lifecycle.apply_rekey_ack(craft, prep)
             if self.craft_state_store:
                 self.craft_state_store.save_session(craft)
