@@ -79,6 +79,8 @@ class CraftLifecycleManager:
 
         self._resync_challenges: dict[str, ResyncChallenge] = {}
         self._resync_attempts: dict[str, list[int]] = {}
+        self._resync_failures: dict[str, int] = {}
+        self._resync_backoff_until_ms: dict[str, int] = {}
 
     def now_ms(self) -> int:
         return int(self._now_ms_fn())
@@ -190,12 +192,28 @@ class CraftLifecycleManager:
 
     def _rate_limit_ok(self, session_id: str) -> bool:
         now = self.now_ms()
+        backoff_until = self._resync_backoff_until_ms.get(session_id, 0)
+        if now < backoff_until:
+            return False
+
         arr = self._resync_attempts.setdefault(session_id, [])
         arr[:] = [t for t in arr if now - t <= 60_000]
         if len(arr) >= self.max_resync_attempts_per_minute:
             return False
         arr.append(now)
         return True
+
+    def _register_resync_failure(self, session_id: str) -> None:
+        now = self.now_ms()
+        n = self._resync_failures.get(session_id, 0) + 1
+        self._resync_failures[session_id] = n
+        # Exponential backoff capped at 60s.
+        backoff_ms = min(60_000, 1_000 * (2 ** min(n, 6)))
+        self._resync_backoff_until_ms[session_id] = now + backoff_ms
+
+    def _clear_resync_failures(self, session_id: str) -> None:
+        self._resync_failures.pop(session_id, None)
+        self._resync_backoff_until_ms.pop(session_id, None)
 
     def _proof_mac_ok(self, session: CraftSessionState, proof: dict[str, Any]) -> bool:
         try:
@@ -217,35 +235,44 @@ class CraftLifecycleManager:
         proof: dict[str, Any],
     ) -> ResyncResult:
         """Validate resync proof, walk missing envelopes, then epoch-bump rekey."""
+
+        def _fail(err: ResyncError, *, terminate: bool = False) -> ResyncResult:
+            self._register_resync_failure(session.session_id)
+            if terminate:
+                self.teardown_session(session)
+            return ResyncResult(False, err)
+
         if not self._rate_limit_ok(session.session_id):
-            return ResyncResult(False, ResyncError.ERR_RESYNC_RATE_LIMIT)
+            # B3: rate-limit breach terminates session (fail-closed)
+            return _fail(ResyncError.ERR_RESYNC_RATE_LIMIT, terminate=True)
 
         if not self._proof_mac_ok(session, proof):
-            return ResyncResult(False, ResyncError.ERR_RESYNC_PROOF_INVALID)
+            return _fail(ResyncError.ERR_RESYNC_PROOF_INVALID)
 
         nonce = str(proof.get("challenge_nonce", ""))
         ch = self._resync_challenges.pop(nonce, None)
         if not ch:
-            return ResyncResult(False, ResyncError.ERR_RESYNC_CHALLENGE_INVALID)
+            return _fail(ResyncError.ERR_RESYNC_CHALLENGE_INVALID)
 
         now = self.now_ms()
         if now > ch.expires_at_ms:
-            return ResyncResult(False, ResyncError.ERR_RESYNC_CHALLENGE_INVALID)
+            return _fail(ResyncError.ERR_RESYNC_CHALLENGE_INVALID)
 
         direction = str(proof.get("direction", ""))
         if direction != ch.direction:
-            return ResyncResult(False, ResyncError.ERR_RESYNC_CHALLENGE_INVALID)
+            return _fail(ResyncError.ERR_RESYNC_CHALLENGE_INVALID)
 
         missing_envelopes = list(proof.get("missing_envelopes", []))
         missing_count = len(missing_envelopes)
         missing_bytes = sum(len(canonicalize_json(e).encode("utf-8")) for e in missing_envelopes)
         if missing_count > self.max_missing_envelopes or missing_bytes > self.max_missing_envelopes_bytes:
-            return ResyncResult(False, ResyncError.ERR_RESYNC_BOUNDS)
+            # B7: bounds violation terminates session (fail-closed)
+            return _fail(ResyncError.ERR_RESYNC_BOUNDS, terminate=True)
 
         # Check monotonic client claim
         client_highest_seq = int(proof.get("client_highest_seq", 0))
         if client_highest_seq < session.highest_seq[direction]:
-            return ResyncResult(False, ResyncError.ERR_RESYNC_STATE_DIVERGED)
+            return _fail(ResyncError.ERR_RESYNC_STATE_DIVERGED)
 
         # Walk chain forward from local state
         keyset = session.keys_for_direction(direction)
@@ -256,29 +283,29 @@ class CraftLifecycleManager:
         for env in ordered:
             # Validate epoch and sequence
             if int(env.get("epoch", -1)) != session.current_epoch:
-                return ResyncResult(False, ResyncError.ERR_RESYNC_STATE_DIVERGED)
+                return _fail(ResyncError.ERR_RESYNC_STATE_DIVERGED)
             if int(env.get("seq", -1)) != expected_seq:
-                return ResyncResult(False, ResyncError.ERR_RESYNC_STATE_DIVERGED)
+                return _fail(ResyncError.ERR_RESYNC_STATE_DIVERGED)
 
             # Validate MAC
             try:
                 raw_mac = b64url_decode(str(env["mac"]))
                 mac_expected = hmac_sha256(keyset.k_msg, mac_input_bytes(env))
             except Exception:
-                return ResyncResult(False, ResyncError.ERR_RESYNC_STATE_DIVERGED)
+                return _fail(ResyncError.ERR_RESYNC_STATE_DIVERGED)
             import hmac
 
             if not hmac.compare_digest(raw_mac, mac_expected):
-                return ResyncResult(False, ResyncError.ERR_RESYNC_STATE_DIVERGED)
+                return _fail(ResyncError.ERR_RESYNC_STATE_DIVERGED)
 
             # Validate state chain
             commit_expected = hmac_sha256(keyset.k_state, commit + raw_mac)
             try:
                 wire_commit = b64url_decode(str(env["state_commit"]))
             except Exception:
-                return ResyncResult(False, ResyncError.ERR_RESYNC_STATE_DIVERGED)
+                return _fail(ResyncError.ERR_RESYNC_STATE_DIVERGED)
             if not hmac.compare_digest(wire_commit, commit_expected):
-                return ResyncResult(False, ResyncError.ERR_RESYNC_STATE_DIVERGED)
+                return _fail(ResyncError.ERR_RESYNC_STATE_DIVERGED)
 
             commit = commit_expected
             expected_seq += 1
@@ -287,17 +314,17 @@ class CraftLifecycleManager:
         try:
             client_state_commit = b64url_decode(str(proof.get("client_state_commit", "")))
         except Exception:
-            return ResyncResult(False, ResyncError.ERR_RESYNC_STATE_DIVERGED)
+            return _fail(ResyncError.ERR_RESYNC_STATE_DIVERGED)
 
         import hmac
 
         if not hmac.compare_digest(client_state_commit, commit):
-            return ResyncResult(False, ResyncError.ERR_RESYNC_STATE_DIVERGED)
+            return _fail(ResyncError.ERR_RESYNC_STATE_DIVERGED)
 
         # Enforce continuity: claimed highest seq must exactly match walked chain
         walked_highest_seq = expected_seq - 1
         if client_highest_seq != walked_highest_seq:
-            return ResyncResult(False, ResyncError.ERR_RESYNC_STATE_DIVERGED)
+            return _fail(ResyncError.ERR_RESYNC_STATE_DIVERGED)
 
         # Commit walked state
         session.highest_seq[direction] = walked_highest_seq
@@ -307,6 +334,7 @@ class CraftLifecycleManager:
         prepare = self.initiate_rekey(session)
         self.apply_rekey_ack(session, prepare)
 
+        self._clear_resync_failures(session.session_id)
         return ResyncResult(True, None, new_epoch=session.current_epoch)
 
     def teardown_session(self, session: CraftSessionState, *, max_network_delay_ms: int = 5000) -> None:
