@@ -28,6 +28,7 @@ classifiers = [
 dependencies = [
     "fastapi>=0.109",
     "uvicorn>=0.25",
+    "flask>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -48,6 +49,9 @@ Issues = "https://github.com/unwind-mcp/unwind/issues"
 
 [tool.setuptools.packages.find]
 include = ["unwind*"]
+
+[tool.setuptools.package-data]
+unwind = ["dashboard/templates/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
