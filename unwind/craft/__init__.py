@@ -13,6 +13,7 @@ from .crypto import (
     hkdf_extract,
     hkdf_expand,
     derive_session_keys,
+    derive_keys_from_prk,
     derive_rekey_prk,
     state_commit_0,
     b64url_encode,
@@ -33,6 +34,14 @@ from .capabilities import (
     ToolCall,
     StepUpChallenge,
 )
+from .lifecycle import (
+    CraftLifecycleManager,
+    RekeyPrepare,
+    ResyncChallenge,
+    ResyncResult,
+    ResyncError,
+)
+from .persistence import CraftStateStore
 
 __all__ = [
     "canonicalize_for_mac",
@@ -40,6 +49,7 @@ __all__ = [
     "hkdf_extract",
     "hkdf_expand",
     "derive_session_keys",
+    "derive_keys_from_prk",
     "derive_rekey_prk",
     "state_commit_0",
     "b64url_encode",
@@ -55,4 +65,10 @@ __all__ = [
     "CapabilitySubcode",
     "ToolCall",
     "StepUpChallenge",
+    "CraftLifecycleManager",
+    "RekeyPrepare",
+    "ResyncChallenge",
+    "ResyncResult",
+    "ResyncError",
+    "CraftStateStore",
 ]

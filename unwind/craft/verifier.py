@@ -5,9 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+import time
+
+from .crypto import SessionKeys
 
 from .canonical import mac_input_bytes
-from .crypto import DirectionalKeys, b64url_decode, hmac_sha256
+from .crypto import DirectionalKeys, b64url_decode, b64url_encode, hmac_sha256
 
 
 class VerifyError(str, Enum):
@@ -18,10 +21,12 @@ class VerifyError(str, Enum):
     ERR_EPOCH_STALE = "ERR_EPOCH_STALE"
 
 
-@dataclass(frozen=True)
+@dataclass
 class VerifyResult:
     accepted: bool
     error: VerifyError | None = None
+    held: bool = False
+    drained: int = 0
 
 
 @dataclass
@@ -55,6 +60,68 @@ class CraftSessionState:
     replay_bitmap: dict[str, ReplayWindow] = field(
         default_factory=lambda: {"c2p": ReplayWindow(), "p2c": ReplayWindow()}
     )
+    # Optional root key material for rekey/resync lifecycle
+    prk: bytes | None = None
+    prk_cap_root: bytes | None = None
+    ctx: bytes = b""
+
+    # Capability key lifecycle (current + grace epochs)
+    cap_keys_by_epoch: dict[int, bytes] = field(default_factory=dict)
+    current_or_grace_epochs: set[int] = field(default_factory=set)
+
+    # Recent transcript commits used by transcript_consistent checks
+    recent_state_commits: dict[str, list[str]] = field(
+        default_factory=lambda: {"c2p": [], "p2c": []}
+    )
+
+    # Strict FIFO hold queue (uniform ingress behavior)
+    pending_envelopes: dict[str, dict[int, tuple[dict[str, Any], int]]] = field(
+        default_factory=lambda: {"c2p": {}, "p2c": {}}
+    )
+    queue_max: int = 32
+    queue_timeout_ms: int = 5000
+
+    # Session lifecycle markers
+    started_at_ms: int = field(default_factory=lambda: int(time.time() * 1000))
+    last_rekey_at_ms: int = field(default_factory=lambda: int(time.time() * 1000))
+    tombstoned_until_ms: int | None = None
+
+    @classmethod
+    def from_session_keys(
+        cls,
+        *,
+        session_id: str,
+        account_id: str,
+        channel_id: str,
+        conversation_id: str,
+        context_type: str,
+        epoch: int,
+        keys: SessionKeys,
+        ctx: bytes,
+    ) -> "CraftSessionState":
+        s = cls(
+            session_id=session_id,
+            account_id=account_id,
+            channel_id=channel_id,
+            conversation_id=conversation_id,
+            context_type=context_type,
+            current_epoch=epoch,
+            keys_c2p=keys.c2p,
+            keys_p2c=keys.p2c,
+            prk=keys.prk,
+            prk_cap_root=keys.prk_cap_root,
+            ctx=ctx,
+            cap_keys_by_epoch={epoch: keys.k_cap_srv},
+            current_or_grace_epochs={epoch},
+        )
+        return s
+
+    def record_state_commit(self, direction: str, commit: bytes, max_recent: int = 32) -> None:
+        encoded = b64url_encode(commit)
+        bucket = self.recent_state_commits.setdefault(direction, [])
+        bucket.append(encoded)
+        if len(bucket) > max_recent:
+            del bucket[:-max_recent]
 
     def keys_for_direction(self, direction: str) -> DirectionalKeys:
         if direction == "c2p":
@@ -101,6 +168,68 @@ class CraftVerifier:
         import hmac
 
         return hmac.compare_digest(a, b)
+
+    def _expire_pending(self, session: CraftSessionState, direction: str, now_ms: int) -> None:
+        pending = session.pending_envelopes[direction]
+        expired = [seq for seq, (_, ts) in pending.items() if now_ms - ts > session.queue_timeout_ms]
+        for seq in expired:
+            pending.pop(seq, None)
+
+    def verify_or_hold(
+        self,
+        envelope: dict[str, Any],
+        session: CraftSessionState,
+        *,
+        now_ms: int | None = None,
+    ) -> VerifyResult:
+        """Strict FIFO verify with bounded hold queue for ahead-of-sequence envelopes."""
+        if now_ms is None:
+            now_ms = int(time.time() * 1000)
+
+        if not isinstance(envelope, dict) or not self.REQUIRED_FIELDS.issubset(envelope.keys()):
+            return VerifyResult(False, VerifyError.ERR_ENVELOPE_INVALID)
+
+        try:
+            direction = str(envelope["direction"])
+            if direction not in ("c2p", "p2c"):
+                return VerifyResult(False, VerifyError.ERR_ENVELOPE_INVALID)
+            seq = self._parse_seq(envelope["seq"])
+        except Exception:
+            return VerifyResult(False, VerifyError.ERR_ENVELOPE_INVALID)
+
+        self._expire_pending(session, direction, now_ms)
+        expected = session.highest_seq[direction] + 1
+
+        if seq > expected:
+            pending = session.pending_envelopes[direction]
+            if seq > expected + session.queue_max:
+                return VerifyResult(False, VerifyError.ERR_REPLAY)
+            if len(pending) >= session.queue_max:
+                return VerifyResult(False, VerifyError.ERR_REPLAY)
+            pending[seq] = (envelope, now_ms)
+            return VerifyResult(False, None, held=True, drained=0)
+
+        # seq <= expected path: normal verify
+        result = self.verify_and_admit(envelope, session)
+        if not result.accepted:
+            return result
+
+        # Drain queued envelopes if contiguous
+        drained = 0
+        pending = session.pending_envelopes[direction]
+        while True:
+            next_seq = session.highest_seq[direction] + 1
+            item = pending.get(next_seq)
+            if item is None:
+                break
+            queued_env, _ts = pending.pop(next_seq)
+            r = self.verify_and_admit(queued_env, session)
+            if not r.accepted:
+                # fail-safe: stop draining on first inconsistency
+                break
+            drained += 1
+
+        return VerifyResult(True, None, held=False, drained=drained)
 
     def verify_and_admit(self, envelope: dict[str, Any], session: CraftSessionState) -> VerifyResult:
         # --- Pre-auth checks (generic error only) ---
@@ -166,5 +295,6 @@ class CraftVerifier:
         session.highest_seq[direction] = seq
         session.last_state_commit[direction] = expected_commit
         session.replay_bitmap[direction].mark(seq)
+        session.record_state_commit(direction, expected_commit)
 
         return VerifyResult(True, None)
