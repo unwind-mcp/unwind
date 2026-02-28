@@ -170,6 +170,116 @@ class TestSidecarUnknownAction(unittest.TestCase):
         self.assertIn("UNKNOWN_PIPELINE_ACTION", data.get("blockReason", ""))
 
 
+
+
+class TestApplyPatchPathJail(unittest.TestCase):
+    """P0-1: apply_patch payloads must path-jail every touched path."""
+
+    def test_apply_patch_internal_paths_allowed(self):
+        config = _make_config()
+        client = _make_client(config=config)
+
+        inside = str(config.workspace_root / "inside.txt")
+        patch = "\n".join([
+            "*** Begin Patch",
+            f"*** Add File: {inside}",
+            "+hello from patch",
+            "*** End Patch",
+        ])
+
+        body = {
+            "toolName": "fs_write",
+            "params": {"input": patch},
+            "agentId": "agent-001",
+            "sessionKey": "sess-patch-allow",
+        }
+
+        resp = client.post("/v1/policy/check", json=body, headers=_headers())
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json().get("decision"), "allow")
+
+    def test_apply_patch_blocks_when_any_path_escapes_workspace(self):
+        config = _make_config()
+        client = _make_client(config=config)
+
+        inside = str(config.workspace_root / "ok.txt")
+        outside = "/tmp/unwind-escape.txt"
+        patch = "\n".join([
+            "*** Begin Patch",
+            f"*** Add File: {inside}",
+            "+safe",
+            f"*** Add File: {outside}",
+            "+escape",
+            "*** End Patch",
+        ])
+
+        body = {
+            "toolName": "fs_write",
+            "params": {"input": patch},
+            "agentId": "agent-001",
+            "sessionKey": "sess-patch-block",
+        }
+
+        resp = client.post("/v1/policy/check", json=body, headers=_headers())
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data.get("decision"), "block")
+        self.assertIn("Path Jail Violation", data.get("blockReason", ""))
+
+    def test_apply_patch_blocks_move_to_outside_workspace(self):
+        config = _make_config()
+        client = _make_client(config=config)
+
+        source = str(config.workspace_root / "source.txt")
+        outside = "/tmp/unwind-move-escape.txt"
+        patch = "\n".join([
+            "*** Begin Patch",
+            f"*** Update File: {source}",
+            f"*** Move to: {outside}",
+            "@@",
+            "-old",
+            "+new",
+            "*** End Patch",
+        ])
+
+        body = {
+            "toolName": "fs_write",
+            "params": {"input": patch},
+            "agentId": "agent-001",
+            "sessionKey": "sess-patch-move",
+        }
+
+        resp = client.post("/v1/policy/check", json=body, headers=_headers())
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data.get("decision"), "block")
+        self.assertIn("Path Jail Violation", data.get("blockReason", ""))
+
+
+class TestProcessContentInspection(unittest.TestCase):
+    """P0-3: mutating process actions should enter content inspection path."""
+
+    def test_process_write_with_secret_hits_challenge(self):
+        config = _make_config()
+        client = _make_client(config=config)
+
+        secret = "sk_" + "live_abc123def456ghi789jkl012mno"
+        body = {
+            "toolName": "exec_process",
+            "params": {
+                "action": "write",
+                "data": f"api_key={secret}",
+            },
+            "agentId": "agent-001",
+            "sessionKey": "sess-process-dlp",
+        }
+
+        resp = client.post("/v1/policy/check", json=body, headers=_headers())
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data.get("decision"), "challenge_required")
+        self.assertIn("Credential Exposure", data.get("blockReason", ""))
+
 class TestSidecarPolicySourceFailure(unittest.TestCase):
     """TC-FC-SC-003: Policy source failure → BLOCK all requests."""
 

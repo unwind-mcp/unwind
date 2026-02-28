@@ -492,6 +492,8 @@ class TestPipeline(unittest.TestCase):
         """Tools should be correctly classified."""
         self.assertEqual(self.pipeline.classify_tool("read_email"), "sensor")
         self.assertEqual(self.pipeline.classify_tool("send_email"), "actuator")
+        self.assertEqual(self.pipeline.classify_tool("exec_process"), "actuator")
+        self.assertEqual(self.pipeline.classify_tool("process"), "actuator")
         self.assertEqual(self.pipeline.classify_tool("search_web"), "sensor")  # search_web ingests external content
         self.assertEqual(self.pipeline.classify_tool("disable_security_audit"), "canary")
 

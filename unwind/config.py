@@ -56,6 +56,7 @@ class UnwindConfig:
     high_risk_actuator_tools: FrozenSet[str] = frozenset({
         "send_email", "post_message", "send_message", "reply_email",
         "bash_exec", "shell_exec", "run_command", "execute_command",
+        "exec", "process", "exec_process",
         "http_post", "http_put", "http_delete", "http_patch",
         "upload_file", "api_call", "webhook",
     })
@@ -67,6 +68,7 @@ class UnwindConfig:
         "send_email", "post_message", "send_message", "reply_email",
         # System / exec
         "bash_exec", "shell_exec", "run_command", "execute_command",
+        "exec", "process", "exec_process",
         # Network writes (all HTTP mutators)
         "http_post", "http_put", "http_delete", "http_patch",
         "upload_file", "api_call", "webhook",
@@ -107,6 +109,7 @@ class UnwindConfig:
         "send_email", "post_message", "send_message", "reply_email",
         "http_post", "http_put", "http_delete", "http_patch",
         "upload_file", "api_call", "webhook",
+        "process", "exec_process",
     })
 
     # --- Ghost Egress Guard (stage 3b) ---
