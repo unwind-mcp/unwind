@@ -901,14 +901,26 @@ def _record_sidecar_event(
     request: PolicyCheckRequest,
     result: Any,
 ) -> None:
-    """Record a sidecar policy decision into EventStore for dashboard APIs."""
+    """Record a sidecar policy decision into EventStore for dashboard APIs.
+
+    Defensive note: when tests inject mocked pipeline results, attributes like
+    ``tool_class``/``canonical_target`` may be MagicMock objects. Coerce to
+    sqlite-safe primitives so recorder telemetry never masks policy outcomes.
+    """
     target = _extract_target(request.params)
+
+    raw_tool_class = getattr(result, "tool_class", None)
+    tool_class = raw_tool_class if isinstance(raw_tool_class, str) and raw_tool_class else "unknown"
+
+    raw_canonical_target = getattr(result, "canonical_target", None)
+    target_canonical = raw_canonical_target if isinstance(raw_canonical_target, str) else None
+
     event_id = event_store.write_pending(
         session_id=request.session_key,
         tool=request.tool_name,
-        tool_class=getattr(result, "tool_class", "unknown"),
+        tool_class=tool_class,
         target=target,
-        target_canonical=getattr(result, "canonical_target", None),
+        target_canonical=target_canonical,
         parameters=request.params,
         session_tainted=session.is_tainted,
         trust_state=_trust_state_for_result(result, session),
