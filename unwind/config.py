@@ -50,6 +50,10 @@ class UnwindConfig:
     sensor_tools: FrozenSet[str] = frozenset({
         "read_email", "fetch_web", "read_document", "inbound_message",
         "read_calendar", "search_web", "read_slack", "read_rss",
+        # OpenClaw built-ins (read-only/sensor surfaces)
+        "fs_read", "memory_get", "memory_search",
+        "session_status", "sessions_list", "sessions_history",
+        "agents_list", "image", "web_search", "web_fetch",
     })
 
     # High-risk actuators: state-modifying tools that need taint gating
@@ -59,6 +63,14 @@ class UnwindConfig:
         "exec", "process", "exec_process",
         "http_post", "http_put", "http_delete", "http_patch",
         "upload_file", "api_call", "webhook",
+        # OpenClaw high-impact actuator surfaces
+        "sessions_send", "sessions_spawn", "message",
+        "browser", "canvas", "nodes", "tts",
+    })
+
+    # Control-plane tools: scheduler/gateway/orchestrator controls
+    control_plane_tools: FrozenSet[str] = frozenset({
+        "gateway", "cron", "subagents", "lobster",
     })
 
     # All state-modifying tools (includes high-risk + lower-risk writes)
@@ -72,6 +84,10 @@ class UnwindConfig:
         # Network writes (all HTTP mutators)
         "http_post", "http_put", "http_delete", "http_patch",
         "upload_file", "api_call", "webhook",
+        # OpenClaw actuator/control-plane surfaces
+        "sessions_send", "sessions_spawn", "message",
+        "browser", "canvas", "nodes", "tts",
+        "gateway", "cron", "subagents", "lobster",
         # Filesystem
         "fs_write", "fs_delete", "fs_rename", "fs_mkdir", "fs_move", "fs_copy",
         "write_file", "delete_file", "rename_file", "move_file", "create_directory",
