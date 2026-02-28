@@ -50,6 +50,8 @@ class TestHelpers:
         )
         config.ensure_dirs()
         (Path(tmp) / "workspace").mkdir(exist_ok=True)
+        # Tests in this module exercise trust/telemetry logic, not unknown-tool gating.
+        config.sensor_tools = frozenset(set(config.sensor_tools) | {"tool_a", "tool_b"})
         return config
 
     @staticmethod

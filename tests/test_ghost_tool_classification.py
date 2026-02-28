@@ -212,16 +212,18 @@ class TestGhostModePipelineGate(unittest.TestCase):
         result = self.pipeline.check(session, "webhook")
         self.assertEqual(result.action, CheckResult.GHOST)
 
-    def test_prefix_heuristic_intercepted_in_ghost_mode(self):
-        """Unlisted tool matching prefix heuristic gets ghosted."""
+    def test_prefix_heuristic_unknown_tool_gets_amber_gate(self):
+        """Unknown unlisted tool is fail-closed to AMBER before ghost stages."""
         session = self._make_session()
         result = self.pipeline.check(session, "create_jira_ticket")
-        self.assertEqual(result.action, CheckResult.GHOST)
+        self.assertEqual(result.action, CheckResult.AMBER)
+        self.assertIn("Unknown tool", result.amber_reason or "")
 
-    def test_prefix_heuristic_delete_variant(self):
+    def test_prefix_heuristic_delete_variant_unknown_gets_amber(self):
         session = self._make_session()
         result = self.pipeline.check(session, "delete_s3_object")
-        self.assertEqual(result.action, CheckResult.GHOST)
+        self.assertEqual(result.action, CheckResult.AMBER)
+        self.assertIn("Unknown tool", result.amber_reason or "")
 
     def test_http_get_ghosted_by_egress_guard(self):
         """http_get is caught by Ghost Egress Guard (stage 3b) in Ghost Mode.
