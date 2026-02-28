@@ -159,14 +159,16 @@ class EnforcementPipeline:
         return True
 
     def classify_tool(self, tool_name: str, session_id: Optional[str] = None) -> str:
-        """Classify a tool as sensor, actuator, read, or canary."""
+        """Classify a tool into canary/sensor/control-plane/actuator buckets."""
         if self.canary.is_canary(tool_name, session_id=session_id):
             return "canary"
         if tool_name in self.config.sensor_tools:
             return "sensor"
+        if tool_name in self.config.control_plane_tools:
+            return "control_plane"
         if tool_name in self.config.state_modifying_tools:
             return "actuator"
-        return "read"
+        return "unknown_actuator"
 
     def check(
         self,
@@ -485,6 +487,49 @@ class EnforcementPipeline:
                             amber_reason=f"Exec tunnel: {tunnel.reason} (tainted session)",
                         )
 
+        # --- 2b2. Exec mode risk evaluation ---
+        if tool_name in (
+            "exec", "exec_process", "bash_exec", "shell_exec", "run_command", "execute_command"
+        ) and parameters:
+            elevated = bool(parameters.get("elevated", False))
+            host = parameters.get("host", "gateway")
+            security = parameters.get("security", "full")
+
+            if elevated and session.ghost_mode:
+                return PipelineResult(
+                    action=CheckResult.BLOCK,
+                    canonical_target=canonical_target,
+                    tool_class="actuator",
+                    block_reason=(
+                        "Elevated exec blocked in Ghost Mode: host-level execution "
+                        "would bypass ghost interception."
+                    ),
+                )
+
+            if elevated and session.is_tainted:
+                return PipelineResult(
+                    action=CheckResult.BLOCK,
+                    canonical_target=canonical_target,
+                    tool_class="actuator",
+                    block_reason=(
+                        "Elevated exec blocked on tainted session: potential "
+                        "privilege escalation from untrusted input."
+                    ),
+                )
+
+            if host == "gateway" and security == "full" and not elevated:
+                if session.is_tainted:
+                    session.trust_state = TrustState.AMBER
+                    return PipelineResult(
+                        action=CheckResult.AMBER,
+                        canonical_target=canonical_target,
+                        tool_class="actuator",
+                        amber_reason=(
+                            "Unrestricted exec (security=full, host=gateway) on tainted "
+                            "session. Review command before proceeding."
+                        ),
+                    )
+
         # --- 2c. Credential Exposure (pre-execution param scan) ---
         if parameters:
             cred_result = self.credential_exposure.check(tool_name, parameters)
@@ -505,6 +550,33 @@ class EnforcementPipeline:
                         tool_class=tool_class,
                         amber_reason=message,
                     )
+
+        # --- 2d. Control-plane tool gate ---
+        if tool_class == "control_plane":
+            session.trust_state = TrustState.AMBER
+            return PipelineResult(
+                action=CheckResult.AMBER,
+                canonical_target=canonical_target,
+                tool_class=tool_class,
+                amber_reason=(
+                    f"Control-plane tool '{tool_name}' requires explicit approval. "
+                    "These tools can modify gateway configuration and scheduling."
+                ),
+            )
+
+        # --- 2e. Unknown tool gate (fail-closed) ---
+        if tool_class == "unknown_actuator":
+            session.trust_state = TrustState.AMBER
+            return PipelineResult(
+                action=CheckResult.AMBER,
+                canonical_target=canonical_target,
+                tool_class=tool_class,
+                amber_reason=(
+                    f"Unknown tool '{tool_name}' is not in any classification set. "
+                    "Treating as potential actuator (fail-closed). Add to "
+                    "config.py tool sets to resolve."
+                ),
+            )
 
         # --- 3. Path jail (for filesystem tools) ---
         if target and tool_name.startswith("fs_"):
