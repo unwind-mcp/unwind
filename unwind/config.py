@@ -53,7 +53,7 @@ class UnwindConfig:
         # OpenClaw built-ins (read-only/sensor surfaces)
         "fs_read", "memory_get", "memory_search",
         "session_status", "sessions_list", "sessions_history",
-        "agents_list", "image", "web_search", "web_fetch",
+        "agents_list", "image", "web_search", "web_fetch", "http_get",
     })
 
     # High-risk actuators: state-modifying tools that need taint gating
