@@ -431,6 +431,8 @@ class TestBreakglassPipelineIntegration(unittest.TestCase):
         )
         self.config.ensure_dirs()
         (Path(tmp) / "workspace").mkdir(exist_ok=True)
+        # This suite validates breakglass/trust legs; classify synthetic tools to bypass unknown-tool gate.
+        self.config.sensor_tools = frozenset(set(self.config.sensor_tools) | {"tool_a", "tool_b"})
 
         # Generate keypair
         self.private_key, self.public_key = generate_ed25519_keypair()

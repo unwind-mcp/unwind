@@ -683,7 +683,7 @@ class TestConcurrentSessionScenarios(unittest.TestCase):
             parameters={"inbox": "primary"},
             session_id="sess_A",
         ))
-        # B: safe read (fs_read is not a taint sensor)
+        # B: fs_read now taints (sensor classification)
         run_async(self.proxy.handle_tool_call(
             tool_name="fs_read",
             parameters={"path": str(self.config.workspace_root / "dummy.txt")},
@@ -695,7 +695,7 @@ class TestConcurrentSessionScenarios(unittest.TestCase):
             parameters={"path": str(self.config.workspace_root / "a.txt"), "content": "x"},
             session_id="sess_A",
         ))
-        # B: write file (should work, clean)
+        # B: write file (should work, tainted from fs_read)
         run_async(self.proxy.handle_tool_call(
             tool_name="fs_write",
             parameters={"path": str(self.config.workspace_root / "b.txt"), "content": "y"},
@@ -707,7 +707,7 @@ class TestConcurrentSessionScenarios(unittest.TestCase):
         sess_b = self.proxy.sessions["sess_B"]
 
         self.assertTrue(sess_a.is_tainted)
-        self.assertFalse(sess_b.is_tainted)
+        self.assertTrue(sess_b.is_tainted)
         self.assertEqual(sess_a.total_actions, 2)
         self.assertEqual(sess_b.total_actions, 2)
 
