@@ -291,6 +291,25 @@ pip install -e ".[dev]"
 pytest                         # 1,027 tests
 ```
 
+## Development Discipline
+
+- One PR = one intent: **refactor OR feature/fix**, never both in the same PR.
+- For any Tier A security-path change, include this checklist in the commit message:
+  - fail-closed: yes/no
+  - path jail order: unchanged/changed
+  - ghost semantics: unchanged/changed
+  - CRAFT chain: verified/not applicable
+  - rollback: unchanged/changed
+- Mandatory checks:
+  - `pytest -q` passes
+  - `unwind verify` is clean (Tier A changes)
+- One bug = one regression test.
+- Pin adapter contract in tested constants (not scattered assumptions):
+  - tool mapping: `write→fs_write`, `read→fs_read`, `edit→fs_write`
+  - param expectations: `path`, `content`
+- Deferred until multi-contributor stage:
+  - RFC template / PR template / formal review workflow / extra process docs
+
 ## License
 
 MIT
