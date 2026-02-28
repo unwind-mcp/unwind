@@ -30,7 +30,8 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 
 from ..config import UnwindConfig
-from ..enforcement.pipeline import EnforcementPipeline, CheckResult
+from ..enforcement.pipeline import EnforcementPipeline, CheckResult, PipelineResult
+from ..enforcement.path_jail import PathJailCheck
 from ..enforcement.policy_source import ImmutablePolicySource, PolicyLoadResult
 from ..session import Session
 from ..recorder.event_store import EventStore, EventStatus
@@ -54,6 +55,13 @@ logger = logging.getLogger("unwind.sidecar")
 # ---------------------------------------------------------------------------
 
 ENGINE_VERSION = "0.1.0-alpha"
+
+PATCH_PATH_MARKERS: tuple[str, ...] = (
+    "*** Add File:",
+    "*** Delete File:",
+    "*** Update File:",
+    "*** Move to:",
+)
 
 # ---------------------------------------------------------------------------
 # Application factory
@@ -114,6 +122,9 @@ def create_app(
 
     if pipeline is None:
         pipeline = EnforcementPipeline(config)
+
+    # Dedicated path jail checker for pre-pipeline multi-path patch validation.
+    path_jail = PathJailCheck(config)
 
     # --- Flight recorder (dashboard/event timeline source) ---
     event_store = EventStore(
@@ -360,14 +371,35 @@ def create_app(
             # --- Resolve session ---
             session = _resolve_session(sessions, check_req.session_key, config)
 
-            # --- Run enforcement pipeline ---
-            result = pipeline.check(
-                session=session,
-                tool_name=check_req.tool_name,
-                target=_extract_target(check_req.params),
-                parameters=check_req.params,
-                payload=_extract_payload(check_req.params),
-            )
+            # --- P0-1: apply_patch multi-path jail validation (fail-closed) ---
+            patch_paths = _extract_patch_paths(check_req.tool_name, check_req.params)
+            patch_violation_result: Optional[PipelineResult] = None
+            for raw_patch_path in patch_paths:
+                jail_error, canonical_path = path_jail.check(raw_patch_path)
+                if jail_error:
+                    patch_violation_result = PipelineResult(
+                        action=CheckResult.BLOCK,
+                        tool_class="actuator",
+                        block_reason=jail_error,
+                        canonical_target=canonical_path,
+                    )
+                    break
+
+            if patch_violation_result is not None:
+                result = patch_violation_result
+            else:
+                primary_target = _extract_target(check_req.params)
+                if not primary_target and patch_paths:
+                    primary_target = patch_paths[0]
+
+                # --- Run enforcement pipeline ---
+                result = pipeline.check(
+                    session=session,
+                    tool_name=check_req.tool_name,
+                    target=primary_target,
+                    parameters=check_req.params,
+                    payload=_extract_payload(check_req.tool_name, check_req.params),
+                )
 
             # --- Update last policy check timestamp + watchdog ---
             last_policy_check_ts[0] = datetime.now(timezone.utc).isoformat()
@@ -739,9 +771,84 @@ def _extract_target(params: dict) -> Optional[str]:
     return None
 
 
-def _extract_payload(params: dict) -> Optional[str]:
+def _extract_patch_paths(tool_name: str, params: dict) -> list[str]:
+    """Extract all file paths from an apply_patch payload.
+
+    P0-1: apply_patch can modify multiple files in one call. We must path-jail
+    every path in the patch, not just a single target.
+    """
+    if tool_name != "fs_write":
+        return []
+
+    patch_text = params.get("input")
+    if not isinstance(patch_text, str):
+        return []
+
+    if "*** Begin Patch" not in patch_text or "*** End Patch" not in patch_text:
+        return []
+
+    extracted: list[str] = []
+    seen: set[str] = set()
+
+    for raw_line in patch_text.splitlines():
+        line = raw_line.strip()
+        for marker in PATCH_PATH_MARKERS:
+            if not line.startswith(marker):
+                continue
+            candidate = line[len(marker):].strip()
+            if candidate and candidate not in seen:
+                seen.add(candidate)
+                extracted.append(candidate)
+            break
+
+    return extracted
+
+
+def _extract_process_payload(params: dict) -> Optional[str]:
+    """Extract mutating process payloads for content inspection."""
+    action = params.get("action")
+    if not isinstance(action, str):
+        return None
+
+    normalized = action.strip().lower()
+    if normalized in {"write", "paste"}:
+        for key in ("data", "text"):
+            value = params.get(key)
+            if isinstance(value, str) and value:
+                return value
+        return None
+
+    if normalized in {"send-keys", "send_keys"}:
+        chunks: list[str] = []
+        literal = params.get("literal")
+        if isinstance(literal, str) and literal:
+            chunks.append(literal)
+
+        keys = params.get("keys")
+        if isinstance(keys, list):
+            keys_values = [k for k in keys if isinstance(k, str) and k]
+            if keys_values:
+                chunks.append(" ".join(keys_values))
+
+        hex_keys = params.get("hex")
+        if isinstance(hex_keys, list):
+            hex_values = [h for h in hex_keys if isinstance(h, str) and h]
+            if hex_values:
+                chunks.append(" ".join(hex_values))
+
+        return "\n".join(chunks) if chunks else None
+
+    return None
+
+
+def _extract_payload(tool_name: str, params: dict) -> Optional[str]:
     """Extract outbound payload for DLP scanning."""
-    for key in ("content", "body", "message", "text", "payload", "data"):
+    if tool_name in {"exec_process", "process"}:
+        process_payload = _extract_process_payload(params)
+        if process_payload:
+            return process_payload
+
+    for key in ("content", "body", "message", "text", "payload", "data", "literal"):
         if key in params and isinstance(params[key], str):
             return params[key]
     return None

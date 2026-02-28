@@ -73,10 +73,38 @@ const TOOL_NAME_MAP: Record<string, string> = {
   read: "fs_read",
   write: "fs_write",
   edit: "fs_write",
+  apply_patch: "fs_write",
+  process: "exec_process",
 };
 
 function mapToolNameForPolicy(toolName: string): string {
   return TOOL_NAME_MAP[toolName] || toolName;
+}
+
+function normalizeExecParamsForPolicy(
+  toolName: string,
+  params: Record<string, unknown>
+): Record<string, unknown> {
+  if (toolName !== "exec") {
+    return params;
+  }
+
+  const normalized: Record<string, unknown> = { ...params };
+
+  // P0-4: fail-closed risk normalization when caller omits mode attributes.
+  if (typeof normalized.host !== "string" || !normalized.host.trim()) {
+    normalized.host = "gateway";
+  }
+
+  if (typeof normalized.security !== "string" || !normalized.security.trim()) {
+    normalized.security = "full";
+  }
+
+  if (typeof normalized.elevated !== "boolean") {
+    normalized.elevated = false;
+  }
+
+  return normalized;
 }
 
 /**
@@ -135,10 +163,11 @@ async function handleBeforeToolCall(
 
   // --- Step 3-4: Build request + query sidecar ---
   const mappedToolName = mapToolNameForPolicy(event.toolName);
+  const normalizedParams = normalizeExecParamsForPolicy(event.toolName, event.params);
 
   const result = await sidecarClient.policyCheck({
     toolName: mappedToolName,
-    params: event.params,
+    params: normalizedParams,
     agentId: ctx.agentId || "unknown",
     sessionKey: ctx.sessionKey || "",
   });
