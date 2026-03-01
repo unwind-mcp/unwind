@@ -1,0 +1,8 @@
+# UNWIND CLA signer allowlist (GitHub usernames)
+#
+# Add one username per line after CLA completion.
+# Comments and blank lines are ignored.
+
+# Project maintainers (can merge without CLA check noise)
+brugai
+dandare
