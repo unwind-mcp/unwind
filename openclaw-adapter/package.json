@@ -7,6 +7,12 @@
   "openclaw": {
     "extensions": ["./src/index.ts"]
   },
+  "license": "AGPL-3.0-or-later",
+  "description": "UNWIND security middleware adapter for OpenClaw",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brugai/unwind"
+  },
   "scripts": {
     "test": "echo \"TODO: add tests\""
   }
