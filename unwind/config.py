@@ -4,7 +4,7 @@ import os
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import FrozenSet, Set
+from typing import FrozenSet, Optional, Set
 
 
 @dataclass
@@ -52,8 +52,10 @@ class UnwindConfig:
         "read_calendar", "search_web", "read_slack", "read_rss",
         # OpenClaw built-ins (read-only/sensor surfaces)
         "fs_read", "memory_get", "memory_search",
-        "session_status", "sessions_list", "sessions_history",
-        "agents_list", "image", "web_search", "web_fetch", "http_get",
+        "session_status", "sessions_list", "sessions_history", "agents_list",
+        "image", "web_search", "web_fetch",
+        # Network reads (ingest untrusted external content)
+        "http_get",
     })
 
     # High-risk actuators: state-modifying tools that need taint gating
@@ -71,6 +73,14 @@ class UnwindConfig:
     # Control-plane tools: scheduler/gateway/orchestrator controls
     control_plane_tools: FrozenSet[str] = frozenset({
         "gateway", "cron", "subagents", "lobster",
+    })
+
+    # Filesystem tools subject to path jail checks (stage 3)
+    # Includes all tools that accept file path targets, not just fs_* prefixed.
+    filesystem_tools: FrozenSet[str] = frozenset({
+        "fs_read", "fs_write", "fs_delete", "fs_rename", "fs_mkdir", "fs_move", "fs_copy",
+        "write_file", "read_file", "delete_file", "rename_file", "move_file", "create_directory",
+        "edit", "apply_patch",
     })
 
     # All state-modifying tools (includes high-risk + lower-risk writes)
@@ -116,7 +126,8 @@ class UnwindConfig:
 
     # Network tools subject to SSRF checks
     network_tools: FrozenSet[str] = frozenset({
-        "fetch_web", "http_post", "http_put", "http_delete", "http_patch", "http_get", "browser_navigate",
+        "fetch_web", "http_post", "http_put", "http_delete", "http_patch", "http_get",
+        "browser_navigate", "browser",  # OpenClaw browser tool can reach arbitrary URLs
         "webhook", "websocket", "api_call",
     })
 
@@ -140,6 +151,12 @@ class UnwindConfig:
     ghost_egress_tools: FrozenSet[str] = frozenset({
         "fetch_web", "http_get", "browser_navigate", "websocket", "search_web",
     })
+
+    # --- Cadence Bridge (Phase 3 Item 11) ---
+    cadence_bridge_enabled: bool = field(
+        default_factory=lambda: os.environ.get("UNWIND_CADENCE_BRIDGE", "").lower() in ("1", "true", "yes")
+    )
+    cadence_state_env_path: Optional[Path] = field(default_factory=lambda: Path("cadence/state.env"))
 
     # --- Canary Honeypot Tools ---
     canary_tools: FrozenSet[str] = frozenset({
