@@ -152,6 +152,18 @@ class UnwindConfig:
         "fetch_web", "http_get", "browser_navigate", "websocket", "search_web",
     })
 
+    # --- Secret Registry (Known-Secret Exact Matching) ---
+    secret_registry_enabled: bool = field(
+        default_factory=lambda: os.environ.get("UNWIND_SECRET_REGISTRY", "").lower() in ("1", "true", "yes")
+    )
+    secret_registry_env_patterns: list[str] = field(default_factory=lambda: [
+        ".env", ".env.local", ".env.production", ".env.development",
+        ".env.staging", ".env.test",
+    ])
+    secret_registry_max_records: int = 10_000
+    secret_registry_max_tokens: int = 50_000
+    secret_registry_min_secret_length: int = 8
+
     # --- Cadence Bridge (Phase 3 Item 11) ---
     cadence_bridge_enabled: bool = field(
         default_factory=lambda: os.environ.get("UNWIND_CADENCE_BRIDGE", "").lower() in ("1", "true", "yes")

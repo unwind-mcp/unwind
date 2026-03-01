@@ -37,6 +37,7 @@ from .canary import CanaryCheck
 from .credential_exposure import CredentialExposureCheck
 from .egress_policy import EgressPolicyCheck
 from .ghost_egress import GhostEgressGuard, GhostSessionAllowlist
+from .secret_registry import SecretRegistry
 from .exec_tunnel import ExecTunnelCheck, EXEC_TOOL_NAMES
 from .approval_windows import (
     ApprovalWindowConfig,
@@ -100,6 +101,7 @@ class EnforcementPipeline:
         breakglass: Optional[BreakglassService] = None,
         telemetry: Optional[EnforcementTelemetry] = None,
         cadence_bridge: Optional[CadenceBridge] = None,
+        secret_registry: Optional[SecretRegistry] = None,
     ):
         self.config = config
         self.strict = strict
@@ -113,7 +115,7 @@ class EnforcementPipeline:
         self.exec_tunnel = ExecTunnelCheck(config)
         self.credential_exposure = CredentialExposureCheck(config)
         self.egress_policy = EgressPolicyCheck(config)
-        self.ghost_egress = GhostEgressGuard(config)
+        self.ghost_egress = GhostEgressGuard(config, secret_registry=secret_registry)
         self._ghost_session_allowlists: dict[str, GhostSessionAllowlist] = {}
         self.supply_chain = supply_chain_verifier  # Optional — stage 0b
         # Digest-at-execution provider: computes live digest of a provider
