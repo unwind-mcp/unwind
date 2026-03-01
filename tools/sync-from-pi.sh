@@ -4,14 +4,14 @@
 # Usage:  ./tools/sync-from-pi.sh
 #
 # Run from Mac terminal. Pulls the Pi's OpenClaw workspace to ~/Downloads/UNWIND/.
-# You'll be prompted for dandare's password.
+# You'll be prompted for the Pi user's password.
 #
 # IMPORTANT: This uses --delete which will overwrite local Mac changes.
 # Always commit/push to GitHub before running if you have local work.
 
-PI_IP="192.168.0.171"
-PI_USER="dandare"
-PI_PATH="/home/dandare/.openclaw/workspace/UNWIND/"
+PI_IP="${UNWIND_PI_HOST:?Set UNWIND_PI_HOST}"
+PI_USER="${UNWIND_PI_USER:-pi}"
+PI_PATH="${UNWIND_PI_PATH:-/home/${PI_USER}/.openclaw/workspace/UNWIND/}"
 MAC_PATH="$HOME/Downloads/UNWIND/"
 
 echo "Syncing UNWIND: Pi ($PI_IP) → Mac"
