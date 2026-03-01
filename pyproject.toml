@@ -7,16 +7,16 @@ name = "unwind-mcp"
 version = "0.1.0"
 description = "See Everything. Undo Anything. Test Anything Safely. — Security middleware for AI agents."
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "AGPL-3.0-or-later"}
 requires-python = ">=3.10"
 authors = [
-    {name = "David"},
+    {name = "David Russell"},
 ]
 keywords = ["mcp", "ai-agents", "security", "proxy", "audit", "rollback"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -42,10 +42,10 @@ dev = [
 unwind = "unwind.cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/unwind-mcp/unwind"
-Documentation = "https://github.com/unwind-mcp/unwind#readme"
-Repository = "https://github.com/unwind-mcp/unwind"
-Issues = "https://github.com/unwind-mcp/unwind/issues"
+Homepage = "https://github.com/brugai/unwind"
+Documentation = "https://github.com/brugai/unwind#readme"
+Repository = "https://github.com/brugai/unwind"
+Issues = "https://github.com/brugai/unwind/issues"
 
 [tool.setuptools.packages.find]
 include = ["unwind*"]
