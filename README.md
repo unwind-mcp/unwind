@@ -7,26 +7,30 @@ One core security engine, multiple adapters. UNWIND makes AI agents observable, 
 No LLM in the hot path. Every check is deterministic. Sub-millisecond overhead on clean calls.
 
 ```
-                    ┌─────────────────────────────────────────┐
-                    │          UNWIND Core Engine              │
-                    │                                         │
-                    │  Enforcement Pipeline (13 checks, <10ms)│
-                    │  Flight Recorder (SQLite + CR-AFT chain)│
-                    │  Smart Snapshots (reflink-first, 25MB)  │
-                    │  Rollback Engine (undo any action)       │
-                    │  Trust Light (green / amber / red)       │
-                    └──────────┬──────────────┬───────────────┘
-                               │              │
-                ┌──────────────┘              └──────────────┐
-                │                                            │
-    ┌───────────┴───────────┐              ┌─────────────────┴──────────┐
-    │  OpenClaw Adapter     │              │  MCP Stdio Proxy Adapter   │
-    │  (native plugin hook) │              │  (command-chain wrapper)   │
-    │                       │              │                            │
-    │  before_tool_call     │              │  Agent → UNWIND → Server   │
-    │  after_tool_call      │              │  (stdio JSON-RPC 2.0)     │
-    │  fail-closed policy   │              │                            │
-    └───────────────────────┘              └────────────────────────────┘
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                     CRAFT Protocol (v4.2)                       │
+    │  Transport-layer command provenance + anti-spoofing             │
+    │  HKDF key schedule · HMAC envelopes · strict FIFO · cap tokens │
+    └──────────────────────────────┬──────────────────────────────────┘
+                                   │ authenticated command stream
+    ┌──────────────────────────────┴──────────────────────────────────┐
+    │                      UNWIND Core Engine                         │
+    │                                                                 │
+    │  Enforcement Pipeline (15 stages, <10ms)                        │
+    │  Flight Recorder (SQLite + CR-AFT chain)                        │
+    │  Smart Snapshots (reflink-first, 25MB)                          │
+    │  Rollback Engine (undo any action)                              │
+    │  Trust Light (green / amber / red)                              │
+    └──────────┬──────────────────────────────────┬───────────────────┘
+               │                                  │
+    ┌──────────┴───────────┐           ┌──────────┴──────────────────┐
+    │  OpenClaw Adapter    │           │  MCP Stdio Proxy Adapter    │
+    │  (native plugin hook)│           │  (command-chain wrapper)    │
+    │                      │           │                             │
+    │  before_tool_call    │           │  Agent → UNWIND → Server   │
+    │  after_tool_call     │           │  (stdio JSON-RPC 2.0)      │
+    │  fail-closed policy  │           │                             │
+    └──────────────────────┘           └─────────────────────────────┘
 ```
 
 ## Two Products, One Codebase
@@ -35,6 +39,7 @@ No LLM in the hot path. Every check is deterministic. Sub-millisecond overhead o
 |---|---|---|
 | What it does | See what your agent would do | See, control, undo, and audit |
 | Enforcement | Write blocking only | 15-stage+substage pipeline |
+| Transport auth | No | CRAFT protocol (command provenance + anti-spoofing) |
 | Rollback | No | Yes (smart snapshots) |
 | Audit chain | No | CR-AFT hash chain |
 | Dashboard | No | Web UI with trust light |
@@ -119,18 +124,31 @@ UNWIND fixes that.
 ### The Flight Recorder
 Every tool call is logged to a tamper-evident SQLite database with SHA-256 hash chaining (CR-AFT). Parameters are hashed, not stored — the audit trail proves what happened without leaking secrets.
 
+### The CRAFT Protocol (Transport-Layer Security)
+
+CRAFT (Cryptographic Relay Authentication for Faithful Transmission) sits at the front of the ingress path, authenticating every command before it reaches the enforcement pipeline. It provides cryptographic proof of who sent a command, that it hasn't been tampered with, and that it's in the correct sequence. CRAFT uses HKDF-derived directional keys, HMAC-SHA256 envelope authentication, strict FIFO state commitment chains, and issuer-authenticated capability tokens for scoped tool delegation. See `docs/CRAFT_Protocol_v4.2.md` for the full specification.
+
+CRAFT does not claim to solve prompt injection. It solves transport-layer command spoofing, relay tampering, replay attacks, session hijacking, and confused-deputy misuse — making the downstream pipeline's job easier by guaranteeing the commands it processes are genuine.
+
 ### The Enforcement Pipeline
+
 15 deterministic checks/sub-stages run on every tool call, in order:
 
-1. **Self-Protection** — blocks access to UNWIND's own data (`.unwind/`)
-2. **Path Jail** — confines filesystem access to the workspace root
-3. **SSRF Shield** — blocks requests to private IPs, cloud metadata, IPv6 transition bypasses (NAT64, 6to4, Teredo per CVE-2026-26322), non-standard IPv4 forms (octal, hex, short)
-4. **DLP-Lite** — scans egress for API keys, JWTs, PEM certs, high-entropy blobs (Shannon entropy gate)
-5. **Circuit Breaker** — rate-limits rapid state-modifying calls
-6. **Taint Tracking** — marks sessions that ingested external content (email, web, etc.)
-7. **Session Scope** — per-session tool allowlists
-8. **Canary Honeypot** — fake high-sensitivity tools injected into the manifest; if called, instant session kill
-9. **Ghost Mode Gate** — dry-run mode with shadow VFS for read-after-write fidelity
+1. **0a Session Kill** — immediate termination check (canary triggered, break-glass, admin kill)
+2. **0b Supply Chain** — pre-RBAC trust gate (plugin/tool provenance verification)
+3. **1 Canary** — honeypot tripwire (fake high-sensitivity tools; if called, instant session kill)
+4. **2 Self-Protection** — blocks access to UNWIND's own data (`.unwind/`)
+5. **2b Exec Tunnel** — detects shell/exec invocations disguised as safe tool calls
+6. **2c Credential Exposure** — pre-execution parameter scan for secrets in outbound args
+7. **3 Path Jail** — confines filesystem access to the workspace root (canonicalisation + symlink resolution)
+8. **3b Ghost Egress Guard** — blocks network reads in Ghost Mode before DNS resolution
+9. **4 SSRF Shield** — DNS resolve + IP block (private IPs, cloud metadata, IPv6 transition bypasses per CVE-2026-26322, non-standard IPv4 forms)
+10. **4b Egress Policy** — domain-level enforcement (metadata endpoints, internal ranges, denylists)
+11. **5 DLP-Lite** — scans egress for API keys, JWTs, PEM certs, high-entropy blobs (Shannon entropy gate)
+12. **6 Circuit Breaker** — rate-limits rapid state-modifying calls
+13. **7 Taint Tracking** — marks sessions that ingested external content (email, web, etc.)
+14. **8 Session Scope** — per-session tool allowlists
+15. **9 Ghost Mode Gate** — dry-run mode with shadow VFS for read-after-write fidelity
 
 ### The Undo Button
 Smart snapshots are captured before every state-modifying action. Reflink-first (instant on APFS/btrfs), falling back to copy, with a 25MB cap and atomic moves for deletions.
@@ -182,7 +200,11 @@ unwind ask "were any actions blocked?"
 
 ## Architecture
 
-One core engine, multiple adapters. The enforcement pipeline, flight recorder, snapshot engine, and trust logic are shared across all integration paths. Only the adapter layer changes.
+Two layers, one engine, multiple adapters.
+
+**CRAFT (transport layer):** Authenticates command provenance at the front of the ingress path. Every command is MAC'd, sequenced, and state-chained before it reaches the enforcement pipeline. Capability tokens gate privileged tool execution. CRAFT sits between the client and the proxy; the pipeline never sees an unauthenticated command.
+
+**UNWIND (enforcement layer):** The 15-stage pipeline, flight recorder, snapshot engine, and trust logic are shared across all integration paths. Only the adapter layer changes.
 
 **OpenClaw adapter:** A TypeScript plugin hooks into OpenClaw's native `before_tool_call` / `after_tool_call` system. The plugin communicates with a local Python sidecar running the UNWIND engine. Fail-closed — if the sidecar is unreachable, the plugin blocks the tool call.
 
@@ -196,6 +218,8 @@ UNWIND focuses on practical risk reduction through deterministic enforcement and
 
 **Designed to mitigate:**
 
+- Command spoofing, relay tampering, and replay attacks on the transport layer (CRAFT)
+- Session hijacking and confused-deputy misuse via capability tokens (CRAFT)
 - Accidental destructive tool use (wrong file deleted, unintended email sent)
 - Prompt-injection-triggered misuse (hostile content causes agent to exfiltrate data)
 - Opportunistic data exfiltration (API keys, credentials, PEM certs in outbound payloads)
@@ -254,6 +278,11 @@ UNWIND_WORKSPACE=~/workspace   # Path jail root
 ## Project Structure
 
 ```
+docs/
+├── CRAFT_Protocol_v4.2.md     # CRAFT specification (signed off, implementation underway)
+├── CRAFT_Protocol_v4.2.docx   # Formatted spec for external review
+└── ...                        # Compatibility matrix, security coverage, etc.
+
 unwind/                        # Core security engine (pip install unwind-mcp)
 ├── enforcement/               # 15-stage+substage pipeline (path jail, SSRF, DLP, canary...)
 ├── recorder/event_store.py    # SQLite flight recorder (WAL + CR-AFT chain)
@@ -312,4 +341,4 @@ pytest                         # 1,702 tests (Pi, 2026-03-01)
 
 ## License
 
-MIT
+AGPL-3.0-or-later
