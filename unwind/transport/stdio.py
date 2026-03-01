@@ -193,10 +193,11 @@ class UnwindStdioServer:
     Everything else passes through transparently.
     """
 
-    def __init__(self, config: UnwindConfig, upstream_command: list[str]):
+    def __init__(self, config: UnwindConfig, upstream_command: list[str], ghost: bool = False):
         self.config = config
         self.upstream_command = upstream_command
         self.proxy = UnwindProxy(config)
+        self._ghost_default = ghost
         self.manifest_filter = ManifestFilter(config)
         self.upstream: Optional[UpstreamProcess] = None
         self.agent_transport: Optional[StdioTransport] = None
@@ -367,9 +368,11 @@ class UnwindStdioServer:
         session_hint = msg.params.get("sessionId") or client_info.get("sessionId")
         self._session_id = session_hint or f"sess_{uuid.uuid4().hex[:12]}"
         session = self.proxy.get_or_create_session(self._session_id)
+        if self._ghost_default:
+            session.ghost_mode = True
         logger.info(
-            "Session bound: %s (client=%s)",
-            self._session_id, client_name,
+            "Session bound: %s (client=%s, ghost=%s)",
+            self._session_id, client_name, session.ghost_mode,
         )
 
         # Forward to upstream — tag so we can inject mediation proof into response
@@ -701,11 +704,11 @@ class UnwindStdioServer:
         await self.agent_transport.write_message(make_response(agent_id, result))
 
 
-async def run_stdio_proxy(config: UnwindConfig, upstream_command: list[str]) -> None:
+async def run_stdio_proxy(config: UnwindConfig, upstream_command: list[str], ghost: bool = False) -> None:
     """Entry point — run UNWIND as a stdio MCP proxy.
 
     Usage:
         unwind serve -- npx @modelcontextprotocol/server-filesystem /path/to/workspace
     """
-    server = UnwindStdioServer(config, upstream_command)
+    server = UnwindStdioServer(config, upstream_command, ghost=ghost)
     await server.run()

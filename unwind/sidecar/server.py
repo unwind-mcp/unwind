@@ -462,6 +462,57 @@ def create_app(
         )
         return JSONResponse(status_code=200, content=resp.to_wire())
 
+    @app.post("/v1/ghost/toggle")
+    async def ghost_toggle(request: Request):
+        """Toggle ghost mode on or off for a session (or all sessions).
+
+        Body: {"enabled": true/false, "sessionKey": "..." (optional)}
+        If sessionKey is omitted, toggles for all active sessions.
+        """
+        try:
+            body = await request.json()
+        except Exception:
+            error = ErrorResponse(
+                code="SCHEMA_INVALID",
+                message="Request body is not valid JSON.",
+            )
+            return JSONResponse(status_code=422, content=error.to_wire())
+
+        enabled = body.get("enabled") if isinstance(body, dict) else None
+        if enabled is None:
+            error = ErrorResponse(
+                code="BAD_REQUEST",
+                message="Missing required field: enabled (true/false)",
+            )
+            return JSONResponse(status_code=400, content=error.to_wire())
+
+        session_key = body.get("sessionKey", "") if isinstance(body, dict) else ""
+        toggled = []
+
+        if session_key:
+            session = sessions.get(session_key)
+            if not session:
+                error = ErrorResponse(
+                    code="NOT_FOUND",
+                    message=f"Session not found: {session_key}",
+                )
+                return JSONResponse(status_code=404, content=error.to_wire())
+            session.ghost_mode = bool(enabled)
+            if not enabled:
+                session.clear_ghost()
+            toggled.append(session_key)
+        else:
+            for sid, session in sessions.items():
+                session.ghost_mode = bool(enabled)
+                if not enabled:
+                    session.clear_ghost()
+                toggled.append(sid)
+
+        return JSONResponse(status_code=200, content={
+            "ghost_mode": bool(enabled),
+            "sessions_toggled": len(toggled),
+        })
+
     @app.post("/v1/ghost/approve")
     async def ghost_approve(request: Request):
         """Commit all ghost-buffered writes to the real filesystem.

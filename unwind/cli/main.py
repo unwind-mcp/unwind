@@ -557,7 +557,7 @@ def cmd_serve(config: UnwindConfig, args) -> None:
     )
 
     from ..transport.stdio import run_stdio_proxy
-    asyncio.run(run_stdio_proxy(config, upstream_cmd))
+    asyncio.run(run_stdio_proxy(config, upstream_cmd, ghost=args.ghost))
 
 
 def main() -> None:
@@ -608,6 +608,22 @@ def main() -> None:
 
     # unwind tamper-check
     subparsers.add_parser("tamper-check", help="Run tamper detection checks")
+
+    # unwind sidecar serve
+    sidecar_parser = subparsers.add_parser(
+        "sidecar",
+        help="Manage the UNWIND sidecar policy server",
+    )
+    sidecar_sub = sidecar_parser.add_subparsers(dest="sidecar_command")
+    sidecar_serve = sidecar_sub.add_parser("serve", help="Start the sidecar policy server")
+    sidecar_serve.add_argument("--port", type=int, default=9100, help="Listen port (default: 9100)")
+    sidecar_serve.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
+    sidecar_serve.add_argument("--uds", help="Unix domain socket path (overrides host/port)")
+    sidecar_serve.add_argument("--log-level", default="info", help="Log level (default: info)")
+
+    # unwind ghost on|off
+    ghost_parser = subparsers.add_parser("ghost", help="Toggle Ghost Mode")
+    ghost_parser.add_argument("action", choices=["on", "off"], help="Enable or disable Ghost Mode")
 
     # unwind serve -- <upstream command>
     serve_parser = subparsers.add_parser(
@@ -670,6 +686,37 @@ def main() -> None:
         cmd_anchor(config)
     elif args.command == "tamper-check":
         cmd_tamper_check(config)
+    elif args.command == "sidecar":
+        if getattr(args, "sidecar_command", None) == "serve":
+            from ..sidecar import serve as sidecar_serve
+            sidecar_serve(
+                host=args.host,
+                port=args.port,
+                config=config,
+                log_level=args.log_level,
+                uds=args.uds,
+            )
+        else:
+            sidecar_parser.print_help()
+    elif args.command == "ghost":
+        import httpx
+        action = args.action
+        enabled = action == "on"
+        # Toggle ghost mode via sidecar API if running
+        try:
+            resp = httpx.post(
+                "http://127.0.0.1:9100/v1/ghost/toggle",
+                json={"enabled": enabled},
+                timeout=3.0,
+            )
+            if resp.status_code == 200:
+                print(f"  Ghost Mode: {'ON' if enabled else 'OFF'}")
+            else:
+                print(f"  Sidecar returned {resp.status_code}: {resp.text}")
+        except httpx.ConnectError:
+            print(f"  Cannot reach sidecar at 127.0.0.1:9100.")
+            print(f"  Start it first: unwind sidecar serve")
+            print(f"  Or use: unwind serve --ghost -- <upstream command>")
     elif args.command == "serve":
         cmd_serve(config, args)
     else:
