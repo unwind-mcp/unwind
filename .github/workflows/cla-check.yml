@@ -1,0 +1,67 @@
+name: cla-check
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  cla:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Evaluate CLA status
+        id: cla
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            const actor = context.payload.pull_request.user.login;
+            const labels = (context.payload.pull_request.labels || []).map(l => l.name);
+
+            const isBot = actor.endsWith('[bot]');
+            const hasBypassLabel = labels.includes('cla-signed') || labels.includes('cla-exempt');
+
+            let signedUsers = [];
+            try {
+              const raw = fs.readFileSync('.github/cla-signers.txt', 'utf8');
+              signedUsers = raw
+                .split(/\r?\n/)
+                .map(s => s.trim())
+                .filter(s => s && !s.startsWith('#'));
+            } catch (err) {
+              core.warning(`Could not read .github/cla-signers.txt: ${err.message}`);
+            }
+
+            const isSigned = signedUsers.includes(actor);
+            const ok = isBot || hasBypassLabel || isSigned;
+
+            core.setOutput('ok', ok ? 'true' : 'false');
+            core.setOutput('actor', actor);
+            core.setOutput('labels', labels.join(', '));
+
+      - name: Fail if CLA missing
+        if: steps.cla.outputs.ok != 'true'
+        run: |
+          echo "❌ CLA check failed for @${{ steps.cla.outputs.actor }}"
+          echo
+          echo "This repository requires a signed CLA for external contributions."
+          echo "- Read policy: CLA_POLICY.md"
+          echo "- Agreement text: CLA.md"
+          echo
+          echo "Maintainer actions to resolve:"
+          echo "1) Confirm contributor has signed CLA"
+          echo "2) Add their GitHub username to .github/cla-signers.txt"
+          echo "   OR apply PR label 'cla-signed' (or 'cla-exempt' when appropriate)"
+          exit 1
+
+      - name: CLA check passed
+        if: steps.cla.outputs.ok == 'true'
+        run: |
+          echo "✅ CLA check passed for @${{ steps.cla.outputs.actor }}"
