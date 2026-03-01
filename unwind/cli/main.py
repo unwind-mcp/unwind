@@ -19,6 +19,7 @@ Commands:
 """
 
 import argparse
+import os
 import sys
 import time
 from datetime import datetime, timedelta
@@ -28,6 +29,17 @@ from ..config import UnwindConfig
 from ..recorder.event_store import EventStore
 from ..snapshots.manager import Snapshot
 from ..snapshots.rollback import RollbackEngine, RollbackStatus
+
+
+
+
+def _sidecar_headers() -> dict[str, str]:
+    """Build auth/version headers for sidecar API calls."""
+    headers = {"X-UNWIND-API-Version": "1"}
+    secret = os.environ.get("UNWIND_SIDECAR_SHARED_SECRET", "").strip()
+    if secret:
+        headers["Authorization"] = f"Bearer {secret}"
+    return headers
 
 
 def parse_since(since_str: str) -> float:
@@ -707,10 +719,13 @@ def main() -> None:
             resp = httpx.post(
                 "http://127.0.0.1:9100/v1/ghost/toggle",
                 json={"enabled": enabled},
+                headers=_sidecar_headers(),
                 timeout=3.0,
             )
             if resp.status_code == 200:
                 print(f"  Ghost Mode: {'ON' if enabled else 'OFF'}")
+            elif resp.status_code == 401:
+                print("  Sidecar auth failed (401). Set UNWIND_SIDECAR_SHARED_SECRET in your environment.")
             else:
                 print(f"  Sidecar returned {resp.status_code}: {resp.text}")
         except httpx.ConnectError:
