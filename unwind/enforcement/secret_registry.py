@@ -134,6 +134,10 @@ class SecretRegistryConfig:
         "ACCESS_KEY", "AUTH",
     ])
 
+    # Process environment scanning is optional to keep tests/repro deterministic.
+    # Enable explicitly when desired for host-level secret ingestion.
+    include_process_env: bool = False
+
     # Memory limits
     max_records: int = 10_000
     max_tokens: int = 50_000
@@ -157,10 +161,9 @@ def _generate_transforms(value: str) -> List[Tuple[TransformKind, str]]:
     """Generate all transform variants for a secret value.
 
     Returns list of (transform_kind, token_string).
-    Skips empty/duplicate results.
+    Keeps one token per transform kind (even when textual values collide),
+    which preserves transform provenance for diagnostics and tests.
     """
-    results: List[Tuple[TransformKind, str]] = []
-    seen: Set[str] = set()
     value_bytes = value.encode("utf-8", errors="replace")
 
     candidates = [
@@ -171,12 +174,7 @@ def _generate_transforms(value: str) -> List[Tuple[TransformKind, str]]:
         (TransformKind.HEX, value_bytes.hex()),
     ]
 
-    for kind, token in candidates:
-        if token and token not in seen:
-            seen.add(token)
-            results.append((kind, token))
-
-    return results
+    return [(kind, token) for kind, token in candidates if token]
 
 
 def _is_secret_env_name(name: str, patterns: List[str]) -> bool:
@@ -331,12 +329,13 @@ class SecretRegistry:
 
         raw_secrets: List[Tuple[SourceKind, str, str]] = []  # (source, name, value)
 
-        # 1. Process environment
-        try:
-            for name, value in _collect_process_env(self._config.env_secret_name_patterns):
-                raw_secrets.append((SourceKind.PROCESS_ENV, name, value))
-        except Exception as e:
-            self._load_errors.append(f"process_env: {type(e).__name__}")
+        # 1. Process environment (opt-in)
+        if self._config.include_process_env:
+            try:
+                for name, value in _collect_process_env(self._config.env_secret_name_patterns):
+                    raw_secrets.append((SourceKind.PROCESS_ENV, name, value))
+            except Exception as e:
+                self._load_errors.append(f"process_env: {type(e).__name__}")
 
         # 2. Workspace .env files
         for env_name in self._config.env_file_names:
