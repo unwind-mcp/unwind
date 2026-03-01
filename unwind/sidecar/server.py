@@ -122,6 +122,32 @@ def create_app(
                 policy_load.hash_hex[-4:],
             )
 
+    # --- Secret Registry (known-secret exact matching) ---
+    _secret_registry = None
+    if config.secret_registry_enabled:
+        from ..enforcement.secret_registry import SecretRegistry, SecretRegistryConfig
+
+        _reg_config = SecretRegistryConfig(
+            workspace_root=config.workspace_root,
+            env_file_names=config.secret_registry_env_patterns,
+            max_records=config.secret_registry_max_records,
+            max_tokens=config.secret_registry_max_tokens,
+            min_secret_length=config.secret_registry_min_secret_length,
+        )
+        _secret_registry = SecretRegistry(_reg_config)
+        try:
+            snapshot = _secret_registry.load()
+            logger.info(
+                "[sidecar] Secret registry loaded: %d records, %d tokens",
+                snapshot.record_count, snapshot.token_count,
+            )
+        except Exception as exc:
+            logger.warning(
+                "[sidecar] Secret registry load failed: %s — continuing without",
+                exc,
+            )
+            _secret_registry = None
+
     # --- Cadence Bridge (P3-11): wire pulse log callback ---
     _cadence_bridge = None
     if config.cadence_bridge_enabled:
@@ -151,7 +177,11 @@ def create_app(
         )
 
     if pipeline is None:
-        pipeline = EnforcementPipeline(config, cadence_bridge=_cadence_bridge)
+        pipeline = EnforcementPipeline(
+            config,
+            cadence_bridge=_cadence_bridge,
+            secret_registry=_secret_registry,
+        )
 
     # Dedicated path jail checker for pre-pipeline multi-path patch validation.
     path_jail = PathJailCheck(config)
