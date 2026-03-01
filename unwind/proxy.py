@@ -24,6 +24,15 @@ from .enforcement.pipeline import EnforcementPipeline, CheckResult, PipelineResu
 from .enforcement.canary import CanaryCheck
 from .recorder.event_store import EventStore, EventStatus
 from .snapshots.manager import SnapshotManager, Snapshot
+from .craft import (
+    CraftVerifier,
+    CraftSessionState,
+    CraftLifecycleManager,
+    CraftStateStore,
+    RekeyPrepare,
+)
+from .craft.capabilities import CapabilityIssuer, CapabilityToken, ToolCall
+from .craft.crypto import derive_session_keys, derive_keys_from_prk, state_commit_0
 
 logger = logging.getLogger("unwind.proxy")
 
@@ -48,6 +57,13 @@ class UnwindProxy:
         self.sessions: dict[str, Session] = {}
         self._started = False
 
+        # CRAFT ingress runtime (v4.2 integration scaffolding)
+        self.craft_verifier = CraftVerifier()
+        self.craft_lifecycle = CraftLifecycleManager()
+        self.craft_state_store: CraftStateStore | None = None
+        self.craft_sessions: dict[str, CraftSessionState] = {}
+        self.craft_cap_issuers: dict[str, CapabilityIssuer] = {}
+
     def startup(self) -> None:
         """Initialize UNWIND — create dirs, open DB, run exposure check."""
         self.config.ensure_dirs()
@@ -67,6 +83,7 @@ class UnwindProxy:
                     result["db_size_after"],
                 )
         self._run_exposure_check()
+        self.craft_state_store = CraftStateStore(self.config.unwind_home / "craft_state.json")
         self._started = True
         logger.info(
             "UNWIND started — proxy on %s:%d, upstream on %s:%d",
@@ -139,6 +156,163 @@ class UnwindProxy:
         """
         return self.canary_check.get_canary_tool_definitions(session_id=session_id)
 
+    # --- CRAFT ingress integration (v4.2 scaffolding) ---
+
+    def create_craft_session(
+        self,
+        *,
+        session_id: str,
+        account_id: str,
+        channel_id: str,
+        conversation_id: str,
+        context_type: str,
+        ikm: bytes,
+        salt0: bytes,
+        server_secret: bytes,
+        epoch: int = 0,
+    ) -> CraftSessionState:
+        """Create/register a CRAFT session state from handshake key material."""
+        now_ms = int(time.time() * 1000)
+        if self.craft_state_store and self.craft_state_store.is_tombstoned(session_id, now_ms):
+            raise PermissionError("Session is tombstoned")
+
+        ctx = (
+            f"CRAFT/v4.2|{session_id}|{account_id}|{channel_id}|{conversation_id}|{context_type}"
+        ).encode("utf-8")
+        keys = derive_session_keys(
+            ikm=ikm,
+            salt0=salt0,
+            ctx=ctx,
+            epoch=epoch,
+            server_secret=server_secret,
+        )
+        craft = CraftSessionState.from_session_keys(
+            session_id=session_id,
+            account_id=account_id,
+            channel_id=channel_id,
+            conversation_id=conversation_id,
+            context_type=context_type,
+            epoch=epoch,
+            keys=keys,
+            ctx=ctx,
+        )
+        craft.last_state_commit["c2p"] = state_commit_0(keys.c2p.k_state, ctx)
+        craft.last_state_commit["p2c"] = state_commit_0(keys.p2c.k_state, ctx)
+        craft.record_state_commit("c2p", craft.last_state_commit["c2p"])
+        craft.record_state_commit("p2c", craft.last_state_commit["p2c"])
+
+        # Restore persisted continuity if available
+        restored = False
+        if self.craft_state_store:
+            restored = self.craft_state_store.restore_session_into(craft)
+
+        # Re-derive transport/capability keys from restored PRK state if continuity was restored.
+        if restored and craft.prk and craft.prk_cap_root and craft.ctx:
+            restored_keys = derive_keys_from_prk(
+                prk=craft.prk,
+                prk_cap_root=craft.prk_cap_root,
+                ctx=craft.ctx,
+                epoch=craft.current_epoch,
+            )
+            craft.keys_c2p = restored_keys.c2p
+            craft.keys_p2c = restored_keys.p2c
+            craft.cap_keys_by_epoch.setdefault(craft.current_epoch, restored_keys.k_cap_srv)
+            if not craft.current_or_grace_epochs:
+                craft.current_or_grace_epochs = {craft.current_epoch}
+
+        self.craft_lifecycle.refresh_cap_epoch_grace(craft)
+        self.craft_sessions[session_id] = craft
+        self.craft_cap_issuers[session_id] = CapabilityIssuer(
+            cap_keys_by_epoch=dict(craft.cap_keys_by_epoch),
+            now_ms_fn=self.craft_lifecycle.now_ms,
+        )
+        return craft
+
+    def verify_craft_envelope(
+        self,
+        *,
+        session_id: str,
+        envelope: dict,
+        now_ms: Optional[int] = None,
+    ) -> dict:
+        """Verify/hold one CRAFT envelope on ingress.
+
+        Returns a transport-friendly dict with accepted/held/error.
+        Capability enforcement remains dispatch-only and is not invoked here.
+        """
+        craft = self.craft_sessions.get(session_id)
+        if not craft:
+            return {"accepted": False, "error": "ERR_CRAFT_SESSION_NOT_FOUND"}
+
+        now = int(time.time() * 1000) if now_ms is None else int(now_ms)
+        self.craft_lifecycle.refresh_cap_epoch_grace(craft)
+        if self.craft_state_store and self.craft_state_store.is_tombstoned(session_id, now):
+            return {"accepted": False, "error": "ERR_CRAFT_SESSION_TOMBSTONED"}
+        if craft.tombstoned_until_ms and now < craft.tombstoned_until_ms:
+            return {"accepted": False, "error": "ERR_CRAFT_SESSION_TOMBSTONED"}
+        if self.craft_lifecycle.is_session_expired(craft):
+            self.craft_lifecycle.teardown_session(craft)
+            if self.craft_state_store and craft.tombstoned_until_ms:
+                self.craft_state_store.save_tombstone(session_id, craft.tombstoned_until_ms)
+                self.craft_state_store.save_session(craft)
+            return {"accepted": False, "error": "ERR_CRAFT_SESSION_EXPIRED"}
+
+        result = self.craft_verifier.verify_or_hold(envelope, craft, now_ms=now)
+        if self.craft_state_store and (result.accepted or result.held):
+            self.craft_state_store.save_session(craft)
+
+        return {
+            "accepted": result.accepted,
+            "held": result.held,
+            "drained": result.drained,
+            "error": result.error.value if result.error else None,
+        }
+
+    def craft_rekey_prepare(self, session_id: str) -> dict:
+        craft = self.craft_sessions.get(session_id)
+        if not craft:
+            return {"error": "ERR_CRAFT_SESSION_NOT_FOUND"}
+        p = self.craft_lifecycle.initiate_rekey(craft)
+        return {
+            "action": p.action,
+            "session_id": p.session_id,
+            "epoch_new": p.epoch_new,
+            "boundary_seq_c2p": p.boundary_seq_c2p,
+            "boundary_seq_p2c": p.boundary_seq_p2c,
+        }
+
+    def craft_rekey_apply(self, session_id: str, prepare_msg: dict) -> dict:
+        craft = self.craft_sessions.get(session_id)
+        if not craft:
+            return {"ok": False, "error": "ERR_CRAFT_SESSION_NOT_FOUND"}
+        try:
+            prep = RekeyPrepare(
+                session_id=str(prepare_msg.get("session_id", "")),
+                epoch_new=int(prepare_msg.get("epoch_new", -1)),
+                boundary_seq_c2p=int(prepare_msg.get("boundary_seq_c2p", -1)),
+                boundary_seq_p2c=int(prepare_msg.get("boundary_seq_p2c", -1)),
+                action=str(prepare_msg.get("action", "rekey_prepare")),
+            )
+            self.craft_lifecycle.apply_rekey_ack(craft, prep)
+            issuer = self.craft_cap_issuers.get(session_id)
+            if issuer:
+                issuer.cap_keys_by_epoch = dict(craft.cap_keys_by_epoch)
+            if self.craft_state_store:
+                self.craft_state_store.save_session(craft)
+            return {"ok": True, "epoch": craft.current_epoch}
+        except Exception as e:
+            return {"ok": False, "error": f"ERR_REKEY_APPLY: {e}"}
+
+    def craft_teardown(self, session_id: str, max_network_delay_ms: int = 5000) -> dict:
+        craft = self.craft_sessions.get(session_id)
+        if not craft:
+            return {"ok": False, "error": "ERR_CRAFT_SESSION_NOT_FOUND"}
+        self.craft_lifecycle.teardown_session(craft, max_network_delay_ms=max_network_delay_ms)
+        if self.craft_state_store and craft.tombstoned_until_ms:
+            self.craft_state_store.save_tombstone(session_id, craft.tombstoned_until_ms)
+            self.craft_state_store.save_session(craft)
+        return {"ok": True, "tombstoned_until_ms": craft.tombstoned_until_ms}
+
     def _extract_target(self, tool_name: str, params: Optional[dict]) -> Optional[str]:
         """Extract the target (path or URL) from tool parameters."""
         if params is None:
@@ -169,6 +343,36 @@ class UnwindProxy:
 
         return None
 
+    def _extract_craft_capability(self, params: Optional[dict]) -> tuple[CapabilityToken | None, dict | None]:
+        """Extract CRAFT capability envelope from tool parameters.
+
+        Reserved metadata key: `__craft_capability`.
+        Returns `(token_or_none, sanitized_params)`.
+        """
+        if params is None:
+            return None, None
+        if not isinstance(params, dict):
+            return None, params
+
+        raw = params.get("__craft_capability")
+        sanitized = {k: v for k, v in params.items() if not str(k).startswith("__craft_")}
+        if raw is None:
+            return None, sanitized
+
+        if not isinstance(raw, dict):
+            return None, sanitized
+
+        claims = raw.get("claims")
+        cap_id = raw.get("cap_id")
+        cap_mac = raw.get("cap_mac")
+        if not isinstance(claims, dict) or not isinstance(cap_id, str) or not isinstance(cap_mac, str):
+            return None, sanitized
+
+        return CapabilityToken(cap_id=cap_id, claims=claims, cap_mac=cap_mac), sanitized
+
+    def _tool_requires_craft_capability(self, tool_name: str) -> bool:
+        return tool_name in self.config.high_risk_actuator_tools
+
     async def handle_tool_call(
         self,
         tool_name: str,
@@ -193,15 +397,33 @@ class UnwindProxy:
         session = self.get_or_create_session(session_id)
         session.total_actions += 1
 
-        target = self._extract_target(tool_name, parameters)
-        payload = self._extract_payload(tool_name, parameters)
+        cap_token, clean_params = self._extract_craft_capability(parameters)
+
+        target = self._extract_target(tool_name, clean_params)
+        payload = self._extract_payload(tool_name, clean_params)
+
+        # Runtime guard for craft-managed sessions: enforce tombstone + TTL on ingress/runtime path.
+        craft = self.craft_sessions.get(session.session_id)
+        if craft:
+            self.craft_lifecycle.refresh_cap_epoch_grace(craft)
+            now_ms = int(time.time() * 1000)
+            if (self.craft_state_store and self.craft_state_store.is_tombstoned(session.session_id, now_ms)) or (
+                craft.tombstoned_until_ms and now_ms < craft.tombstoned_until_ms
+            ):
+                return {"error": "ERR_CRAFT_SESSION_TOMBSTONED"}
+            if self.craft_lifecycle.is_session_expired(craft):
+                self.craft_lifecycle.teardown_session(craft)
+                if self.craft_state_store and craft.tombstoned_until_ms:
+                    self.craft_state_store.save_tombstone(session.session_id, craft.tombstoned_until_ms)
+                    self.craft_state_store.save_session(craft)
+                return {"error": "ERR_CRAFT_SESSION_EXPIRED"}
 
         # --- Run enforcement pipeline ---
         result = self.pipeline.check(
             session=session,
             tool_name=tool_name,
             target=target,
-            parameters=parameters,
+            parameters=clean_params,
             payload=payload,
         )
 
@@ -212,7 +434,7 @@ class UnwindProxy:
             tool_class=result.tool_class,
             target=target,
             target_canonical=result.canonical_target,
-            parameters=parameters,
+            parameters=clean_params,
             session_tainted=session.is_tainted,
             trust_state=session.trust_state.value,
             ghost_mode=session.ghost_mode,
@@ -272,6 +494,56 @@ class UnwindProxy:
 
             return {"status": "success"}
 
+        # --- CRAFT dispatch boundary (dispatch-only capability checks) ---
+        if craft and self._tool_requires_craft_capability(tool_name):
+            issuer = self.craft_cap_issuers.get(session.session_id)
+            if issuer is None:
+                duration = (time.time() - start_time) * 1000
+                await self.event_store.complete_event_async(
+                    event_id,
+                    EventStatus.BLOCKED,
+                    duration_ms=duration,
+                    result_summary="ERR_CAP_INVALID",
+                )
+                return {"error": "ERR_CAP_INVALID"}
+
+            try:
+                seq = int((parameters or {}).get("__craft_seq", craft.highest_seq.get("c2p", 0)))
+            except Exception:
+                seq = craft.highest_seq.get("c2p", 0)
+            direction = str((parameters or {}).get("__craft_direction", "c2p"))
+            subject = str((parameters or {}).get("__craft_subject", "user:unknown"))
+
+            tool_call = ToolCall(
+                session_id=craft.session_id,
+                account_id=craft.account_id,
+                channel_id=craft.channel_id,
+                conversation_id=craft.conversation_id,
+                context_type=craft.context_type,
+                subject=subject,
+                seq=seq,
+                direction=direction,
+                tool_id=tool_name,
+                args=clean_params or {},
+                target=target or "",
+            )
+            decision = issuer.enforce_at_tool_dispatch(
+                token=cap_token,
+                tool_call=tool_call,
+                session=craft,
+                schema_registry={},
+            )
+            if not decision.allowed:
+                session.blocked_actions += 1
+                duration = (time.time() - start_time) * 1000
+                await self.event_store.complete_event_async(
+                    event_id,
+                    EventStatus.BLOCKED,
+                    duration_ms=duration,
+                    result_summary=decision.error.value if decision.error else "ERR_CAP_INVALID",
+                )
+                return {"error": decision.error.value if decision.error else "ERR_CAP_INVALID"}
+
         # --- Pre-action snapshot for state-modifying tools ---
         snapshot = None
         if tool_name in self.config.state_modifying_tools and target:
@@ -301,7 +573,7 @@ class UnwindProxy:
         if upstream_handler:
             try:
                 upstream_result = await upstream_handler(
-                    tool_name, parameters, self.config.upstream_token
+                    tool_name, clean_params, self.config.upstream_token
                 )
                 duration = (time.time() - start_time) * 1000
                 await self.event_store.complete_event_async(
