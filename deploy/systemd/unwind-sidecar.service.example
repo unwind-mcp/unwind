@@ -1,0 +1,61 @@
+[Unit]
+Description=UNWIND Sidecar Policy Server
+Documentation=https://github.com/brugai/unwind
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=unwind
+Group=unwind
+WorkingDirectory=/opt/unwind
+
+# Override in /etc/default/unwind-sidecar when needed.
+Environment=PYTHONUNBUFFERED=1
+Environment=UNWIND_HOME=/var/lib/unwind
+Environment=UNWIND_CADENCE_BRIDGE=1
+Environment=UNWIND_SIDECAR_UDS=/run/unwind-sidecar/sidecar.sock
+EnvironmentFile=-/etc/default/unwind-sidecar
+
+# Runtime socket directory (owner-only socket access expected).
+ExecStartPre=/usr/bin/install -d -m 0700 -o unwind -g unwind /run/unwind-sidecar
+ExecStart=/opt/unwind/.venv/bin/unwind sidecar serve --uds /run/unwind-sidecar/sidecar.sock --log-level info
+
+# Availability
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=30s
+TimeoutStopSec=20s
+KillSignal=SIGTERM
+KillMode=mixed
+
+# Hardening (least privilege)
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
+
+# Explicit writable paths for sidecar state/audit outputs.
+ReadWritePaths=/var/lib/unwind
+ReadWritePaths=/run/unwind-sidecar
+ReadWritePaths=/opt/unwind/cadence
+ReadOnlyPaths=/opt/unwind
+
+[Install]
+WantedBy=multi-user.target
