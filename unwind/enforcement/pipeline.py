@@ -18,6 +18,7 @@ Pipeline order:
 5.  DLP-lite (regex + entropy on egress)
 6.  Circuit breaker (rate limiting)
 7.  Taint check (sensor/actuator gating)
+7a. Cadence Bridge (temporal anomaly — P3-11)
 8.  Session scope (allowlist check)
 9.  Ghost Mode gate (intercept + shadow VFS)
 """
@@ -47,6 +48,7 @@ from .response_validator import ResponseValidator, SessionBudget
 from .rubber_stamp import RubberStampConfig, RubberStampState, RSSLevel
 from .breakglass import BreakglassService
 from .supply_chain import SupplyChainVerifier, TrustVerdict
+from .cadence_bridge import CadenceBridge, CadenceBridgeConfig
 from .taint_decay import TaintLevel
 from .telemetry import EnforcementTelemetry, EventType
 
@@ -75,7 +77,7 @@ class PipelineResult:
     """Result of running the enforcement pipeline."""
     action: CheckResult
     canonical_target: Optional[str] = None  # Resolved path for logging
-    tool_class: str = "unknown"             # sensor, actuator, read, canary
+    tool_class: str = "unknown"             # sensor, actuator, control_plane, unknown_actuator, canary
     block_reason: Optional[str] = None      # Why it was blocked/flagged
     amber_reason: Optional[str] = None      # Why it needs confirmation
 
@@ -97,6 +99,7 @@ class EnforcementPipeline:
         strict: bool = False,
         breakglass: Optional[BreakglassService] = None,
         telemetry: Optional[EnforcementTelemetry] = None,
+        cadence_bridge: Optional[CadenceBridge] = None,
     ):
         self.config = config
         self.strict = strict
@@ -126,6 +129,15 @@ class EnforcementPipeline:
         self.approval_windows = ApprovalWindowService(
             config=approval_window_config or ApprovalWindowConfig()
         )
+        # Cadence Bridge (P3-11): temporal anomaly detection
+        if cadence_bridge is not None:
+            self.cadence_bridge: Optional[CadenceBridge] = cadence_bridge
+        elif config.cadence_bridge_enabled:
+            self.cadence_bridge = CadenceBridge(
+                state_env_path=config.cadence_state_env_path,
+            )
+        else:
+            self.cadence_bridge = None
 
     def _is_strict(
         self,
@@ -579,7 +591,7 @@ class EnforcementPipeline:
             )
 
         # --- 3. Path jail (for filesystem tools) ---
-        if target and tool_name.startswith("fs_"):
+        if target and tool_name in self.config.filesystem_tools:
             jail_error, canonical = self.path_jail.check(target)
             canonical_target = canonical
             if jail_error:
@@ -589,6 +601,25 @@ class EnforcementPipeline:
                     tool_class=tool_class,
                     block_reason=jail_error,
                 )
+
+        # --- 3a. apply_patch path extraction (paths embedded in patch body) ---
+        if tool_name == "apply_patch" and parameters:
+            patch_text = parameters.get("patch", parameters.get("input", ""))
+            if isinstance(patch_text, str):
+                for line in patch_text.splitlines():
+                    for marker in ("*** Add File:", "*** Update File:",
+                                   "*** Delete File:", "*** Move to:"):
+                        if line.strip().startswith(marker):
+                            embedded_path = line.strip()[len(marker):].strip()
+                            if embedded_path:
+                                jail_error, canonical = self.path_jail.check(embedded_path)
+                                if jail_error:
+                                    return PipelineResult(
+                                        action=CheckResult.BLOCK,
+                                        canonical_target=canonical,
+                                        tool_class=tool_class,
+                                        block_reason=f"apply_patch: {jail_error}",
+                                    )
 
         # --- 3b. Ghost Egress Guard (network isolation in Ghost Mode) ---
         # Runs BEFORE SSRF so that secrets in URLs never trigger DNS lookups.
@@ -657,6 +688,9 @@ class EnforcementPipeline:
                 )
 
         # --- 7. Taint check (graduated decay) ---
+        # Capture taint state BEFORE decay for cadence bridge (P3-11)
+        _was_tainted_pre_decay = session.is_tainted
+
         # Apply time-based decay first
         session.check_taint_decay()
 
@@ -696,6 +730,31 @@ class EnforcementPipeline:
                         f"Sources: {', '.join(taint_summary['sources'])}."
                     ),
                 )
+
+        # --- 7a. Cadence Bridge: temporal anomaly detection (P3-11) ---
+        if self.cadence_bridge is not None:
+            self.cadence_bridge.check_taint_clear(
+                session_id=session.session_id,
+                was_tainted=_was_tainted_pre_decay,
+                is_tainted=session.is_tainted,
+            )
+            cadence_signals = self.cadence_bridge.check(
+                session_id=session.session_id,
+                tool_name=tool_name,
+                tool_class=tool_class,
+                is_tainted=session.is_tainted,
+            )
+            for signal in cadence_signals:
+                if signal.should_escalate_taint:
+                    session.taint(source_tool=signal.taint_escalation_source)
+                if signal.should_amber and tool_name in self.config.high_risk_actuator_tools:
+                    session.trust_state = TrustState.AMBER
+                    return PipelineResult(
+                        action=CheckResult.AMBER,
+                        canonical_target=canonical_target,
+                        tool_class=tool_class,
+                        amber_reason=signal.amber_reason,
+                    )
 
         # --- 8. Session scope check ---
         if session.allowed_tools is not None and tool_name not in session.allowed_tools:
