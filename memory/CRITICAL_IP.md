@@ -71,8 +71,9 @@ The full Cadence README includes an origin story connecting CRAFT's physical tam
 - Physical device (Geiger+GPS+hash chain): ZERO prior art found anywhere. Completely novel field.
 - Agent application: CRAFT predates Clawprint (Feb 2026), PiQrypt (Feb 2026), HDK (Feb 2026), all others.
 
-### Public-safe priority statement (can publish NOW)
+### Public-safe priority statement (draft only — HOLD until UK filing submitted)
 "UNWIND's cryptographic audit chain (CRAFT) has been in active development since summer 2025 — predating both the December 2025 industry announcements and the February 2026 academic papers (arXiv 2602.10481, 2602.10465) describing similar approaches. Working implementation, not theory."
+- Operational override (2026-03-01): hold this statement until UK filing is submitted.
 
 ### Embargo: Do NOT publish the mechanism (Geiger/GPS/decay timing) until UK patent filed.
 
