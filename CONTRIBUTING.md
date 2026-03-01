@@ -15,7 +15,33 @@ UNWIND is security-critical software. Please keep contributions reproducible, te
 
 ---
 
-## 2) Contribution scope
+## 2) Getting started
+
+### Prerequisites
+- Python 3.10+
+- Node.js (for the OpenClaw adapter)
+
+### Setup
+```bash
+git clone https://github.com/brugai/unwind.git
+cd unwind
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+python -m pytest -q
+```
+
+Adapter tests (Node):
+
+```bash
+cd openclaw-adapter
+npm install
+npm test
+```
+
+---
+
+## 3) Contribution scope
 
 Areas welcome for external contribution:
 
@@ -34,28 +60,14 @@ Areas that may require maintainer coordination first:
 
 ---
 
-## 3) Setup and test
+## 4) Pull request process and checklist
 
-From repo root:
-
-```bash
-python -m venv .venv
-. .venv/bin/activate
-pip install -e ".[dev]"
-python -m pytest --tb=short -q
-```
-
-Adapter tests (Node):
-
-```bash
-cd openclaw-adapter
-npm install
-npm test
-```
-
----
-
-## 4) Pull request checklist
+1. **One PR = one intent.** A bug fix is one PR. A refactor is separate. Do not mix refactoring with feature/fix changes.
+2. **Tests required.** Every bug fix needs a regression test. New features need coverage.
+3. **Run tests before submitting:**
+   ```bash
+   python -m pytest --tb=short -q
+   ```
 
 Before opening a PR, ensure:
 
@@ -71,9 +83,36 @@ For security-impacting PRs, include:
 - fail-open/fail-closed analysis
 - rollback or mitigation notes
 
+### Tier A invariant checklist (required for Tier A changes)
+
+Tier A = enforcement pipeline, CRAFT, Ghost Mode, sidecar.
+
+- [ ] Fail-closed preserved
+- [ ] Path jail intact
+- [ ] Ghost Mode isolation intact
+- [ ] CRAFT chain integrity intact
+- [ ] Rollback capability intact
+
 ---
 
-## 5) CLA requirement
+## 5) Code style
+
+- Follow existing patterns in the codebase
+- No formal linter enforced yet (planned for CI)
+- Keep it simple; avoid unnecessary complexity
+
+---
+
+## 6) Issue labels
+
+- `bug` — something is broken
+- `enhancement` — feature/improvement request
+- `security` — security-related issue (use private path for vulnerabilities)
+- `documentation` — docs improvement
+
+---
+
+## 7) CLA requirement
 
 UNWIND requires a signed CLA for external contributions.
 
@@ -84,23 +123,25 @@ PRs from unsigned contributors may be blocked until CLA completion.
 
 ---
 
-## 6) Licensing
+## 8) Licensing
 
-Open-core licensing direction is AGPL-3.0 (see repository `LICENSE` once finalized).
+Open-core licensing direction is AGPL-3.0 (see repository `LICENSE`).
 
-Do not submit code you are not legally permitted to license under project terms.
-
----
-
-## 7) Reporting vulnerabilities
-
-Please do not open public exploit details first.
-
-Use private/security contact path as documented in repo security policy (when published), or contact project maintainers directly for coordinated disclosure.
+By submitting a pull request, you agree your contributions are licensed under project terms.
 
 ---
 
-## 8) Communication style
+## 9) Reporting vulnerabilities
+
+Please do not open exploit details publicly first.
+
+Report vulnerabilities using the process in `SECURITY.md`.
+
+If a secure channel is temporarily unavailable, contact maintainers directly for coordinated disclosure.
+
+---
+
+## 10) Communication style
 
 - Keep reports concise and technical.
 - Distinguish facts from assumptions.
@@ -108,9 +149,9 @@ Use private/security contact path as documented in repo security policy (when pu
 
 ---
 
-## 9) Maintainer notes
+## 11) Maintainer notes
 
-Maintainers reserve the right to decline contributions that:
+Maintainers may decline contributions that:
 
 - reduce security posture without acceptable tradeoff,
 - create legal/licensing ambiguity,
