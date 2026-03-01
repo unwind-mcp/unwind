@@ -1,7 +1,7 @@
 # SENTINEL Recovery Packet
 
 Generated: 2026-03-01 17:07:37 GMT
-Workspace: /home/dandare/.openclaw/workspace
+Workspace: <workspace_root>
 
 ## 0) Fast recovery order (<2 min target)
 
@@ -34,7 +34,7 @@ Workspace: /home/dandare/.openclaw/workspace
 - OpenClaw adapter (plugin hooks + Python sidecar)
 - MCP stdio proxy adapter
 - Enforcement pipeline is the backbone (stages include canary, self-protection, path jail, SSRF, egress/DLP, taint, scope, ghost mode).
-- Pi workspace: `/home/dandare/.openclaw/workspace/UNWIND`
+- Pi workspace: `<unwind_repo_root>`
 - OpenClaw config: `~/.openclaw/openclaw.json`
 - Agent auth store: `~/.openclaw/agents/main/agent/auth-profiles.json`
 - Runtime test command on Pi: `.venv/bin/python -m pytest --tb=short -q`
