@@ -279,6 +279,218 @@ class TestProxy(unittest.TestCase):
         self.assertTrue(valid)
 
 
+class TestCraftProxyIntegration(unittest.TestCase):
+    """Smoke tests for CRAFT integration scaffolding on UnwindProxy."""
+
+    def setUp(self):
+        self.config = TestConfig.create()
+        self.proxy = UnwindProxy(self.config)
+        self.proxy.startup()
+
+    def tearDown(self):
+        self.proxy.shutdown()
+
+    @staticmethod
+    def _signed_env(craft, seq: int) -> dict:
+        from unwind.craft.canonical import mac_input_bytes
+        from unwind.craft.crypto import b64url_encode, hmac_sha256
+
+        env = {
+            "v": 4,
+            "epoch": craft.current_epoch,
+            "session_id": craft.session_id,
+            "account_id": craft.account_id,
+            "channel_id": craft.channel_id,
+            "conversation_id": craft.conversation_id,
+            "context_type": craft.context_type,
+            "seq": str(seq),
+            "ts_ms": 1739999999123,
+            "state_commit": "",
+            "msg_type": "user_instruction",
+            "direction": "c2p",
+            "payload": {"text": f"msg-{seq}", "meta": {}},
+            "mac": "",
+        }
+        raw_mac = hmac_sha256(craft.keys_c2p.k_msg, mac_input_bytes(env))
+        env["mac"] = b64url_encode(raw_mac)
+        prev = craft.last_state_commit["c2p"]
+        commit = hmac_sha256(craft.keys_c2p.k_state, prev + raw_mac)
+        env["state_commit"] = b64url_encode(commit)
+        return env
+
+    def test_craft_create_and_verify(self):
+        craft = self.proxy.create_craft_session(
+            session_id="sess_craft",
+            account_id="acct_main",
+            channel_id="chan_main",
+            conversation_id="conv_main",
+            context_type="dm",
+            ikm=b"i" * 32,
+            salt0=b"s" * 32,
+            server_secret=b"k" * 32,
+            epoch=0,
+        )
+
+        env = self._signed_env(craft, 1)
+        out = self.proxy.verify_craft_envelope(session_id="sess_craft", envelope=env)
+
+        self.assertTrue(out["accepted"])
+        self.assertIsNone(out["error"])
+
+    def test_craft_rekey_and_teardown(self):
+        self.proxy.create_craft_session(
+            session_id="sess_craft2",
+            account_id="acct_main",
+            channel_id="chan_main",
+            conversation_id="conv_main",
+            context_type="dm",
+            ikm=b"i" * 32,
+            salt0=b"s" * 32,
+            server_secret=b"k" * 32,
+            epoch=0,
+        )
+        prep = self.proxy.craft_rekey_prepare("sess_craft2")
+        self.assertEqual(prep["action"], "rekey_prepare")
+
+        applied = self.proxy.craft_rekey_apply("sess_craft2", prep)
+        self.assertTrue(applied["ok"])
+        self.assertEqual(applied["epoch"], 1)
+
+        td = self.proxy.craft_teardown("sess_craft2")
+        self.assertTrue(td["ok"])
+        self.assertIsNotNone(td["tombstoned_until_ms"])
+
+    def test_craft_dispatch_enforces_capability_at_runtime(self):
+        from unwind.craft.crypto import b64url_encode
+
+        craft = self.proxy.create_craft_session(
+            session_id="sess_gate",
+            account_id="acct_main",
+            channel_id="chan_main",
+            conversation_id="conv_main",
+            context_type="dm",
+            ikm=b"i" * 32,
+            salt0=b"s" * 32,
+            server_secret=b"k" * 32,
+            epoch=0,
+        )
+
+        async def upstream_ok(tool_name, params, token):
+            return {"status": "ok", "tool": tool_name}
+
+        # High-risk actuator tool without capability should be blocked.
+        no_cap = run_async(self.proxy.handle_tool_call(
+            "send_message",
+            {
+                "message": "hello",
+                "__craft_seq": 1,
+                "__craft_subject": "user:alice",
+            },
+            session_id="sess_gate",
+            upstream_handler=upstream_ok,
+        ))
+        self.assertEqual(no_cap.get("error"), "ERR_CAP_REQUIRED")
+
+        issuer = self.proxy.craft_cap_issuers["sess_gate"]
+        token = issuer.mint_capability(
+            session=craft,
+            subject="user:alice",
+            allowed_tools=["send_message"],
+            arg_constraints={"exact": {"message": "hello"}},
+            target_constraints={"type": "exact", "value": ""},
+            bind_seq=1,
+            state_commit_at_issue=b64url_encode(craft.last_state_commit["c2p"]),
+            purpose="send approved message",
+        )
+
+        with_cap = run_async(self.proxy.handle_tool_call(
+            "send_message",
+            {
+                "message": "hello",
+                "__craft_seq": 1,
+                "__craft_subject": "user:alice",
+                "__craft_capability": {
+                    "cap_id": token.cap_id,
+                    "claims": token.claims,
+                    "cap_mac": token.cap_mac,
+                },
+            },
+            session_id="sess_gate",
+            upstream_handler=upstream_ok,
+        ))
+        self.assertEqual(with_cap.get("status"), "ok")
+
+    def test_tombstone_blocks_ingress_and_recreate(self):
+        craft = self.proxy.create_craft_session(
+            session_id="sess_dead",
+            account_id="acct_main",
+            channel_id="chan_main",
+            conversation_id="conv_main",
+            context_type="dm",
+            ikm=b"i" * 32,
+            salt0=b"s" * 32,
+            server_secret=b"k" * 32,
+            epoch=0,
+        )
+
+        td = self.proxy.craft_teardown("sess_dead")
+        self.assertTrue(td["ok"])
+
+        env = self._signed_env(craft, 1)
+        out = self.proxy.verify_craft_envelope(session_id="sess_dead", envelope=env)
+        self.assertFalse(out["accepted"])
+        self.assertEqual(out["error"], "ERR_CRAFT_SESSION_TOMBSTONED")
+
+        with self.assertRaises(PermissionError):
+            self.proxy.create_craft_session(
+                session_id="sess_dead",
+                account_id="acct_main",
+                channel_id="chan_main",
+                conversation_id="conv_main",
+                context_type="dm",
+                ikm=b"i" * 32,
+                salt0=b"s" * 32,
+                server_secret=b"k" * 32,
+                epoch=0,
+            )
+
+    def test_recreate_rederives_keys_from_restored_epoch(self):
+        # Create + rekey session first.
+        self.proxy.create_craft_session(
+            session_id="sess_restore",
+            account_id="acct_main",
+            channel_id="chan_main",
+            conversation_id="conv_main",
+            context_type="dm",
+            ikm=b"i" * 32,
+            salt0=b"s" * 32,
+            server_secret=b"k" * 32,
+            epoch=0,
+        )
+        prep = self.proxy.craft_rekey_prepare("sess_restore")
+        applied = self.proxy.craft_rekey_apply("sess_restore", prep)
+        self.assertTrue(applied["ok"])
+        self.assertEqual(applied["epoch"], 1)
+
+        # Simulate process restart by dropping in-memory craft state, then recreate.
+        self.proxy.craft_sessions.pop("sess_restore", None)
+        self.proxy.craft_cap_issuers.pop("sess_restore", None)
+
+        restored = self.proxy.create_craft_session(
+            session_id="sess_restore",
+            account_id="acct_main",
+            channel_id="chan_main",
+            conversation_id="conv_main",
+            context_type="dm",
+            ikm=b"i" * 32,
+            salt0=b"s" * 32,
+            server_secret=b"k" * 32,
+            epoch=0,
+        )
+        self.assertEqual(restored.current_epoch, 1)
+        self.assertIn(1, restored.cap_keys_by_epoch)
+
+
 class TestCLITimeParsing(unittest.TestCase):
     """Test CLI time parsing utility."""
 
