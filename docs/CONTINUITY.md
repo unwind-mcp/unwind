@@ -112,7 +112,7 @@ Ghost Mode intercepts writes (returns fake success to agent) and optionally bloc
 
 ## 5. Test Suite
 
-**Current count: 1479 tests, all passing.**
+**Current count: 1562 tests, all passing (Pi, 2026-03-01).**
 
 ```bash
 # Run all tests
@@ -275,12 +275,21 @@ See `tests/canary/canary-mapping.md` for canary-to-test mappings.
 This block lets a rebooted session verify it's reading current continuity, not stale.
 
 ```
+<<<<<<< HEAD
 last_known_good_commit: 1965994 (GitHub main)
 branch: main
 test_count: 1479
 last_canary_run: 2026-02-25 (included in full green run)
 last_sync_direction: GitHub → Pi (pull origin main)
 continuity_updated: 2026-02-25
+=======
+last_known_good_commit: b806ba0 (fix/install-packaging branch)
+branch: fix/install-packaging
+test_count: 1562
+last_canary_run: 2026-03-01 (included in full green run on Pi)
+last_sync_direction: Mac → GitHub (push)
+continuity_updated: 2026-03-01
+>>>>>>> d661aad (feat(enforcement): add SecretRegistry known-secret exact matching)
 ```
 
 ---
@@ -352,7 +361,18 @@ Next action: [specific task]
 - Canary contract suite + dynamic per-session canary naming.
 - Ecosystem intel framework (watchlist, scoring, triage templates).
 - Safe sync scripts (Mac ↔ Pi) with dry-run default, prune guard, backups, integrity report.
+<<<<<<< HEAD
 - 1479 tests all passing.
+=======
+- CRAFT v4.2 verifier core, lifecycle rekey/resync, persistence, and proxy scaffolding.
+- P1 Item 4 (M2 adapter tests): 847ab46 — 10 adapter tests (Sentinel/Pi).
+- P1 Item 5 (systemd hardening): 396c565 (Sentinel/Pi).
+- Cadence Bridge integrated on Pi: e81aefb, 1562 tests passing.
+- 1562 tests all passing.
+
+### In Progress
+- Sentinel proceeding to next items from queued list.
+>>>>>>> d661aad (feat(enforcement): add SecretRegistry known-secret exact matching)
 
 ### Queued
 
@@ -387,7 +407,11 @@ Release gate must remain green before tagging/release.
 - [x] **Retention ✅**
   - `EventStore.enforce_retention()` implemented + retention tests (`tests/test_events_retention.py`) green.
 - [x] **Full suite ✅**
+<<<<<<< HEAD
   - Latest Pi run: `1479 passed, 22 subtests passed, 0 failed`.
+=======
+  - Latest Pi run: `1562 passed` (after Sentinel P1 Items 4+5).
+>>>>>>> d661aad (feat(enforcement): add SecretRegistry known-secret exact matching)
 
 ---
 
