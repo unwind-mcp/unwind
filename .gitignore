@@ -36,5 +36,15 @@ htmlcov/
 # Sentinel runtime state
 .sentinel/
 
+# Environment files
+.env
+
+# Runtime logs
+*.log
+
+# Cadence runtime state
+cadence/state.env
+cadence/pulse.jsonl
+
 # Exports
 unwind_export_*
