@@ -18,7 +18,7 @@ SEAT_ORDER=("seat1" "seat2" "seat3")
 seat_label() {
   case "$1" in
     seat1) echo "Seat 1 — Team workspace (shared team bucket)" ;;
-    seat2) echo "Seat 2 — Personal Plus (albaco1@btconnect.com)" ;;
+    seat2) echo "Seat 2 — Personal Plus (<operator-email>)" ;;
     seat3) echo "Seat 3 — Anthropic Claude API (placeholder)" ;;
     *) echo "$1" ;;
   esac
@@ -366,7 +366,7 @@ cmd_switch() {
       openclaw gateway restart
       ;;
     seat2)
-      echo "Target is Personal Plus workspace (albaco1@btconnect.com)."
+      echo "Target is Personal Plus workspace."
       echo "When OAuth opens, select PERSONAL workspace."
       openclaw onboard --auth-choice openai-codex
       openclaw gateway restart
