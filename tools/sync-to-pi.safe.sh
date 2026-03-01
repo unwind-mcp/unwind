@@ -13,9 +13,9 @@ set -euo pipefail
 # Environment overrides:
 #   PI_IP, PI_USER, PI_PATH, MAC_PATH
 
-PI_IP="${PI_IP:-192.168.0.171}"
-PI_USER="${PI_USER:-dandare}"
-PI_PATH="${PI_PATH:-/home/dandare/.openclaw/workspace/UNWIND/}"
+PI_IP="${UNWIND_PI_HOST:?Set UNWIND_PI_HOST}"
+PI_USER="${UNWIND_PI_USER:-pi}"
+PI_PATH="${UNWIND_PI_PATH:-/home/${PI_USER}/.openclaw/workspace/UNWIND/}"
 MAC_PATH="${MAC_PATH:-$HOME/Downloads/UNWIND/}"
 
 APPLY=0

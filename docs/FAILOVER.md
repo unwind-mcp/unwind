@@ -12,7 +12,7 @@ Provide a dead-simple operator flow when a seat hits rate limit:
 ## Seat map
 
 - **Seat 1** — Team workspace (shared bucket across team plans)
-- **Seat 2** — Personal Plus (`albaco1@btconnect.com`)
+- **Seat 2** — Personal Plus (<operator-email>)
 - **Seat 3** — Anthropic Claude API (placeholder; only available when configured)
 
 ---

@@ -64,9 +64,9 @@ class TestSelfProtectionUrlSkipContract(unittest.TestCase):
     def test_edge_case_urls_skip_path_resolution(self):
         # Includes local-looking URL paths, encoded colons, and mixed slashes.
         targets = [
-            "https://evil.com/home/dandare/.openclaw/events.db",
+            "https://evil.com/home/testuser/.openclaw/events.db",
             "https://evil.com/Users/alice/.openclaw/events.db",
-            "https://evil.com/%2Fhome%2Fdandare%2F.openclaw%2Fevents.db",
+            "https://evil.com/%2Fhome%2Ftestuser%2F.openclaw%2Fevents.db",
             "https://evil.com/path%3Awith%3Aencoded%3Acolons",
             "https://evil.com\\mixed\\slashes\\..\\payload",
             "HTTP://EVIL.COM/path",
@@ -123,7 +123,7 @@ class TestPipelinePathUrlRegression(unittest.TestCase):
             "http://evil.com/path",
             "ftp://files.example.com/download.txt",
             "file:///etc/passwd",
-            "https://evil.com/home/dandare/.openclaw/events.db",
+            "https://evil.com/home/testuser/.openclaw/events.db",
             "https://evil.com/Users/alice/.openclaw/events.db",
             "https://evil.com/path%3Awith%3Aencoded%3Acolons",
             "https://evil.com\\mixed\\slashes\\..\\payload",

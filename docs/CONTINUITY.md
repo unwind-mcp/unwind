@@ -17,7 +17,7 @@ UNWIND is a security middleware (sidecar proxy) for AI agents. It sits between a
 
 ## 2. People
 
-- **David Russell** (david@brugai.com / albaco1@btconnect.com) — Non-coder orchestrator. Scottish Borders. Relays between Claude and SENTINEL. Do NOT nanny him about sleep. Give clear terminal instructions — he is not a developer.
+- **David Russell** (<operator-email>) — Non-coder orchestrator. Relays between Claude and SENTINEL. Do NOT nanny him about sleep. Give clear terminal instructions — he is not a developer.
 - **Claude** — Implementation (code, tests, architecture). Runs via Anthropic Cowork.
 - **SENTINEL** — GPT-5.3 Codex on Raspberry Pi 5 via OpenClaw. Security analyst, reviewer, autonomous sub-agent delegation. Runs 24/7 on the Pi.
 
@@ -30,10 +30,10 @@ UNWIND is a security middleware (sidecar proxy) for AI agents. It sits between a
 | What | Path | Notes |
 |------|------|-------|
 | Mac workspace | `~/Downloads/UNWIND/` | David's MacBook Pro |
-| Pi workspace | `/home/dandare/.openclaw/workspace/UNWIND/` | Raspberry Pi 5, user `dandare` |
+| Pi workspace | `/home/<pi-user>/.openclaw/workspace/UNWIND/` | Raspberry Pi 5 |
 | GitHub | `github.com/brugai/unwind` (private) | Account: `brugai` |
-| Pi IP | `192.168.0.171` | Local network |
-| Pi SSH | `ssh dandare@192.168.0.171` | |
+| Pi IP | `<pi-ip>` | Local network |
+| Pi SSH | `ssh <pi-user>@<pi-ip>` | |
 | OpenClaw config | `~/.openclaw/openclaw.json` | On the Pi |
 | SENTINEL auth | `~/.openclaw/agents/main/agent/auth-profiles.json` | OAuth tokens |
 
@@ -141,8 +141,8 @@ Failures escalate per `tests/canary/canary-mapping.md`.
 ## 6. SENTINEL OAuth — Rate Limit Recovery
 
 SENTINEL authenticates to OpenAI via OAuth. David has two accounts:
-- `albaco1@btconnect.com` — Personal Plus + Team plan
-- `david@brugai.com` — Team/Business plan
+- `<operator-email-1>` — Personal Plus + Team plan
+- `<operator-email-2>` — Team/Business plan
 
 **Key lesson:** Seats don't double rate limits. Limits are per-org-workspace, not per-seat. To switch which capacity SENTINEL uses, you re-auth to a different workspace.
 
@@ -172,7 +172,7 @@ openclaw onboard --auth-choice openai-codex
 ```bash
 python3 -c "
 import json
-with open('/home/dandare/.openclaw/agents/main/agent/auth-profiles.json') as f:
+with open('/home/<pi-user>/.openclaw/agents/main/agent/auth-profiles.json') as f:
     data = json.load(f)
 # Remove any broken profiles (check for 'Symbol(clack:cancel)' or similar)
 for key in list(data.get('profiles', {}).keys()):
@@ -183,7 +183,7 @@ for key in list(data.get('profiles', {}).keys()):
             del data['usageStats'][key]
 # Ensure lastGood points to the valid profile
 data['lastGood'] = {'openai-codex': 'openai-codex:default'}
-with open('/home/dandare/.openclaw/agents/main/agent/auth-profiles.json', 'w') as f:
+with open('/home/<pi-user>/.openclaw/agents/main/agent/auth-profiles.json', 'w') as f:
     json.dump(data, f, indent=2)
 print('Cleaned')
 "
