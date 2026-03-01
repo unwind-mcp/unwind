@@ -112,7 +112,7 @@ Ghost Mode intercepts writes (returns fake success to agent) and optionally bloc
 
 ## 5. Test Suite
 
-**Current count: 1562 tests, all passing (Pi, 2026-03-01).**
+**Current count: 1702 tests, all passing (Pi, 2026-03-01).**
 
 ```bash
 # Run all tests
@@ -277,7 +277,7 @@ This block lets a rebooted session verify it's reading current continuity, not s
 ```
 last_known_good_commit: 6150aac (GitHub main)
 branch: main
-test_count: 1632
+test_count: 1702
 last_canary_run: 2026-03-01 (included in full green run on Pi)
 last_sync_direction: Pi → GitHub (push)
 continuity_updated: 2026-03-01
@@ -355,10 +355,10 @@ Next action: [specific task]
 - CRAFT v4.2 verifier core, lifecycle rekey/resync, persistence, and proxy scaffolding.
 - P1 Item 4 (M2 adapter tests): 847ab46 — 10 adapter tests (Sentinel/Pi).
 - P1 Item 5 (systemd hardening): 396c565 (Sentinel/Pi).
-- Cadence Bridge integrated on Pi: e81aefb, 1562 tests passing.
+- Cadence Bridge integrated on Pi: e81aefb, now validated on current baseline (1702 tests passing).
 - Secret Registry exact matching: d661aad (Claude/Mac), stabilised 626337f (Sentinel/Pi).
 - Open-core prep: license AGPL, PII redaction, community docs, CLA scaffolding.
-- 1632 tests all passing.
+- 1702 tests all passing.
 
 ### In Progress
 - Sentinel proceeding to next items from queued list.
@@ -396,7 +396,7 @@ Release gate must remain green before tagging/release.
 - [x] **Retention ✅**
   - `EventStore.enforce_retention()` implemented + retention tests (`tests/test_events_retention.py`) green.
 - [x] **Full suite ✅**
-  - Latest Pi run: `1632 passed, 22 subtests passed` (after Secret Registry stabilisation).
+  - Latest Pi run: `1702 passed, 22 subtests passed`.
 
 ---
 

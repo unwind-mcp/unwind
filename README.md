@@ -34,7 +34,7 @@ No LLM in the hot path. Every check is deterministic. Sub-millisecond overhead o
 | | **Ghost Mode** | **UNWIND** |
 |---|---|---|
 | What it does | See what your agent would do | See, control, undo, and audit |
-| Enforcement | Write blocking only | 13-stage pipeline |
+| Enforcement | Write blocking only | 15-stage+substage pipeline |
 | Rollback | No | Yes (smart snapshots) |
 | Audit chain | No | CR-AFT hash chain |
 | Dashboard | No | Web UI with trust light |
@@ -120,7 +120,7 @@ UNWIND fixes that.
 Every tool call is logged to a tamper-evident SQLite database with SHA-256 hash chaining (CR-AFT). Parameters are hashed, not stored — the audit trail proves what happened without leaking secrets.
 
 ### The Enforcement Pipeline
-13 deterministic checks run on every tool call, in order:
+15 deterministic checks/sub-stages run on every tool call, in order:
 
 1. **Self-Protection** — blocks access to UNWIND's own data (`.unwind/`)
 2. **Path Jail** — confines filesystem access to the workspace root
@@ -149,7 +149,7 @@ A real-time indicator of session health:
 - **Amber** — tainted session (external content ingested), high-risk actuators need confirmation
 - **Red** — action blocked, circuit breaker tripped, or canary triggered
 
-Taint auto-decays after 5 minutes of idle, preventing alert fatigue.
+Taint uses graduated decay (120s per level, with clean-op gating), typically clearing over ~6–8 minutes under normal traffic.
 
 ### The Dashboard
 A web UI with a glowing trust orb, event timeline, Away Mode summary, and chain verification.
@@ -255,7 +255,7 @@ UNWIND_WORKSPACE=~/workspace   # Path jail root
 
 ```
 unwind/                        # Core security engine (pip install unwind-mcp)
-├── enforcement/               # 13-stage pipeline (path jail, SSRF, DLP, canary...)
+├── enforcement/               # 15-stage+substage pipeline (path jail, SSRF, DLP, canary...)
 ├── recorder/event_store.py    # SQLite flight recorder (WAL + CR-AFT chain)
 ├── snapshots/                 # Smart snapshots + rollback engine
 ├── sidecar/                   # OpenClaw adapter sidecar (local policy server)
@@ -279,7 +279,7 @@ ghostmode/                     # Standalone dry-run proxy (pip install ghostmode
 ├── event_log.py               # Lightweight session recorder
 └── cli.py                     # One-command entry point
 
-tests/                         # 1,027 tests across all packages
+tests/                         # 1,702 tests across all packages (Pi, 2026-03-01)
 ```
 
 ## Development
@@ -288,7 +288,7 @@ tests/                         # 1,027 tests across all packages
 git clone https://github.com/unwind-mcp/unwind
 cd unwind
 pip install -e ".[dev]"
-pytest                         # 1,027 tests
+pytest                         # 1,702 tests (Pi, 2026-03-01)
 ```
 
 ## Development Discipline
