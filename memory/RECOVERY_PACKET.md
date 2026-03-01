@@ -1,6 +1,6 @@
 # SENTINEL Recovery Packet
 
-Generated: 2026-03-01 15:45:09 GMT
+Generated: 2026-03-01 17:07:37 GMT
 Workspace: /home/dandare/.openclaw/workspace
 
 ## 0) Fast recovery order (<2 min target)
@@ -46,8 +46,6 @@ Workspace: /home/dandare/.openclaw/workspace
 ## 3) Active continuity snapshot
 
 ### Today (2026-03-01)
-- 2026-03-01 02:20:00 GMT — Tier-1 corroboration sweep refresh (01:17–02:17): Tier-3 baseline unchanged (release still v2026.2.26; latest advisory GHSA-7jx5-9fjg-hp4m; NVD still 35 CVEs, newest CVE-2026-28363). No merged PRs in-window. New issue↔open-PR partial corroborations: #30202↔#30207 (WebChat internal heartbeat/system leak filtering), #30204↔#30223 (OpenRouter usage.cost numeric parsing), plus carryover fixes opened this window for prior claims: #30183↔#30200 (Bonjour watchdog probing state loop), #30099↔#30216 (kimi-coding User-Agent/auth headers), #30097↔#30217 (sessionTarget main validation), #30111↔#30195 (sanitize fake [System Message] injection). Unconfirmed issue-only claims in-window include Discord proxy bypass in carbon REST path (#30221), QMD exporter skipping reset/deleted transcripts (#30220), gateway OOM from Discord EventQueue backlog (#30212), and Control UI cron-name empty-field render loop (#30208).
-- 2026-03-01 02:31:00 GMT — sentinel:supply-chain-drift scan refreshed against npm registry + bundled skills from `openclaw@2026.2.26` tarball. Direct dependency shift vs runtime baseline `2026.2.21-2`: added `@larksuiteoapi/node-sdk`, `@snazzah/davey`, `ipaddr.js`; removed `@discordjs/opus`; bumped `@aws-sdk/client-bedrock` (^3.995.0→^3.998.0), `grammy` (^1.40.0→^1.40.1), `opusscript` (^0.0.8→^0.1.1), and `@mariozechner/pi-*` 0.54.0→0.55.1. High-velocity single-maintainer deps persisted (`@mariozechner/pi-*` rel7=6 each; `sqlite-vec` prerelease pin). OpenClaw-branded channel candidates with strongest typosquat/drift indicators: `@qingchencloud/openclaw-zh` (rel7=123, rel30=511, single maintainer), `@jerryan999/openclaw-zh` (rel7=98, rel30=156, single maintainer), plus `openclaw-app`, `openclaw-quiubo`, `squad-openclaw` (all very new, single maintainer, rel7 bursts 14–19). Bundled skill install-channel risks unchanged: `skills/xurl` includes raw script pipe installer and Go `@latest`; additional Go `@latest` in `things-mac` and `blogwatcher`; npm installer channels include young/high-churn `acpx` (rel7=7, single maintainer).
 - 2026-03-01 03:00:32 GMT — eng-coverage: commit=afe2ef2 coverage=83% ok=true
 - 2026-03-01 03:20:00 GMT — Tier-1 corroboration sweep refresh (02:17–03:17): Tier-3 baseline unchanged (release still v2026.2.26; latest advisory GHSA-7jx5-9fjg-hp4m; NVD still 35 CVEs with CVE-2026-28363 newest). No merged PRs in-window. New issue↔open-PR partial corroboration: #30226 ↔ #30233 (ownerAllowFrom wildcard should grant owner-level tool access). Other new claims remain issue-only/unconfirmed, including Discord proxy bypass in REST path (#30244), cron duplicate announcements (#30246), Feishu WS mode client.on failure (#30247), auth mode silent OAuth→API key switch (#30248), Telegram group command auth checking DM allowlist (#30234), thread-bound subagent spawn no_active_run in Discord (#30242), and isolated cron memory-bridge gap (#30243).
 - 2026-03-01 04:00:07 GMT — continuity-drift: ALERT test_count drift: claimed=1562 actual=1702
@@ -56,6 +54,8 @@ Workspace: /home/dandare/.openclaw/workspace
 - 2026-03-01 06:22:00 GMT — sentinel:weekly-intel-brief prepared (last-7d confirmed-source cut): GitHub advisories show two concentrated 2026-02-26 waves (03:58Z: 18 GHSAs, 4 high/11 moderate/3 low; 22:40Z: 15 GHSAs, 5 high/6 moderate/4 low) with fixes in >=2026.2.25 / >=2026.2.26, NVD confirms CVE-2026-28363 (CVSS 9.9) affecting <2026.2.23, KEV has no OpenClaw hits, local runtime still 2026.2.21-2 -> Lane-1 immediate upgrade + exec/path/authz regression pack.
 - 2026-03-01 06:23:27 GMT — eng-test6h: commit=4c5b8e8 count=1702 passed=1702 failed=0 subtests=22 ok=true
 - 2026-03-01 12:14:03 GMT — eng-test6h: commit=4c5b8e8 count=1702 passed=1702 failed=0 subtests=22 ok=true
+- 2026-03-01 15:46:00 GMT — Context resilience workstream completed for Pi-side continuity: added `memory/CRITICAL_IP.md` (continuity-critical narrative ledger), `tools/build-recovery-packet.py` + `tools/recover-context.sh` (cold-start briefing generation), generated `memory/RECOVERY_PACKET.md`, and documented restart/reset/reinstall survivability + <2 min runbook in `docs/CONTEXT_RESILIENCE_PLAN.md`. Validation: recovery script runtime ~0.1s end-to-end; isolated cold-start subagent reconstruction succeeded from files-only context in ~32s and recovered top risk/gate/actions with unresolved TODO gaps explicitly flagged.
+- 2026-03-01 16:08:00 GMT — User continuity/legal timing update: CRAFT v2 filing packet is ready for Opus handoff this week (includes two PoC versions, priority context, downstream application note). Embargo remains active: no public disclosure of origin/Geiger mechanism details until UK filing is submitted; Cadence README Geiger details remain uncommitted pre-filing. User requested Sentinel to push `origin/main`; push executed in `/workspace/UNWIND` and returned `Everything up-to-date`.
 
 ### Yesterday (2026-02-28)
 - 2026-02-28 18:20:00 GMT — Tier-1 corroboration sweep refresh: Tier-3 baseline unchanged in 17:17–18:17 window (stable still v2026.2.26; latest advisory still GHSA-7jx5-9fjg-hp4m; NVD still 35 CVEs with CVE-2026-28363 newest). New merged corroborations: #26414 (Podman Quadlet sed/UID fix), #25326 (browser navigate targetId after renderer swap), #28827 (skip Ollama discovery when explicit models configured), plus changelog sync #29963. New claim flow includes security-sensitive issue-only reports with no Tier-3 fixes yet (SQL injection in `/api/metrics/database` #29951, unpaired message platform-identity leak #29945). Additional partial corroborations now exist for stale reboot lock detection (#29927 ↔ open PR #29950), nodes.screen_record duration bounds (#29831 ↔ open PR #29959), isolated-session env var inheritance (#29886 ↔ open PRs #29943/#29931), and LINE M4A transcription classification (#29751 ↔ open PR cluster #29966/#29799/#29876/#29828/#29800).
@@ -67,9 +67,7 @@ Workspace: /home/dandare/.openclaw/workspace
 
 ## 4) Open continuity gaps
 
-- Status: TODO (not currently captured in durable memory with source trace)
-- Missing:
-- Missing:
+- No TODO gaps detected in CRITICAL_IP.md
 
 ## 5) Recent architecture decisions
 
