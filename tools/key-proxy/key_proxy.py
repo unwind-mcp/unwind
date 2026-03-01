@@ -63,7 +63,7 @@ MAX_REQUESTS_PER_HOUR = int(os.environ.get("PROXY_HOURLY_LIMIT", "500"))
 
 # Allowed source IPs (Pi's IP + localhost)
 ALLOWED_IPS = set(
-    os.environ.get("PROXY_ALLOWED_IPS", "192.168.0.171,127.0.0.1,::1").split(",")
+    os.environ.get("PROXY_ALLOWED_IPS", "127.0.0.1,::1").split(",")
 )
 
 # ---------------------------------------------------------------------------
