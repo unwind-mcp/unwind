@@ -116,6 +116,8 @@ class EnforcementPipeline:
         self.credential_exposure = CredentialExposureCheck(config)
         self.egress_policy = EgressPolicyCheck(config)
         self.ghost_egress = GhostEgressGuard(config, secret_registry=secret_registry)
+        # Back-compat alias used by tests/injectors.
+        self.ghost_egress_guard = self.ghost_egress
         self._ghost_session_allowlists: dict[str, GhostSessionAllowlist] = {}
         self.supply_chain = supply_chain_verifier  # Optional — stage 0b
         # Digest-at-execution provider: computes live digest of a provider
@@ -627,7 +629,7 @@ class EnforcementPipeline:
         # Runs BEFORE SSRF so that secrets in URLs never trigger DNS lookups.
         if session.ghost_mode:
             session_allowlist = self._ghost_session_allowlists.get(session.session_id)
-            ghost_result = self.ghost_egress.check(
+            ghost_result = self.ghost_egress_guard.check(
                 tool_name, target=target, parameters=parameters,
                 session_allowlist=session_allowlist,
             )

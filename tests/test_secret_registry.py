@@ -100,11 +100,13 @@ class TestTransformGeneration(unittest.TestCase):
         expected = b"my-secret".hex()
         self.assertEqual(transforms[TransformKind.HEX], expected)
 
-    def test_deduplicates_tokens(self):
-        # If base64 and base64url produce same output, only one is kept
-        transforms = _generate_transforms("aaaaaa")  # simple input
-        tokens = [t for _, t in transforms]
-        self.assertEqual(len(tokens), len(set(tokens)))
+    def test_preserves_transform_provenance_on_token_collisions(self):
+        # base64 and base64url can collide for simple inputs; we still keep
+        # transform-kind provenance so policy diagnostics know which transform hit.
+        transforms = _generate_transforms("aaaaaa")
+        kinds = {k for k, _ in transforms}
+        self.assertIn(TransformKind.BASE64, kinds)
+        self.assertIn(TransformKind.BASE64URL, kinds)
 
     def test_no_empty_tokens(self):
         transforms = _generate_transforms("x" * 8)
