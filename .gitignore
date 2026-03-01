@@ -38,3 +38,7 @@ htmlcov/
 
 # Exports
 unwind_export_*
+
+# Node deps (adapter tests)
+node_modules/
+openclaw-adapter/node_modules/

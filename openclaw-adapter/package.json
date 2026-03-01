@@ -9,6 +9,11 @@
     ]
   },
   "scripts": {
-    "test": "echo \"TODO: add tests\""
+    "test": "node --import tsx --test \"tests/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "@types/node": "^22.18.1"
   }
 }
