@@ -24,6 +24,7 @@ from typing import FrozenSet, Optional
 from urllib.parse import urlparse, parse_qs, unquote
 
 from ..config import UnwindConfig
+from .secret_registry import SecretRegistry, MatchResult as RegistryMatchResult
 
 
 # ──────────────────────────────────────────────
@@ -235,11 +236,16 @@ class GhostEgressGuard:
     Runs BEFORE SSRF shield so that secrets in URLs never trigger DNS.
     """
 
-    def __init__(self, config: UnwindConfig):
+    def __init__(
+        self,
+        config: UnwindConfig,
+        secret_registry: Optional[SecretRegistry] = None,
+    ):
         self.policy = config.ghost_network_policy
         self.static_allowlist = set(d.lower() for d in config.ghost_network_allowlist)
         self.ghost_egress_tools = config.ghost_egress_tools
         self.network_tools = config.network_tools
+        self.secret_registry = secret_registry
 
     def check(
         self,
@@ -302,12 +308,40 @@ class GhostEgressGuard:
         """DLP scanning for filtered/approved requests.
 
         Checks for:
-        1. Secrets in URL (path, query, fragment, userinfo)
+        0. Known-secret exact matching (SecretRegistry — highest precision)
+        1. Secrets in URL (path, query, fragment, userinfo) — heuristic patterns
         2. DNS exfiltration via high-entropy subdomains
         3. Secrets in search queries
         4. HTTPS enforcement (no HTTP in filtered mode)
         5. No userinfo in URL
         """
+        # 0. Known-secret registry — exact matching (highest precision, runs first)
+        if self.secret_registry is not None:
+            search_text = None
+            if tool_name == "search_web" and parameters:
+                search_text = parameters.get("query", "") or parameters.get("q", "")
+            registry_result = self.secret_registry.match(
+                url=target,
+                search_query_text=search_text,
+            )
+            if registry_result.matched:
+                # Emit only fingerprint IDs, never raw secrets
+                fp_ids = ", ".join(h.fingerprint_id for h in registry_result.hits[:3])
+                return GhostEgressResult(
+                    blocked=True,
+                    reason=f"GHOST_EGRESS_SECRET_REGISTRY: known secret detected "
+                           f"[fingerprints={fp_ids}]",
+                    dlp_hit=f"secret_registry:{fp_ids}",
+                )
+            # Registry unavailable — fail-safe: block in filtered mode
+            if registry_result.reason_code == "registry_unavailable":
+                return GhostEgressResult(
+                    blocked=True,
+                    reason="GHOST_EGRESS_SECRET_REGISTRY: registry unavailable — "
+                           "fail-safe block",
+                    dlp_hit="registry_unavailable",
+                )
+
         # 1. Secret scanning on URL
         if target:
             secret_hit = scan_url_for_secrets(target)
