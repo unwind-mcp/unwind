@@ -19,11 +19,13 @@ CLI entry point: `unwind sidecar serve`
 """
 
 import hmac
+import json
 import logging
 import os
 import secrets
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import FastAPI, Request, Response
@@ -120,8 +122,36 @@ def create_app(
                 policy_load.hash_hex[-4:],
             )
 
+    # --- Cadence Bridge (P3-11): wire pulse log callback ---
+    _cadence_bridge = None
+    if config.cadence_bridge_enabled:
+        from ..enforcement.cadence_bridge import CadenceBridge
+
+        def _taint_clear_callback(session_id: str) -> None:
+            """Append TAINT_CLEAR event to cadence/pulse.jsonl (plain JSON, no cadence imports)."""
+            try:
+                pulse_path = Path("cadence/pulse.jsonl")
+                pulse_path.parent.mkdir(parents=True, exist_ok=True)
+                event = {
+                    "type": "TAINT_CLEAR",
+                    "session_id": session_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "source": "unwind_sidecar",
+                }
+                with open(pulse_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(event) + "\n")
+            except Exception as exc:
+                logger.debug(
+                    "[sidecar] cadence pulse write failed: %s", exc
+                )
+
+        _cadence_bridge = CadenceBridge(
+            state_env_path=config.cadence_state_env_path,
+            on_taint_clear=_taint_clear_callback,
+        )
+
     if pipeline is None:
-        pipeline = EnforcementPipeline(config)
+        pipeline = EnforcementPipeline(config, cadence_bridge=_cadence_bridge)
 
     # Dedicated path jail checker for pre-pipeline multi-path patch validation.
     path_jail = PathJailCheck(config)
@@ -765,7 +795,8 @@ def _extract_target(params: dict) -> Optional[str]:
 
     Looks for common parameter names across MCP/OpenClaw tools.
     """
-    for key in ("path", "file_path", "filepath", "target", "url", "uri", "dest"):
+    for key in ("path", "file_path", "filepath", "target", "url", "uri", "dest",
+                "targetUrl"):  # OpenClaw browser tool
         if key in params and isinstance(params[key], str):
             return params[key]
     return None
