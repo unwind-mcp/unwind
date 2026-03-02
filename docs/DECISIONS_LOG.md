@@ -16,6 +16,7 @@ These are closed. A rebooted session must not propose changes to these without e
 6. **Green Light says "no violations detected" — never "safe."** Liability rule. Non-negotiable.
 7. **One PR = one intent.** Refactor OR feature/fix, never both in the same PR.
 8. **tamper-evident, not tamper-proof.** Hash chains detect tampering, they don't prevent it. Use "tamper-evident" in all docs.
+9. **Ground truth docs must reflect strategic facts, not just engineering facts.** If it's true in the code but not in the docs, it doesn't exist to external readers. Framework independence, component extractability, and integration architecture must be documented explicitly. (Lesson: Opus assessed UNWIND as platform-dependent because no doc stated otherwise. 2026-03-02)
 
 ---
 

@@ -7,6 +7,7 @@
 
 ## 0. Recent Changes (last 72 hours)
 
+- 2026-03-02: Framework independence documented — README, SIX_LAYER, DECISIONS_LOG updated (Opus caught strategic gap)
 - 2026-03-02: Document consolidation — archiving stale docs, single sources of truth established
 - 2026-03-02: Opus review of SIX_LAYER_ALIGNMENT.md — 12 patches applied (tamper-evident, verify tags, honest Cadence status)
 - 2026-03-02: Six-layer alignment doc accepted as ground truth by all three entities (commit a9914ec)
@@ -304,6 +305,7 @@ Section 0 updated: [yes/no — mandatory, keeps Recent Changes current]
 ```
 
 **Mandatory:** Update section 0 (Recent Changes) with what changed in this session.
+**Mandatory:** Before session end, ask: "What do the documents not say that a stranger reading them would need to know?" — verify ground truth documents reflect any architectural or strategic facts that exist in code but not in docs. (Lesson from 2026-03-02: Opus got UNWIND's market position fundamentally wrong because framework independence wasn't documented anywhere a reader could find it.)
 
 ---
 
