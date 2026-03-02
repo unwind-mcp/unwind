@@ -5,6 +5,18 @@
 
 ---
 
+## 0. Recent Changes (last 72 hours)
+
+- 2026-03-02: Document consolidation — archiving stale docs, single sources of truth established
+- 2026-03-02: Opus review of SIX_LAYER_ALIGNMENT.md — 12 patches applied (tamper-evident, verify tags, honest Cadence status)
+- 2026-03-02: Six-layer alignment doc accepted as ground truth by all three entities (commit a9914ec)
+- 2026-03-02: README aligned with reviewed alignment doc (Cadence section added, Ghost/Amber distinction, threat model expanded)
+- 2026-03-02: Sentinel cron jobs configured — 14 jobs, 10 on spark model, 3 on full model
+- 2026-03-01: OpenClaw upgraded to 2026.2.26, Cadence Bridge wired live, full proof pack passed (1702 tests, 170 CRAFT events)
+- 2026-03-01: PII redaction completed (d73c250), README + SECURITY.md aligned (a5b6ad9)
+
+---
+
 ## 1. What Is UNWIND
 
 UNWIND is a security middleware (sidecar proxy) for AI agents. It sits between an AI agent and the tools/APIs it calls, enforcing a 15-stage deterministic pipeline of security checks. No LLM calls in the enforcement path.
@@ -140,72 +152,13 @@ Failures escalate per `tests/canary/canary-mapping.md`.
 
 ## 6. SENTINEL OAuth — Rate Limit Recovery
 
-SENTINEL authenticates to OpenAI via OAuth. David has two accounts:
-- `<operator-email-1>` — Personal Plus + Team plan
-- `<operator-email-2>` — Team/Business plan
-
-**Key lesson:** Seats don't double rate limits. Limits are per-org-workspace, not per-seat. To switch which capacity SENTINEL uses, you re-auth to a different workspace.
-
-### How to Switch SENTINEL's OAuth Workspace
-
-1. Back up current auth:
-```bash
-cp ~/.openclaw/agents/main/agent/auth-profiles.json ~/.openclaw/agents/main/agent/auth-profiles.json.bak
-```
-
-2. Re-run OAuth (on the Pi):
-```bash
-openclaw onboard --auth-choice openai-codex
-```
-  - Select **Yes** to security warning
-  - Select **QuickStart**
-  - Select **Use existing values**
-  - It shows an OAuth URL — open it in a browser on the Mac
-  - Log in and **choose the workspace** you want (Personal vs Team)
-  - The browser redirects to a `localhost` URL that won't load — **copy the full URL from the address bar**
-  - Paste that URL into the Pi terminal
-  - Skip channels, skills, hooks
-  - Select **Restart** for gateway
-  - Select **Do this later** for hatching
-
-3. If a broken profile was created during the process, clean it up:
-```bash
-python3 -c "
-import json
-with open('/home/<pi-user>/.openclaw/agents/main/agent/auth-profiles.json') as f:
-    data = json.load(f)
-# Remove any broken profiles (check for 'Symbol(clack:cancel)' or similar)
-for key in list(data.get('profiles', {}).keys()):
-    p = data['profiles'][key]
-    if p.get('type') == 'token' and 'Symbol' in str(p.get('token', '')):
-        del data['profiles'][key]
-        if key in data.get('usageStats', {}):
-            del data['usageStats'][key]
-# Ensure lastGood points to the valid profile
-data['lastGood'] = {'openai-codex': 'openai-codex:default'}
-with open('/home/<pi-user>/.openclaw/agents/main/agent/auth-profiles.json', 'w') as f:
-    json.dump(data, f, indent=2)
-print('Cleaned')
-"
-```
-
-4. Restart gateway and test:
-```bash
-openclaw gateway start
-sleep 5
-openclaw tui
-```
-
-### Cleaner Method (for next time)
-
-```bash
-openclaw models auth login --provider openai-codex
-```
-Complete OAuth, then verify with `openclaw models status`.
+See `docs/runbooks/SENTINEL_OAUTH_RECOVERY.md` for the full procedure.
 
 ---
 
 ## 7. Process Rules (MUST FOLLOW)
+
+**Settled decisions:** See `docs/DECISIONS_LOG.md` for architectural and product decisions that must not be relitigated.
 
 1. **Always pause and check with David before starting work** (unless told to work unsupervised)
 2. **Market is prosumer/self-hosted** — NOT enterprise/expert
@@ -259,15 +212,14 @@ See `tests/canary/canary-mapping.md` for canary-to-test mappings.
 | Document | Location | Purpose |
 |----------|----------|---------|
 | This file | `docs/CONTINUITY.md` | Reboot brain protocol |
-| Architecture | `docs/ARCHITECTURE_V2.md` | Full architecture spec |
+| Six-layer alignment | `docs/SIX_LAYER_ALIGNMENT.md` | Canonical architecture — what each layer is, does, doesn't do |
+| Decisions log | `docs/DECISIONS_LOG.md` | Append-only decisions + settled questions |
 | Threat model | `docs/THREAT_MODEL_BOUNDARIES.md` | What we defend against |
-| What is UNWIND | `WHAT-IS-UNWIND.md` | Public-facing explainer |
 | Ghost Egress spec | `docs/GHOST_EGRESS_GUARD_SPEC.md` | Stage 3b design |
 | Secret Registry | `docs/SECRET_REGISTRY_DESIGN.md` | Known-secret matching design |
 | Compatibility | `docs/COMPATIBILITY_MATRIX.md` | Framework compatibility |
 | Security mapping | `docs/SECURITY-FRAMEWORK-MAPPING.md` | OWASP/NIST alignment |
 | ADR baseline | `docs/adr/` | Architecture Decision Records (template + accepted decisions) |
-| Six-layer alignment | `docs/SIX_LAYER_ALIGNMENT.md` | UNWIND/Rollback/Ghost/CRAFT/Cadence/CRIP alignment doc |
 | CRAFT spec v4.2 | `docs/CRAFT_Protocol_v4.2.md` | Full CRAFT protocol specification |
 | Open-core boundary | `OPEN_CORE_BOUNDARY.md` | Open vs premium feature split |
 | DISCLAIMER | `DISCLAIMER.md` | Liability and scope disclaimer |
@@ -281,15 +233,16 @@ See `tests/canary/canary-mapping.md` for canary-to-test mappings.
 This block lets a rebooted session verify it's reading current continuity, not stale.
 
 ```
-last_known_good_commit: d73c250 (GitHub main)
+last_known_good_commit: 1823909 (GitHub main)
 branch: main
 test_count: 1702
 openclaw_version: 2026.2.26
 craft_chain: 170 events, verified, 1 anchor, no tamper
 cadence_bridge: live (UNWIND_CADENCE_BRIDGE=1)
 sidecar: healthy (watchdog 86400s)
+cron_jobs: 14 (10 spark, 3 full model, 1 delivered daily-brief)
 last_canary_run: 2026-03-02 (included in full green run on Pi)
-last_sync_direction: Mac → GitHub (push d73c250)
+last_sync_direction: Mac → GitHub (push 1823909)
 continuity_updated: 2026-03-02
 ```
 
@@ -347,33 +300,19 @@ Rollback: [command to undo if needed]
 Open risk: [anything unresolved]
 Next owner: [Claude / SENTINEL / David]
 Next action: [specific task]
+Section 0 updated: [yes/no — mandatory, keeps Recent Changes current]
 ```
+
+**Mandatory:** Update section 0 (Recent Changes) with what changed in this session.
 
 ---
 
 ## 14. Current State (update after each session)
 
-### Completed
-- P0 complete: enforcement-in-path verification, transport fail-closed contract tests, sync safety hardening.
-- P1 complete: exec tunnel bypass fixes, events retention enforcement, path/URL regression lock-in.
-- P2 complete: taint decay tightening/wash-risk controls and canary randomisation hardening.
-- 15-stage enforcement pipeline implemented and tested.
-- Ghost Egress Guard (stage 3b) before SSRF (stage 4), with regression coverage.
-- Canary contract suite + dynamic per-session canary naming.
-- Ecosystem intel framework (watchlist, scoring, triage templates).
-- Safe sync scripts (Mac ↔ Pi) with dry-run default, prune guard, backups, integrity report.
-- CRAFT v4.2 verifier core, lifecycle rekey/resync, persistence, and proxy scaffolding.
-- P1 Item 4 (M2 adapter tests): 847ab46 — 10 adapter tests (Sentinel/Pi).
-- P1 Item 5 (systemd hardening): 396c565 (Sentinel/Pi).
-- Cadence Bridge integrated on Pi: e81aefb, now validated on current baseline (1702 tests passing).
-- Secret Registry exact matching: d661aad (Claude/Mac), stabilised 626337f (Sentinel/Pi).
-- Open-core prep: license AGPL, PII redaction, community docs, CLA scaffolding.
-- README + SECURITY.md aligned with runtime baseline (a5b6ad9).
-- PII redaction: recovery packet paths neutralised (d73c250).
-- OpenClaw upgraded from 2026.2.21-2 to 2026.2.26 (security-fixed line).
-- Cadence Bridge live and influencing policy decisions on Pi.
-- Full proof pack: 1702 tests passing, CRAFT chain verified (170 events), tamper-check clean.
-- 1702 tests all passing.
+### Completed (last 3 — for full history see CHANGELOG.md)
+- 2026-03-02: Document consolidation — single sources of truth, stale docs archived, DECISIONS_LOG created
+- 2026-03-02: Opus review of alignment doc — 12 patches applied (654f131), README aligned (1823909)
+- 2026-03-02: Six-layer alignment doc created and accepted as ground truth (a9914ec, eb31d43)
 
 ### In Progress
 - Sentinel step 5: automated stability confirmation cycles (eng-test6h, release-gate, tier-1 sweep)
@@ -423,20 +362,19 @@ Release gate must remain green before tagging/release.
 ## 16. For a Brand New Claude Session
 
 Read these files in this order:
-1. This file (`docs/CONTINUITY.md`)
-2. `WHAT-IS-UNWIND.md`
-3. `docs/SIX_LAYER_ALIGNMENT.md` (what each layer is and does)
-4. `docs/ARCHITECTURE_V2.md`
-5. `unwind/config.py` (tool classifications)
-6. `unwind/enforcement/pipeline.py` (the spine)
-7. Run `python -m pytest --tb=short -q  # Mac; on Pi use: .venv/bin/python -m pytest --tb=short -q` to confirm current state
+1. This file (`docs/CONTINUITY.md`) — especially section 0 (Recent Changes)
+2. `docs/SIX_LAYER_ALIGNMENT.md` (canonical: what each layer is and does)
+3. `docs/DECISIONS_LOG.md` (settled questions — do not relitigate)
+4. `unwind/config.py` (tool classifications)
+5. `unwind/enforcement/pipeline.py` (the spine)
+6. Run `python -m pytest --tb=short -q  # Mac; on Pi use: .venv/bin/python -m pytest --tb=short -q` to confirm current state
 
 ## 17. For a Brand New SENTINEL Session
 
 Read these files in this order:
-1. This file (`docs/CONTINUITY.md`)
-2. `WHAT-IS-UNWIND.md`
-3. `docs/THREAT_MODEL_BOUNDARIES.md`
-4. `docs/GHOST_EGRESS_GUARD_SPEC.md`
+1. This file (`docs/CONTINUITY.md`) — especially section 0 (Recent Changes)
+2. `docs/SIX_LAYER_ALIGNMENT.md` (canonical: what each layer is and does)
+3. `docs/DECISIONS_LOG.md` (settled questions — do not relitigate)
+4. `docs/THREAT_MODEL_BOUNDARIES.md`
 5. `tests/canary/canary-mapping.md`
-6. Run `python -m pytest --tb=short -q  # Mac; on Pi use: .venv/bin/python -m pytest --tb=short -q` to confirm current state
+6. Run `.venv/bin/python -m pytest --tb=short -q` to confirm current state
