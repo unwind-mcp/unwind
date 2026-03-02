@@ -13,15 +13,15 @@
 A security layer that sits between your AI agent and the tools it uses, so you can see everything it does, control what it's allowed to do, and undo anything that goes wrong.
 
 ### What it does
-- Checks every tool call through 15 deterministic stages before it reaches the real tool — blocking anything dangerous
-- Records every action to a tamper-proof flight recorder so you have evidence of what happened
+- Checks every tool call through 15 deterministic stages before it reaches the real tool — blocking dangerous actions outright and pausing high-risk actions for your approval (amber challenge)
+- Records every tool-call event to a tamper-evident flight recorder so you have evidence of what happened
 - Takes snapshots before every change so you can undo any action at any time
 - Shows you a real-time trust light (green/amber/red) so you know the health of your session at a glance
 - Works with any MCP client (Claude Desktop, Cursor, etc.) or as a native OpenClaw plugin — the agent doesn't know UNWIND exists
 
 ### What it does NOT do
 - Does not use AI/LLM in the enforcement path — every check is deterministic, no hallucination risk
-- Does not protect against kernel-level compromise or a fully compromised host OS
+- Does not protect against compromise of the host OS, the Python runtime, or the MCP client it mediates — it operates as a user-space enforcement layer, not a trusted execution environment
 - Does not claim to eliminate all risk — it reduces practical attack surface and makes actions recoverable
 - Does not phone home, collect telemetry, or require cloud connectivity
 
@@ -38,7 +38,7 @@ A security layer that sits between your AI agent and the tools it uses, so you c
 
 ### Operational hardening notes (from Sentinel)
 - Keep startup/env injection consistent across sidecar restarts (drift friction observed in practice)
-- Watchdog threshold is a **stale-signal indicator**, not a lockout control — language must reflect this
+- Watchdog threshold is a **stale-signal indicator**, not a lockout control — but a threshold that is too short can cause repeated taint escalation that manifests as lockout-like friction (see UNWIND_WATCHDOG_THRESHOLD configuration)
 - Maintain restart runbook to avoid sidecar-health blind windows
 - Keep proving no bypass path from tool call to execution
 - Unknown-tool paths must fail safely (observed: `write` → `challenge_required` when not in classification set)
@@ -92,7 +92,7 @@ A safe sandbox where your agent thinks it's doing real work, but nothing actuall
 - Maintains a shadow virtual filesystem so the agent can read back its own "written" content and stay consistent
 - Logs everything the agent tried to do, giving you a complete picture of its intentions
 - Available as a standalone package (`pip install ghostmode`) or as part of UNWIND
-- Egress guard scans outbound URLs and search queries for leaked secrets before they leave
+- Egress guard scans outbound URLs and search queries for known secret patterns (API key formats, high-entropy strings) before they leave — a practical filter, not a guarantee against all exfiltration vectors
 
 ### What it does NOT do
 - Does not modify the agent's behaviour — the agent genuinely believes its actions succeeded
@@ -130,14 +130,14 @@ You're about to let your agent run a complex task but you're not sure what it'll
 ## 4. CRAFT (Cryptographic Relay Authentication for Faithful Transmission)
 
 ### What it is
-A tamper-proof flight recorder that cryptographically chains every tool call together, so you can prove exactly what your agent did, in what order, and that nobody altered the record.
+A tamper-evident flight recorder that cryptographically chains every tool call together, so you can prove exactly what your agent did, in what order, and that nobody altered the record.
 
 ### What it does
 - Every tool call is recorded with a SHA-256 hash that links it to the previous event — break one link and every hash after it fails verification
 - Parameters are hashed, never stored raw — the chain proves what happened without leaking what was in the payload
 - Records are written before the tool call executes (crash resilience — evidence exists even if the process dies mid-flight)
 - Provides CLI verification (`unwind verify`), tamper detection (`unwind tamper-check`), and external anchoring (`unwind anchor`) for third-party audit
-- Transport-layer authentication: HKDF-derived keys, HMAC envelopes, strict FIFO sequencing, capability tokens for scoped tool delegation
+- Transport-layer authentication: HKDF-derived keys, HMAC envelopes, strict FIFO sequencing, capability tokens for scoped tool delegation [verify: confirm delegation tokens are exercised in current test suite]
 
 ### What it does NOT do
 - Does not encrypt the event data — it proves integrity, not confidentiality
@@ -176,7 +176,7 @@ A temporal awareness layer that teaches your agent what time means — when you'
 - Watches timing gaps between interactions and infers human state (FLOW / READING / DEEP_WORK / AWAY) using Exponential Moving Averages per time-of-day bin
 - Detects temporal anomalies: user is AWAY but tool calls arrive at machine speed, tool call timing has zero variance (bot), user is READING but rapid writes are firing
 - Outputs state to a simple `state.env` file that any language, framework, or sidecar can read
-- Integrates with UNWIND's enforcement pipeline as a trust signal — anomalies escalate taint and trigger amber
+- Integrates with UNWIND's enforcement pipeline as a trust signal (distinct from the dashboard trust light) — anomalies escalate taint and trigger an amber challenge (human approval required before execution)
 - Calculates Expected Response Time (ERT) adjusted for cognitive load (agent sent a 400-line script = user needs more reading time)
 
 ### What it does NOT do
@@ -203,7 +203,7 @@ With a formal heartbeat (cron/n8n updating state.env with clock, day-of-week, ho
 - [ ] Docs complete (full README written but origin story paragraph blocked on UK patent filing)
 - [ ] Pulse ingestion automated (currently manual state edits for testing)
 
-**Honest status:** Early live. The bridge is running, the state file is being consumed, and we observed it influencing policy decisions. But the proof testing had shell friction, and a clean isolated A/B test hasn't been completed yet. For public claims: "live and influencing policy" is accurate. For formal evidence: A/B proof is pending.
+**Honest status: [live-prototype]** The bridge is running, the state file is being consumed, and we observed it influencing policy decisions. But the proof testing had shell friction, and a clean isolated A/B test hasn't been completed yet. For public claims: "live-prototype, influencing policy" is accurate. For formal evidence: A/B causality proof is pending. Learned daily rhythm profiles and automated pulse ingestion are planned, not operational.
 
 ### Operational hardening notes (from Sentinel)
 - Automate pulse ingestion (not manual state edits) and enforce CRIP metadata on writes
@@ -217,7 +217,7 @@ With a formal heartbeat (cron/n8n updating state.env with clock, day-of-week, ho
 - **Extended state.env schema:** Calendar integration, external context signals, last order summary.
 
 ### How a user experiences it
-You set `UNWIND_CADENCE_BRIDGE=1` and carry on working. Over days, your agent learns your rhythm. When you switch to another window and miss a permission prompt, it nudges you after 10 seconds. When you're away at 3am and something starts firing tool calls at machine speed, it goes amber. When you come back, it knows you're back. Your agent respects your time because it understands your time.
+You set `UNWIND_CADENCE_BRIDGE=1` and carry on working. Over sessions, your agent begins learning your rhythm from timing patterns. [Planned — CAD1] When you switch to another window and miss a permission prompt, it will nudge you after your expected response time elapses. When you're away at 3am and something starts firing tool calls at machine speed, it triggers an amber challenge — your approval is required before anything executes. When you come back, it knows you're back. Your agent respects your time because it understands your time.
 
 ---
 
@@ -227,9 +227,9 @@ You set `UNWIND_CADENCE_BRIDGE=1` and carry on working. Over days, your agent le
 A consent framework baked into Cadence that ensures every piece of timing data carries explicit rules about where it can be processed, how long it's kept, and whether the user can delete it — turning privacy from a policy into a code path.
 
 ### What it does
-- Attaches consent headers to every rhythm data write — no headers, no write (enforced in code, not policy)
+- Attaches consent headers to every rhythm data write — no headers, no write (enforced in application code at the data-layer boundary, not policy) [verify: audit all write paths to confirm no unguarded rhythm-data writes exist]
 - Default consent scope is LOCAL_ONLY — data never leaves the device unless the user explicitly changes it
-- Default retention is ROLLING_7D — data auto-deletes after 7 days
+- Default retention is ROLLING_7D — data tagged for deletion after 7 days [verify: confirm whether current implementation enforces auto-purge or only tags the retention window]
 - Every entry is user-deletable by default (`deletable: true`)
 - Emits auditable consent events (CONSENT_CHANGED, DATA_DELETED, DATA_RESET) so consent changes are themselves part of the record
 
@@ -277,7 +277,7 @@ CRIP (consent rules)
 CADENCE (temporal awareness + agent clock)
  └── feeds trust signals into ↓
 UNWIND ENFORCEMENT (15-stage pipeline)
- ├── records every decision to → CRAFT (flight recorder)
+ ├── records every tool-call event to → CRAFT (tamper-evident flight recorder)
  ├── captures snapshots for → ROLLBACK (time machine)
  └── can divert calls to → GHOST MODE (sandbox)
 ```
@@ -287,7 +287,7 @@ UNWIND ENFORCEMENT (15-stage pipeline)
 **Independent:** Ghost Mode works standalone (`pip install ghostmode`). CRAFT chain works without Cadence. Rollback works without CRAFT. Cadence works without CRAFT.
 
 **Enhancing:** Each layer makes the others stronger:
-- Cadence + CRAFT = temporal anomalies in a tamper-proof record
+- Cadence + CRAFT = temporal anomalies in a tamper-evident record
 - Ghost Mode + Rollback = test safely, undo mistakes
 - CRIP + Cadence = rhythm awareness with built-in consent
 - CRAFT + Rollback = prove what happened AND undo it
@@ -301,7 +301,7 @@ UNWIND ENFORCEMENT (15-stage pipeline)
 1. **UNWIND:** See everything your agent does. Control what it's allowed to do. Undo anything that goes wrong.
 2. **Rollback:** Every action has an undo button — one file, one event, or everything since 3pm.
 3. **Ghost Mode:** Let your agent run for real, without consequences. See what it would have done. Nothing changes.
-4. **CRAFT:** A tamper-proof flight recorder for every tool call. Prove what happened. Prove nobody changed the record.
+4. **CRAFT:** A tamper-evident flight recorder for every tool call. Prove what happened. Prove nobody changed the record.
 5. **CADENCE:** Your agent learns your rhythm. It knows when you're focused, when you're away, and when something doesn't fit.
 6. **CRIP:** Your timing data, your device, your rules. Auto-deletes in 7 days. Never leaves your machine.
 
