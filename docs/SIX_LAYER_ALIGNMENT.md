@@ -307,11 +307,16 @@ UNWIND ENFORCEMENT (15-stage pipeline)
 
 ---
 
-## Open questions for David (resolve before Opus review)
+## Decisions (resolved 2026-03-02, David + Claude)
 
-1. **CADENCE status language:** Use "early live, policy influence observed" (Sentinel's safer framing) or "live" (accurate but less cautious) in public docs?
-2. **CADENCE docs timing:** Publish trimmed README now (no Geiger details) or wait for UK patent filing?
-3. **Rollback positioning:** "Undo button" (simple) or "time machine" (ambitious)?
-4. **CRAFT standalone:** Hint at independent enterprise value (compliance/SOX/SOC2) or keep positioned as part of UNWIND only?
-5. **Ghost Mode as entry point:** Reinforce the adoption funnel (Ghost → UNWIND → CRAFT → Cadence)?
-6. **CRIP v2 scope:** Minimal CLI (`cadence consent show`) or visual web UI in dashboard?
+1. **Ghost Mode packaging:** Keep separate (`pip install ghostmode`). Free entry point, clean adoption funnel. No folding into main package.
+2. **Dashboard scope:** Basic trust light + event timeline + chain verification = free. Enterprise features (multi-agent, team dashboards, historical analytics, compliance export) = premium.
+3. **CRAFT standalone:** Roadmap item, not for launch. Ships inside UNWIND. Extract to standalone library (`craft-audit` or similar) when enterprise demand emerges.
+4. **Cadence first-run messaging:** Mention it, lead with the attention nudge: *"Enable Cadence to get notified when your agent is waiting for you. `UNWIND_CADENCE_BRIDGE=1`"*. Turn it on for convenience, keep it on for security.
+5. **CRIP verification:** Flagged as **verify** status. Audit enforcement coverage before launch, not before Opus review. Honest status in all docs.
+6. **Alpha tag:** After Opus review, not before. Let Opus be the first external eyes, then stamp.
+
+## Known architectural items (not blocking launch)
+
+- **CAD1 — Attention nudge:** "Your agent has been waiting N minutes." Gateway feature for Cadence adoption — first non-security value. Building blocks exist, needs notification bridge.
+- **CAD2 — Cross-device rhythm:** Cadence builds per-device baselines (LOCAL_ONLY by design). Switching machines = cold start + possible false anomalies on return. Future: optional CRIP scope (e.g. `DEVICE_GROUP`) for user-consented cross-machine sync. No sync without explicit opt-in.
