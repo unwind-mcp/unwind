@@ -19,4 +19,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - SSRF shield with DNS resolution and IP blocking
 - DLP-lite with regex and entropy scanning on egress
 - Canary contract test suite for upstream drift detection
-- 1500+ unit tests across all enforcement phases
+- MCP stdio proxy adapter for Claude Desktop, Cursor, and other MCP clients
+- CR-AFT external anchoring and tamper detection
+- Conversational query interface (`unwind ask`)
+- 1702 unit tests across all layers and integration suites, 0 failures
+
+### Changed
+- CRAFT protocol updated to v4.2 (HKDF key schedule, capability tokens, strict FIFO)
+- Cadence Bridge integrated on Pi (commit e81aefb, 1559→1562 tests)
+- systemd unit hardened (commit 396c565)
+- M2 adapter tests added (commit 847ab46, 10 tests)
+
+### Documentation
+- Six-Layer Alignment Document created as canonical architecture reference (commit a9914ec)
+- README aligned with reviewed alignment doc (commit 1823909)
+- Opus review patches applied — 12 accepted, tamper-proof→tamper-evident global rename (commit 654f131)
+- Document consolidation: DECISIONS_LOG.md, runbooks/, stale docs archived
