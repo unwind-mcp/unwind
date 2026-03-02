@@ -1,6 +1,6 @@
 # UNWIND Continuity Protocol — Reboot Brain Document
 
-**Last updated:** 2026-02-25
+**Last updated:** 2026-03-02
 **Purpose:** If Claude, SENTINEL, or both lose context (compaction, rate limit, new session), read this first to get back up to speed.
 
 ---
@@ -267,6 +267,12 @@ See `tests/canary/canary-mapping.md` for canary-to-test mappings.
 | Compatibility | `docs/COMPATIBILITY_MATRIX.md` | Framework compatibility |
 | Security mapping | `docs/SECURITY-FRAMEWORK-MAPPING.md` | OWASP/NIST alignment |
 | ADR baseline | `docs/adr/` | Architecture Decision Records (template + accepted decisions) |
+| Six-layer alignment | `docs/SIX_LAYER_ALIGNMENT.md` | UNWIND/Rollback/Ghost/CRAFT/Cadence/CRIP alignment doc |
+| CRAFT spec v4.2 | `docs/CRAFT_Protocol_v4.2.md` | Full CRAFT protocol specification |
+| Open-core boundary | `OPEN_CORE_BOUNDARY.md` | Open vs premium feature split |
+| DISCLAIMER | `DISCLAIMER.md` | Liability and scope disclaimer |
+| CHANGELOG | `CHANGELOG.md` | Release changelog |
+| Context resilience | `docs/CONTEXT_RESILIENCE_PLAN.md` | Pi-side recovery runbook |
 
 ---
 
@@ -275,12 +281,16 @@ See `tests/canary/canary-mapping.md` for canary-to-test mappings.
 This block lets a rebooted session verify it's reading current continuity, not stale.
 
 ```
-last_known_good_commit: 6150aac (GitHub main)
+last_known_good_commit: d73c250 (GitHub main)
 branch: main
 test_count: 1702
-last_canary_run: 2026-03-01 (included in full green run on Pi)
-last_sync_direction: Pi → GitHub (push)
-continuity_updated: 2026-03-01
+openclaw_version: 2026.2.26
+craft_chain: 170 events, verified, 1 anchor, no tamper
+cadence_bridge: live (UNWIND_CADENCE_BRIDGE=1)
+sidecar: healthy (watchdog 86400s)
+last_canary_run: 2026-03-02 (included in full green run on Pi)
+last_sync_direction: Mac → GitHub (push d73c250)
+continuity_updated: 2026-03-02
 ```
 
 ---
@@ -358,28 +368,38 @@ Next action: [specific task]
 - Cadence Bridge integrated on Pi: e81aefb, now validated on current baseline (1702 tests passing).
 - Secret Registry exact matching: d661aad (Claude/Mac), stabilised 626337f (Sentinel/Pi).
 - Open-core prep: license AGPL, PII redaction, community docs, CLA scaffolding.
+- README + SECURITY.md aligned with runtime baseline (a5b6ad9).
+- PII redaction: recovery packet paths neutralised (d73c250).
+- OpenClaw upgraded from 2026.2.21-2 to 2026.2.26 (security-fixed line).
+- Cadence Bridge live and influencing policy decisions on Pi.
+- Full proof pack: 1702 tests passing, CRAFT chain verified (170 events), tamper-check clean.
 - 1702 tests all passing.
 
 ### In Progress
-- Sentinel proceeding to next items from queued list.
+- Sentinel step 5: automated stability confirmation cycles (eng-test6h, release-gate, tier-1 sweep)
+- Six-layer alignment doc (Claude draft done, Sentinel filling in independently)
 
 ### Queued
 
 | Item | Owner | Lane | Blocking? | Notes |
 |------|-------|------|-----------|-------|
-| Known-secret exact matching (secret registry) | Claude | 1 | No | Agreed with SENTINEL as "worth doing now" |
 | Session-level sequence detection for split exfil | Claude | 2 | No | v2 feature |
 | Honeytokens v2 | SENTINEL | 3 | No | Optional per SENTINEL |
 | Ghost Mode semantic mocking for stateful APIs | Claude | 3 | No | v2 feature |
+| Sanitised telemetry snippet for repo | Claude + Sentinel | - | No | Real Sentinel data for launch credibility |
+| Attention nudge (CAD1) | Claude | - | No | Cadence pings user when permission prompt exceeds ERT |
+| Sidecar restart DX (DX1) | Claude | - | No | Clearer fail-closed error + `unwind sidecar restart` CLI |
 
 ### Pre-Launch
 
 | Item | Owner | Blocking? | Notes |
 |------|-------|-----------|-------|
+| UK patent filing (CRAFT v2) | David | Yes | Handover prompt ready, Opus onboarding started |
 | Solicitor consultation on UK software liability | David | Yes | ~£150-200 |
 | Professional indemnity insurance | David | Yes | ~£300-500/year |
 | Audit "safe" language → "no violations detected" | Claude + SENTINEL | Yes | Liability requirement |
-| Rotate GitHub token (exposed in chat) | David | No | Settings → Developer settings → PAT |
+| Cadence README (full version with origin story) | Claude | Blocked | Waiting on UK patent filing |
+| Alpha tag (0.1.0-alpha) | All | Blocked | Waiting on Sentinel step 5 stability confirmation |
 
 ---
 
@@ -405,10 +425,11 @@ Release gate must remain green before tagging/release.
 Read these files in this order:
 1. This file (`docs/CONTINUITY.md`)
 2. `WHAT-IS-UNWIND.md`
-3. `docs/ARCHITECTURE_V2.md`
-4. `unwind/config.py` (tool classifications)
-5. `unwind/enforcement/pipeline.py` (the spine)
-6. Run `python -m pytest --tb=short -q  # Mac; on Pi use: .venv/bin/python -m pytest --tb=short -q` to confirm current state
+3. `docs/SIX_LAYER_ALIGNMENT.md` (what each layer is and does)
+4. `docs/ARCHITECTURE_V2.md`
+5. `unwind/config.py` (tool classifications)
+6. `unwind/enforcement/pipeline.py` (the spine)
+7. Run `python -m pytest --tb=short -q  # Mac; on Pi use: .venv/bin/python -m pytest --tb=short -q` to confirm current state
 
 ## 17. For a Brand New SENTINEL Session
 
