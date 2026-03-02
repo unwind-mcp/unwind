@@ -177,7 +177,12 @@ unwind dashboard              # Launch at http://127.0.0.1:9001
 ```
 
 ### Ghost Mode
-Test untrusted tools or risky prompts without consequences. All state-modifying calls are logged but not executed. A shadow VFS serves back "written" content on subsequent reads, so the agent stays consistent. Available as a standalone package (`pip install ghostmode`) or as part of UNWIND.
+Test untrusted tools or risky prompts without consequences. All state-modifying calls are logged but not executed. A shadow VFS serves back "written" content on subsequent reads, so the agent stays consistent. An egress guard scans outbound URLs and search queries for known secret patterns (API key formats, high-entropy strings) before they leave. Available as a standalone package (`pip install ghostmode`) or as part of UNWIND.
+
+**Ghost Mode vs Amber Challenges:** Ghost Mode is a sandbox — "what would happen?" with fake success, nothing real changes. Amber challenges are a pause — "are you sure?" before executing a high-risk action for real. They are architecturally distinct.
+
+### Cadence (Temporal Awareness)
+Your agent learns your rhythm — when you're focused, when you're away, when you're reading. Cadence watches timing patterns (never content) and feeds trust signals into the enforcement pipeline. If someone fires tool calls at machine speed while you're away, it triggers an amber challenge. Enable with `UNWIND_CADENCE_BRIDGE=1`. All timing data stays on your device (enforced by the CRIP consent protocol), auto-deletes in 7 days, and UNWIND works fully without it.
 
 ### CR-AFT External Anchoring
 Export the hash chain for third-party audit. Create periodic anchor checkpoints. Detect tampering across the full event history.
@@ -228,8 +233,7 @@ UNWIND focuses on practical risk reduction through deterministic enforcement and
 
 **Not designed to defend against:**
 
-- Kernel-level compromise
-- Fully compromised host operating system
+- Compromise of the host OS, the Python runtime, or the MCP client it mediates — UNWIND operates as a user-space enforcement layer, not a trusted execution environment
 - Determined adversary with full system access
 - Side-channel attacks on the proxy process itself
 
@@ -279,7 +283,7 @@ UNWIND_WORKSPACE=~/workspace   # Path jail root
 
 ```
 docs/
-├── CRAFT_Protocol_v4.2.md     # CRAFT specification (signed off, implementation underway)
+├── CRAFT_Protocol_v4.2.md     # CRAFT specification (signed off, live on hardware)
 ├── CRAFT_Protocol_v4.2.docx   # Formatted spec for external review
 └── ...                        # Compatibility matrix, security coverage, etc.
 
