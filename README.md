@@ -142,7 +142,7 @@ Every tool call is logged to a tamper-evident SQLite database with SHA-256 hash 
 
 CRAFT (Cryptographic Relay Authentication for Faithful Transmission) sits at the front of the ingress path, authenticating every command before it reaches the enforcement pipeline. It provides cryptographic proof of who sent a command, that it hasn't been tampered with, and that it's in the correct sequence. CRAFT uses HKDF-derived directional keys, HMAC-SHA256 envelope authentication, strict FIFO state commitment chains, and issuer-authenticated capability tokens for scoped tool delegation. See `docs/CRAFT_Protocol_v4.2.md` for the full specification.
 
-CRAFT does not claim to solve prompt injection. It solves transport-layer command spoofing, relay tampering, replay attacks, session hijacking, and confused-deputy misuse — making the downstream pipeline's job easier by guaranteeing the commands it processes are genuine.
+CRAFT does not claim to solve prompt injection. It solves transport-layer command spoofing, relay tampering, replay attacks, session hijacking, and confused-deputy misuse — making the downstream pipeline's job easier by guaranteeing the commands it processes are genuine. CRAFT has zero external dependencies (pure Python stdlib) and can be used independently as a standalone audit library without the rest of UNWIND.
 
 ### The Enforcement Pipeline
 
@@ -318,7 +318,7 @@ tests/                         # 1,702 tests across all packages (Pi, 2026-03-01
 git clone https://github.com/unwind-mcp/unwind
 cd unwind
 pip install -e ".[dev]"
-pytest                         # 1,702 tests (Pi, 2026-03-01)
+pytest                         # 1,700+ tests
 ```
 
 ## Development Discipline
