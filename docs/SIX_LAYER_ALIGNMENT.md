@@ -279,6 +279,27 @@ You don't experience CRIP directly — it works behind the scenes. But if you ev
 
 ---
 
+## Integration architecture (framework independence)
+
+UNWIND's core engine is framework-agnostic by design. This matters for positioning, acquisition due diligence, and any entity reading these docs without access to the source code.
+
+**Core engine:** The Python codebase (`unwind/`) has zero imports from any agent framework. No OpenClaw SDK, no MCP library. The enforcement pipeline takes generic inputs (`tool_name: str`, `target: str`, `parameters: dict`) and returns generic decisions (`ALLOW | BLOCK | MUTATE | CHALLENGE_REQUIRED`). All 1,702 tests pass without any agent framework installed.
+
+**Three integration paths:**
+1. **MCP stdio proxy** — `unwind serve -- <command>` wraps any MCP server. Zero code needed.
+2. **HTTP sidecar API** — POST `/v1/policy/check` with `{toolName, params, agentId, sessionKey}`. Works from any language.
+3. **OpenClaw plugin** — TypeScript adapter using `before_tool_call` hooks. Talks to the same sidecar API.
+
+**Component independence:**
+- **Ghost Mode:** Zero dependencies (`ghostmode/pyproject.toml: dependencies = []`). Pure JSON-RPC 2.0 proxy. Works with any stdio-based agent.
+- **CRAFT:** 1,605 lines, pure Python stdlib (`hashlib`, `hmac`, `json`, `dataclasses`). Zero coupling to enforcement pipeline, Ghost Mode, snapshots, or dashboard. Extractable as standalone library (`pip install craft-audit`) in hours, not weeks.
+- **Cadence Bridge:** Reads a plain `state.env` file. Outputs trust signals. Doesn't know or care what agent framework generated the tool calls.
+- **Supply chain verifier (stage 0b):** Generic lockfile model — `tool_name → provider → {digest, signature}`. Not OpenClaw-specific.
+
+**Why this matters:** A reader of these docs should understand that UNWIND is infrastructure for any AI agent, not middleware for a specific platform. OpenClaw is the first adapter, not the only one.
+
+---
+
 ## How the layers connect (system map)
 
 ```

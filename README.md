@@ -4,7 +4,7 @@
 
 One core security engine, multiple adapters. UNWIND makes AI agents observable, enforceable, and reversible — regardless of which platform runs them.
 
-No LLM in the hot path. Every check is deterministic. Sub-millisecond overhead on clean calls.
+No LLM in the hot path. Every check is deterministic. Sub-millisecond overhead on clean calls. Framework-agnostic — zero coupling to any specific agent platform.
 
 ```
     ┌─────────────────────────────────────────────────────────────────┐
@@ -102,14 +102,28 @@ Reads pass through. Writes get intercepted. When the session ends, you see every
 
 ## Compatibility
 
-| Platform | Adapter | Install |
-|----------|---------|---------|
-| OpenClaw | Native plugin (before_tool_call hook) | pip + openclaw plugins install |
-| Claude Desktop | MCP stdio proxy | pip + config change |
-| Cursor | MCP stdio proxy | pip + config change |
-| Windsurf | MCP stdio proxy | pip + config change |
-| VS Code (Copilot) | MCP stdio proxy | pip + config change |
-| Any MCP client with stdio server config | MCP stdio proxy | pip + config change |
+UNWIND's core engine is framework-agnostic. The Python codebase has zero imports from any agent platform — no OpenClaw SDK, no MCP library, no framework-specific dependencies. Integration happens at the adapter boundary, not in the engine.
+
+**Three integration paths:**
+
+| Path | How it works | Code needed |
+|------|-------------|-------------|
+| **MCP stdio proxy** | `unwind serve -- <command>` wraps any MCP server | Zero — out of the box |
+| **HTTP sidecar API** | POST `{toolName, params}` to `/v1/policy/check`, get back `ALLOW\|BLOCK\|MUTATE\|CHALLENGE` | ~50 lines in any language |
+| **OpenClaw plugin** | Native `before_tool_call` / `after_tool_call` hooks | Zero — adapter ships with UNWIND |
+
+**Platform compatibility:**
+
+| Platform | Integration | Install |
+|----------|-------------|---------|
+| Claude Desktop | MCP stdio proxy | `pip install unwind-mcp` + config |
+| Cursor | MCP stdio proxy | `pip install unwind-mcp` + config |
+| Windsurf | MCP stdio proxy | `pip install unwind-mcp` + config |
+| VS Code (Copilot) | MCP stdio proxy | `pip install unwind-mcp` + config |
+| OpenClaw | Native plugin | `pip install unwind-mcp` + `openclaw plugins install` |
+| LangChain / CrewAI / AutoGPT / Haystack | HTTP sidecar API | `pip install unwind-mcp` + adapter code |
+| Custom Python agents | HTTP sidecar API or `UnwindProxy` class | `pip install unwind-mcp` + integration |
+| Non-Python agents | HTTP sidecar API | `pip install unwind-mcp` + HTTP calls |
 
 See `docs/COMPATIBILITY_MATRIX.md` for details.
 
@@ -209,13 +223,15 @@ Two layers, one engine, multiple adapters.
 
 **CRAFT (transport layer):** Authenticates command provenance at the front of the ingress path. Every command is MAC'd, sequenced, and state-chained before it reaches the enforcement pipeline. Capability tokens gate privileged tool execution. CRAFT sits between the client and the proxy; the pipeline never sees an unauthenticated command.
 
-**UNWIND (enforcement layer):** The 15-stage pipeline, flight recorder, snapshot engine, and trust logic are shared across all integration paths. Only the adapter layer changes.
+**UNWIND (enforcement layer):** The 15-stage pipeline, flight recorder, snapshot engine, and trust logic are shared across all integration paths. Only the adapter layer changes. The core Python engine has zero framework imports — it takes generic `{tool_name, target, parameters}` inputs and returns `{decision}` outputs. Any agent framework that can serialize a tool call to JSON can use it.
 
-**OpenClaw adapter:** A TypeScript plugin hooks into OpenClaw's native `before_tool_call` / `after_tool_call` system. The plugin communicates with a local Python sidecar running the UNWIND engine. Fail-closed — if the sidecar is unreachable, the plugin blocks the tool call.
+**HTTP sidecar API:** The universal integration point. Any language, any framework — POST a tool call to `/v1/policy/check`, get back an enforcement decision. This is how the OpenClaw adapter communicates with the engine, and it's the same API available to any other integration.
 
 **MCP stdio proxy adapter:** UNWIND wraps the upstream MCP server process, intercepting JSON-RPC messages on stdin/stdout. The agent talks to UNWIND; UNWIND talks to the real server.
 
-Both adapters enforce the same policy, produce the same telemetry, and use the same rollback infrastructure.
+**OpenClaw adapter:** A TypeScript plugin hooks into OpenClaw's native `before_tool_call` / `after_tool_call` system. The plugin communicates with the sidecar API. Fail-closed — if the sidecar is unreachable, the plugin blocks the tool call.
+
+All adapters enforce the same policy, produce the same telemetry, and use the same rollback infrastructure.
 
 ## Security Model and Limits
 
