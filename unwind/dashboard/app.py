@@ -17,6 +17,7 @@ from ..recorder.event_store import EventStore
 from ..snapshots.manager import SnapshotManager, Snapshot
 from ..snapshots.rollback import RollbackEngine, RollbackStatus
 from .away_mode import generate_away_summary
+from .explanations import explain
 
 
 def create_app(config: UnwindConfig = None) -> Flask:
@@ -46,11 +47,12 @@ def create_app(config: UnwindConfig = None) -> Flask:
 
     @app.route("/api/trust-state")
     def api_trust_state():
-        """Get current trust state and summary stats.
+        """Get current trust state and summary stats."""
+        events = store.query_events(limit=1)
+        current_trust = "green"
+        if events:
+            current_trust = events[0].get("trust_state", "green")
 
-        Trust reflects worst event seen in the last hour:
-          red > amber > green
-        """
         # Get aggregate stats for last hour
         one_hour_ago = time.time() - 3600
         recent = store.query_events(since=one_hour_ago, limit=10000)
@@ -61,13 +63,20 @@ def create_app(config: UnwindConfig = None) -> Flask:
         tainted = sum(1 for e in recent if e.get("session_tainted"))
         red = sum(1 for e in recent if e.get("trust_state") == "red")
 
-        # Worst-of-window trust semantics
-        if red > 0:
-            current_trust = "red"
-        elif tainted > 0:
-            current_trust = "amber"
-        else:
-            current_trust = "green"
+        # Compute enhanced fields
+        ghost_active = any(e.get("ghost_mode") for e in recent)
+
+        taint_level = None
+        if any(e.get("trust_state") == "red" and e.get("session_tainted") for e in recent):
+            taint_level = "CRITICAL"
+        elif any(e.get("session_tainted") for e in recent):
+            taint_level = "HIGH"
+
+        explanation = None
+        if current_trust in ("amber", "red") and events:
+            reason = events[0].get("result_summary", "")
+            if reason:
+                explanation = explain(reason)
 
         return jsonify({
             "trust_state": current_trust,
@@ -78,6 +87,46 @@ def create_app(config: UnwindConfig = None) -> Flask:
                 "tainted": tainted,
                 "red_events": red,
             },
+            "ghost_active": ghost_active,
+            "taint_level": taint_level,
+            "explanation": explanation,
+            "timestamp": time.time(),
+        })
+
+    # ─── API: Cadence State ──────────────────────────────────
+
+    @app.route("/api/cadence-state")
+    def api_cadence_state():
+        """Get current Cadence temporal state."""
+        state_path = config.cadence_state_env_path
+        if not state_path or not state_path.exists():
+            return jsonify({"error": "Cadence not available"}), 404
+
+        state_labels = {
+            "FLOW": "Active",
+            "READING": "Reading",
+            "DEEP_WORK": "Deep Work",
+            "AWAY": "Away",
+            "UNKNOWN": "Unknown",
+        }
+
+        data = {}
+        try:
+            for line in state_path.read_text().splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                data[key.strip()] = value.strip()
+        except (OSError, PermissionError):
+            return jsonify({"error": "Cannot read Cadence state"}), 500
+
+        user_state = data.get("USER_STATE", "UNKNOWN")
+        return jsonify({
+            "user_state": user_state,
+            "user_state_label": state_labels.get(user_state, "Unknown"),
+            "anomaly_score": float(data.get("ANOMALY_SCORE", "0")),
+            "ert_seconds": float(data.get("ERT_SECONDS", "0")),
             "timestamp": time.time(),
         })
 
@@ -113,9 +162,17 @@ def create_app(config: UnwindConfig = None) -> Flask:
             return jsonify({"error": "Event not found"}), 404
 
         snapshot = store.get_snapshot_for_event(event_id)
+
+        explanation = None
+        if event.get("status") in ("blocked", "red_alert") or event.get("trust_state") in ("amber", "red"):
+            reason = event.get("result_summary", "")
+            if reason:
+                explanation = explain(reason)
+
         return jsonify({
             "event": event,
             "snapshot": snapshot,
+            "explanation": explanation,
         })
 
     # ─── API: Chain Integrity ────────────────────────────────
@@ -123,6 +180,11 @@ def create_app(config: UnwindConfig = None) -> Flask:
     @app.route("/api/verify")
     def api_verify():
         """Verify CR-AFT hash chain integrity."""
+        if request.args.get("detailed") == "1":
+            result = store.verify_chain_detailed()
+            result["timestamp"] = time.time()
+            return jsonify(result)
+
         valid, error = store.verify_chain()
         return jsonify({
             "valid": valid,
