@@ -21,6 +21,7 @@
       --blue: #58a6ff;
       --purple: #bc8cff;
       --ghost: #8957e5;
+      --info-bg: rgba(88,166,255,0.08);
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -28,6 +29,7 @@
       background: var(--bg);
       color: var(--text);
       line-height: 1.5;
+      padding-bottom: 60px;
     }
 
     /* ─── Header ───────────────────────────────── */
@@ -45,6 +47,41 @@
       letter-spacing: 2px;
     }
     .header h1 span { color: var(--text-dim); font-weight: 400; font-size: 13px; letter-spacing: 0; margin-left: 12px; }
+    .header-right {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    /* ─── Cadence Card ─────────────────────────── */
+    .cadence-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+    .cadence-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+    .cadence-dot.anomaly { background: var(--amber); }
+
+    /* ─── Ghost Banner ─────────────────────────── */
+    .ghost-banner {
+      background: rgba(137,87,229,0.12);
+      border-bottom: 1px solid rgba(137,87,229,0.3);
+      padding: 8px 24px;
+      font-size: 13px;
+      color: var(--purple);
+      text-align: center;
+    }
 
     /* ─── Trust Light ──────────────────────────── */
     .trust-light {
@@ -99,6 +136,30 @@
       letter-spacing: 1px;
     }
 
+    /* ─── Explanation Panel ─────────────────────── */
+    .explanation-panel {
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .explanation-panel.severity-critical {
+      background: var(--red-bg);
+      border-left: 4px solid var(--red);
+    }
+    .explanation-panel.severity-warning {
+      background: var(--amber-bg);
+      border-left: 4px solid var(--amber);
+    }
+    .explanation-panel.severity-info {
+      background: var(--info-bg);
+      border-left: 4px solid var(--blue);
+    }
+    .explanation-headline { font-size: 14px; font-weight: 600; }
+    .explanation-detail { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+    .explanation-action { font-size: 12px; color: var(--blue); margin-top: 6px; font-weight: 500; }
+
     /* ─── Tab Bar ──────────────────────────────── */
     .tab-bar {
       display: flex;
@@ -130,6 +191,7 @@
       border-radius: 6px;
       margin-bottom: 2px;
       transition: background 0.15s;
+      cursor: pointer;
     }
     .timeline-event:hover { background: var(--surface-2); }
     .timeline-event.ghost { opacity: 0.7; border-left: 3px solid var(--ghost); }
@@ -186,6 +248,50 @@
 
     .status-icon { font-size: 14px; min-width: 20px; text-align: center; }
 
+    /* ─── Event Detail Expansion ────────────────── */
+    .event-detail-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+      margin: 4px 0 8px 86px;
+      font-size: 13px;
+    }
+    .event-detail-panel .edp-section {
+      margin-bottom: 10px;
+    }
+    .event-detail-panel .edp-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .event-detail-panel .edp-explanation {
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 6px;
+    }
+    .event-detail-panel .edp-explanation.severity-critical {
+      background: var(--red-bg);
+      border-left: 3px solid var(--red);
+    }
+    .event-detail-panel .edp-explanation.severity-warning {
+      background: var(--amber-bg);
+      border-left: 3px solid var(--amber);
+    }
+    .event-detail-panel .edp-explanation.severity-info {
+      background: var(--info-bg);
+      border-left: 3px solid var(--blue);
+    }
+    .event-detail-panel .edp-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
     /* ─── Away Mode Panel ──────────────────────── */
     .away-panel {
       background: var(--surface);
@@ -231,6 +337,77 @@
     }
     .verify-result { font-size: 48px; margin: 16px 0; }
     .verify-text { font-size: 14px; }
+    .verify-breaks {
+      margin-top: 16px;
+      text-align: left;
+    }
+    .verify-break-item {
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin: 4px 0;
+      font-size: 13px;
+    }
+    .verify-break-item.restart {
+      background: var(--amber-bg);
+      border-left: 3px solid var(--amber);
+    }
+    .verify-break-item.suspicious {
+      background: var(--red-bg);
+      border-left: 3px solid var(--red);
+    }
+
+    /* ─── Ask Bar ──────────────────────────────── */
+    .ask-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 10px 24px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      z-index: 100;
+    }
+    .ask-bar input {
+      flex: 1;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+    }
+    .ask-bar input:focus { border-color: var(--blue); }
+    .ask-bar input::placeholder { color: var(--text-dim); }
+    .ask-bar button {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid var(--blue);
+      background: rgba(88,166,255,0.1);
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .ask-bar button:hover { background: rgba(88,166,255,0.2); }
+    .ask-response {
+      padding: 10px 24px;
+      font-size: 13px;
+      background: var(--surface-2);
+      border-top: 1px solid var(--border);
+      color: var(--text);
+      position: fixed;
+      bottom: 47px;
+      left: 0;
+      right: 0;
+      z-index: 99;
+      max-height: 120px;
+      overflow-y: auto;
+    }
 
     /* ─── Empty State ──────────────────────────── */
     .empty-state {
@@ -251,10 +428,19 @@
 
   <div class="header">
     <h1>UNWIND <span>See Everything. Undo Anything. Test Anything Safely.</span></h1>
-    <div style="display:flex;gap:8px;align-items:center;">
+    <div class="header-right">
+      <span id="cadence-pill" class="cadence-pill hidden">
+        <span id="cadence-dot" class="cadence-dot"></span>
+        <span id="cadence-label">Active</span>
+      </span>
       <span id="chain-badge" class="badge green" style="font-size:11px;cursor:pointer;" onclick="verifyChain()" title="Click to verify">&#x1f512; Chain OK</span>
       <span id="poll-indicator" style="font-size:10px;color:var(--text-dim);">&#x25cf; Live</span>
     </div>
+  </div>
+
+  <!-- Ghost Mode Banner -->
+  <div id="ghost-banner" class="ghost-banner hidden">
+    Ghost Mode Active — writes are simulated, nothing reaches the real world.
   </div>
 
   <!-- Trust Light -->
@@ -266,21 +452,30 @@
     </div>
     <div class="trust-stats">
       <div class="stat">
-        <div class="stat-value" id="stat-total">—</div>
-        <div class="stat-label">Actions</div>
+        <div class="stat-value" id="stat-total">&mdash;</div>
+        <div class="stat-label" title="Total tool calls processed in the last hour">Total</div>
       </div>
       <div class="stat">
-        <div class="stat-value" id="stat-blocked">—</div>
+        <div class="stat-value" id="stat-blocked">&mdash;</div>
         <div class="stat-label">Blocked</div>
       </div>
       <div class="stat">
-        <div class="stat-value" id="stat-ghost">—</div>
-        <div class="stat-label">Ghost</div>
+        <div class="stat-value" id="stat-ghost">&mdash;</div>
+        <div class="stat-label" title="Actions intercepted by Ghost Mode — simulated, not real">Simulated</div>
       </div>
       <div class="stat">
-        <div class="stat-value" id="stat-tainted">—</div>
-        <div class="stat-label">Tainted</div>
+        <div class="stat-value" id="stat-tainted">&mdash;</div>
+        <div class="stat-label" title="Actions from sessions that ingested external content">Cautious</div>
       </div>
+    </div>
+  </div>
+
+  <!-- Contextual Explanation Panel -->
+  <div id="explanation-panel" class="explanation-panel hidden">
+    <div>
+      <div class="explanation-headline" id="expl-headline"></div>
+      <div class="explanation-detail" id="expl-detail"></div>
+      <div class="explanation-action" id="expl-action"></div>
     </div>
   </div>
 
@@ -308,14 +503,24 @@
       <div class="verify-panel">
         <div class="verify-result" id="verify-icon">&#x1f512;</div>
         <div class="verify-text" id="verify-text">Click to verify CR-AFT hash chain integrity</div>
+        <div id="verify-breaks" class="verify-breaks hidden"></div>
         <button class="undo-btn" style="margin-top:16px;padding:8px 20px;font-size:13px;" onclick="verifyChain()">Verify Now</button>
       </div>
     </div>
   </div>
 
+  <!-- Ask Bar -->
+  <div id="ask-response" class="ask-response hidden"></div>
+  <div class="ask-bar">
+    <input type="text" id="ask-input" placeholder="Ask about your agent's activity..." onkeydown="if(event.key==='Enter')askQuestion()">
+    <button onclick="askQuestion()">Ask</button>
+  </div>
+
 <script>
   // ─── State ────────────────────────────────────
   let pollTimer = null;
+  let awayAutoShown = false;
+  let expandedEventId = null;
   const POLL_INTERVAL = 3000; // 3 seconds
 
   // ─── Tool icons ───────────────────────────────
@@ -374,17 +579,63 @@
       label.textContent = TRUST_LABELS[data.trust_state] || data.trust_state;
 
       const h = data.last_hour;
-      subtitle.textContent =
+      let subtitleText =
         `${h.total} actions in the last hour` +
         (h.blocked > 0 ? ` \u2022 ${h.blocked} blocked` : '') +
         (h.tainted > 0 ? ` \u2022 ${h.tainted} tainted` : '');
+      if (data.taint_level) {
+        subtitleText += ` \u2022 Taint: ${data.taint_level}`;
+      }
+      subtitle.textContent = subtitleText;
 
       document.getElementById('stat-total').textContent = h.total;
       document.getElementById('stat-blocked').textContent = h.blocked;
       document.getElementById('stat-ghost').textContent = h.ghost;
       document.getElementById('stat-tainted').textContent = h.tainted;
+
+      // Ghost Mode Banner
+      const ghostBanner = document.getElementById('ghost-banner');
+      ghostBanner.classList.toggle('hidden', !data.ghost_active);
+
+      // Explanation Panel
+      const explPanel = document.getElementById('explanation-panel');
+      if (data.explanation && data.trust_state !== 'green') {
+        const ex = data.explanation;
+        explPanel.className = 'explanation-panel severity-' + ex.severity;
+        document.getElementById('expl-headline').textContent = ex.headline;
+        document.getElementById('expl-detail').textContent = ex.detail;
+        document.getElementById('expl-action').textContent = ex.action;
+        explPanel.classList.remove('hidden');
+      } else {
+        explPanel.classList.add('hidden');
+      }
+
+      // Away Mode auto-switch
+      if (!awayAutoShown && h.total === 0) {
+        awayAutoShown = true;
+        switchTab('away');
+      }
     } catch (e) {
       console.error('Trust state fetch failed:', e);
+    }
+  }
+
+  // ─── Cadence State ────────────────────────────
+  async function refreshCadence() {
+    try {
+      const res = await fetch('/api/cadence-state');
+      const pill = document.getElementById('cadence-pill');
+      if (res.status === 404) {
+        pill.classList.add('hidden');
+        return;
+      }
+      const data = await res.json();
+      pill.classList.remove('hidden');
+      document.getElementById('cadence-label').textContent = data.user_state_label;
+      const dot = document.getElementById('cadence-dot');
+      dot.classList.toggle('anomaly', data.anomaly_score > 0.5);
+    } catch (e) {
+      document.getElementById('cadence-pill').classList.add('hidden');
     }
   }
 
@@ -397,6 +648,11 @@
   function truncTarget(target, max = 60) {
     if (!target) return '';
     return target.length > max ? '...' + target.slice(-max + 3) : target;
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   function renderEvent(event) {
@@ -414,23 +670,86 @@
     if (event.status === 'blocked') badges.push('<span class="badge red">blocked</span>');
 
     const hasSnapshot = event.tool_class === 'actuator' && event.status === 'success';
+    const eid = escapeHtml(event.event_id);
 
     return `
-      <div class="${classes.join(' ')}">
+      <div class="${classes.join(' ')}" onclick="toggleEventDetail('${eid}', event)">
         <div class="event-time">${formatTime(event.timestamp)}</div>
         <div class="event-icon">${icon}</div>
         <div class="event-body">
-          <div class="event-tool">${event.tool}</div>
-          <div class="event-target" title="${event.target || ''}">${truncTarget(event.target)}</div>
-          ${event.result_summary ? `<div class="event-target">${truncTarget(event.result_summary, 80)}</div>` : ''}
+          <div class="event-tool">${escapeHtml(event.tool)}</div>
+          <div class="event-target" title="${escapeHtml(event.target)}">${escapeHtml(truncTarget(event.target))}</div>
+          ${event.result_summary ? `<div class="event-target">${escapeHtml(truncTarget(event.result_summary, 80))}</div>` : ''}
           <div class="event-badges">${badges.join('')}</div>
         </div>
         <div class="event-actions">
-          ${hasSnapshot ? `<button class="undo-btn" onclick="undoEvent('${event.event_id}')">&#x21a9;&#xfe0f; Undo</button>` : ''}
+          ${hasSnapshot ? `<button class="undo-btn" onclick="event.stopPropagation();undoEvent('${eid}')">&#x21a9;&#xfe0f; Undo</button>` : ''}
         </div>
         <div class="status-icon">${statusIcon}</div>
       </div>
+      <div id="detail-${eid}" class="event-detail-panel hidden"></div>
     `;
+  }
+
+  async function toggleEventDetail(eventId, clickEvent) {
+    if (clickEvent && clickEvent.target.closest('.undo-btn')) return;
+    const panel = document.getElementById('detail-' + eventId);
+    if (!panel) return;
+
+    if (expandedEventId === eventId) {
+      panel.classList.add('hidden');
+      expandedEventId = null;
+      return;
+    }
+
+    // Close previous
+    if (expandedEventId) {
+      const prev = document.getElementById('detail-' + expandedEventId);
+      if (prev) prev.classList.add('hidden');
+    }
+    expandedEventId = eventId;
+
+    panel.innerHTML = '<div style="color:var(--text-dim);padding:8px;">Loading...</div>';
+    panel.classList.remove('hidden');
+
+    try {
+      const data = await api(`/api/events/${eventId}`);
+      const ev = data.event;
+      const ex = data.explanation;
+
+      let explanationHtml = '';
+      if (ex) {
+        explanationHtml = `
+          <div class="edp-section">
+            <div class="edp-label">Why this happened</div>
+            <div class="edp-explanation severity-${ex.severity}">
+              <div style="font-weight:600;">${escapeHtml(ex.headline)}</div>
+              <div style="margin-top:4px;color:var(--text-dim);">${escapeHtml(ex.detail)}</div>
+              <div style="margin-top:6px;color:var(--blue);font-size:12px;">${escapeHtml(ex.action)}</div>
+            </div>
+          </div>`;
+      }
+
+      panel.innerHTML = `
+        ${ev.result_summary ? `
+          <div class="edp-section">
+            <div class="edp-label">What happened</div>
+            <div>${escapeHtml(ev.result_summary)}</div>
+          </div>` : ''}
+        ${explanationHtml}
+        <div class="edp-section">
+          <div class="edp-label">Metadata</div>
+          <div class="edp-meta">
+            <div>Session: ${escapeHtml((ev.session_id || '').substring(0, 12))}...</div>
+            <div>Tool class: ${escapeHtml(ev.tool_class)}</div>
+            <div>Duration: ${ev.duration_ms != null ? ev.duration_ms.toFixed(0) + 'ms' : 'n/a'}</div>
+            <div>Chain: ${escapeHtml((ev.chain_hash || '').substring(0, 16))}...</div>
+          </div>
+        </div>
+      `;
+    } catch (e) {
+      panel.innerHTML = '<div style="color:var(--red);padding:8px;">Failed to load details</div>';
+    }
   }
 
   async function refreshTimeline() {
@@ -448,7 +767,18 @@
         return;
       }
 
+      const prevExpanded = expandedEventId;
       container.innerHTML = data.events.map(renderEvent).join('');
+      // Re-expand if still in list
+      if (prevExpanded) {
+        const panel = document.getElementById('detail-' + prevExpanded);
+        if (panel && panel.innerHTML) {
+          expandedEventId = null; // reset so toggle works
+          toggleEventDetail(prevExpanded);
+        } else {
+          expandedEventId = null;
+        }
+      }
     } catch (e) {
       console.error('Timeline fetch failed:', e);
     }
@@ -468,8 +798,8 @@
           <h4 style="margin-top:16px;color:var(--amber);">&#x26a0;&#xfe0f; ${data.review_items.length} item(s) for your review:</h4>
           ${data.review_items.map(item => `
             <div class="review-item">
-              <div class="ri-tool">${TOOL_ICONS[item.tool] || ''} ${item.tool} &rarr; ${truncTarget(item.target, 50)}</div>
-              <div class="ri-reason">${item.reason}</div>
+              <div class="ri-tool">${TOOL_ICONS[item.tool] || ''} ${escapeHtml(item.tool)} &rarr; ${escapeHtml(truncTarget(item.target, 50))}</div>
+              <div class="ri-reason">${escapeHtml(item.reason)}</div>
             </div>
           `).join('')}
         `;
@@ -477,10 +807,10 @@
 
       container.innerHTML = `
         <div class="away-panel">
-          <h3>Welcome back! While you were away (${data.duration_human}):</h3>
+          <h3>Welcome back! While you were away (${escapeHtml(data.duration_human)}):</h3>
           <div style="margin:12px 0;">
             <span style="font-size:20px;color:${trustColors[data.trust_state] || trustColors.green};">&#x25cf;</span>
-            <strong>Trust State: ${TRUST_LABELS[data.trust_state] || data.trust_state}</strong>
+            <strong>Trust State: ${TRUST_LABELS[data.trust_state] || escapeHtml(data.trust_state)}</strong>
           </div>
           <div class="away-grid">
             <div class="away-stat"><div class="val">${data.total_actions}</div><div class="lbl">Total Actions</div></div>
@@ -511,27 +841,86 @@
     const icon = document.getElementById('verify-icon');
     const text = document.getElementById('verify-text');
     const badge = document.getElementById('chain-badge');
+    const breaksDiv = document.getElementById('verify-breaks');
 
     icon.innerHTML = '&#x23f3;';
     text.textContent = 'Verifying...';
+    breaksDiv.classList.add('hidden');
+    breaksDiv.innerHTML = '';
 
     try {
-      const data = await api('/api/verify');
-      if (data.valid) {
+      const data = await api('/api/verify?detailed=1');
+
+      if (data.classification === 'intact') {
         icon.innerHTML = '&#x2705;';
-        text.textContent = 'CR-AFT hash chain is intact. No tampering detected.';
+        text.textContent = data.human_message;
         badge.className = 'badge green';
         badge.innerHTML = '&#x1f512; Chain OK';
+      } else if (data.classification === 'restart_gaps_only') {
+        icon.innerHTML = '&#x2705;';
+        text.textContent = data.human_message;
+        badge.className = 'badge green';
+        badge.innerHTML = '&#x1f512; Chain OK';
+
+        // Show gap list
+        if (data.breaks && data.breaks.length > 0) {
+          breaksDiv.innerHTML = data.breaks.map(b =>
+            `<div class="verify-break-item restart">Event #${b.position}: ${escapeHtml(b.event_id)} — service restart gap</div>`
+          ).join('');
+          breaksDiv.classList.remove('hidden');
+        }
       } else {
         icon.innerHTML = '&#x274c;';
-        text.textContent = 'Chain integrity violation: ' + (data.error || 'Unknown error');
+        text.textContent = data.human_message;
         badge.className = 'badge red';
         badge.innerHTML = '&#x1f513; Chain Broken';
+
+        if (data.breaks && data.breaks.length > 0) {
+          breaksDiv.innerHTML = data.breaks.map(b =>
+            `<div class="verify-break-item ${b.classification === 'restart' ? 'restart' : 'suspicious'}">Event #${b.position}: ${escapeHtml(b.event_id)} — ${b.classification === 'restart' ? 'service restart gap' : 'UNEXPLAINED BREAK'}</div>`
+          ).join('');
+          breaksDiv.classList.remove('hidden');
+        }
       }
     } catch (e) {
-      icon.innerHTML = '&#x274c;';
-      text.textContent = 'Verification failed: ' + e.message;
+      // Fallback to simple verify
+      try {
+        const data = await api('/api/verify');
+        if (data.valid) {
+          icon.innerHTML = '&#x2705;';
+          text.textContent = 'CR-AFT hash chain is intact. No tampering detected.';
+          badge.className = 'badge green';
+          badge.innerHTML = '&#x1f512; Chain OK';
+        } else {
+          icon.innerHTML = '&#x274c;';
+          text.textContent = 'Chain integrity violation: ' + (data.error || 'Unknown error');
+          badge.className = 'badge red';
+          badge.innerHTML = '&#x1f513; Chain Broken';
+        }
+      } catch (e2) {
+        icon.innerHTML = '&#x274c;';
+        text.textContent = 'Verification failed: ' + e2.message;
+      }
     }
+  }
+
+  // ─── Ask Bar ──────────────────────────────────
+  async function askQuestion() {
+    const input = document.getElementById('ask-input');
+    const responseDiv = document.getElementById('ask-response');
+    const q = input.value.trim();
+    if (!q) return;
+
+    responseDiv.textContent = 'Thinking...';
+    responseDiv.classList.remove('hidden');
+
+    try {
+      const data = await api('/api/ask?q=' + encodeURIComponent(q));
+      responseDiv.textContent = data.response || data.error || 'No response';
+    } catch (e) {
+      responseDiv.textContent = 'Error: ' + e.message;
+    }
+    input.value = '';
   }
 
   // ─── Undo ─────────────────────────────────────
@@ -565,9 +954,11 @@
   function startPolling() {
     refreshTrustState();
     refreshTimeline();
+    refreshCadence();
     pollTimer = setInterval(() => {
       refreshTrustState();
       refreshTimeline();
+      refreshCadence();
     }, POLL_INTERVAL);
   }
 
