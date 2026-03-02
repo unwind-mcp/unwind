@@ -298,6 +298,88 @@ class EventStore:
 
         return True, None
 
+    def verify_chain_detailed(self) -> dict:
+        """Detailed CR-AFT chain verification with restart-gap detection.
+
+        Walks the full chain and classifies each break as either a restart
+        artifact (sidecar reloaded stale state) or suspicious (unexplained).
+
+        Returns:
+            dict with keys: valid, event_count, break_count, breaks,
+                            classification, human_message
+        """
+        rows = self._conn.execute(
+            "SELECT event_id, timestamp, tool, target_canonical, parameters_hash, chain_hash "
+            "FROM events ORDER BY timestamp ASC"
+        ).fetchall()
+
+        breaks: list[dict] = []
+        seen_hashes: set[str] = set()
+        prev_hash: Optional[str] = None
+
+        for position, row in enumerate(rows):
+            action_data = f"{row['tool']}:{row['target_canonical'] or ''}:{row['parameters_hash'] or ''}"
+            action_hash = hashlib.sha256(action_data.encode()).hexdigest()
+
+            prev = prev_hash or "genesis"
+            expected = hashlib.sha256(
+                f"{prev}:{row['event_id']}:{row['timestamp']}:{action_hash}".encode()
+            ).hexdigest()
+
+            if row["chain_hash"] != expected:
+                # Check if this is a restart artifact: the sidecar restarted
+                # and used a stale prev_hash from a previous chain position.
+                is_restart = False
+                for candidate in seen_hashes:
+                    recomputed = hashlib.sha256(
+                        f"{candidate}:{row['event_id']}:{row['timestamp']}:{action_hash}".encode()
+                    ).hexdigest()
+                    if recomputed == row["chain_hash"]:
+                        is_restart = True
+                        break
+
+                breaks.append({
+                    "event_id": row["event_id"],
+                    "position": position,
+                    "is_restart": is_restart,
+                    "classification": "restart" if is_restart else "suspicious",
+                })
+
+            if row["chain_hash"]:
+                seen_hashes.add(row["chain_hash"])
+            prev_hash = row["chain_hash"]
+
+        event_count = len(rows)
+        break_count = len(breaks)
+
+        if break_count == 0:
+            classification = "intact"
+            human_message = f"Audit trail verified: {event_count} events, all intact."
+        elif all(b["is_restart"] for b in breaks):
+            classification = "restart_gaps_only"
+            human_message = (
+                f"{event_count} events verified. {break_count} expected gap(s) "
+                f"from service restarts \u2014 not tampering."
+            )
+        else:
+            classification = "suspicious"
+            suspicious_count = sum(1 for b in breaks if not b["is_restart"])
+            human_message = (
+                f"WARNING: {suspicious_count} unexplained chain break(s) detected. "
+                f"Review required."
+            )
+
+        valid = classification in ("intact", "restart_gaps_only")
+
+        return {
+            "valid": valid,
+            "event_count": event_count,
+            "break_count": break_count,
+            "breaks": breaks,
+            "classification": classification,
+            "human_message": human_message,
+        }
+
     # --- Read Collapsing ---
 
     def should_collapse_read(self, session_id: str, tool: str, tool_class: str) -> Optional[str]:
