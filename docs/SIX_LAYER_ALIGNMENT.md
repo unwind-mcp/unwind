@@ -3,7 +3,15 @@
 **Status:** Pre-collaboration draft (ground truth for all builders)
 **Author:** Claude (Mac), with operational suggestions from Sentinel (Pi)
 **Date:** 2026-03-02
-**Next step:** David reviews, passes to Sentinel as canonical reference, then to Opus for holes and polish.
+**Next step:** Document consolidation complete. Sentinel verify pass pending.
+
+### System Release Status
+
+Individual layers are stable. System-level alpha (0.1.0-alpha) requires:
+- [ ] Sentinel step 5 stability confirmation (automated cycles)
+- [ ] Opus review sign-off (complete — patches applied 654f131)
+- [ ] UK patent filing (blocks full Cadence README)
+- [ ] Alpha tag stamped
 
 ---
 
@@ -27,9 +35,9 @@ A security layer that sits between your AI agent and the tools it uses, so you c
 
 ### Current status
 - [x] Live on hardware (Raspberry Pi 5, Sentinel as first user for days)
-- [x] Tests passing (1702 tests, 0 failures)
+- [x] Tests passing (1702 total across all layers and integration suites, 0 failures). Per-layer counts below cover layer-specific tests; the total includes pipeline integration, canary contracts, session isolation, startup validation, and cross-layer tests.
 - [x] Docs complete (README, SECURITY.md, CONTRIBUTING.md, DISCLAIMER.md, CHANGELOG.md, CRAFT spec v4.2)
-- [ ] Ready for public (waiting on: Sentinel step 5 stability confirmation, alpha tag)
+- [ ] System release ready (see System Release Status above)
 
 ### In pipeline / planned
 - Alpha release tag (0.1.0-alpha) — blocked on stability confirmation cycles
@@ -71,7 +79,7 @@ An automatic undo system that takes a snapshot before every change your agent ma
 - [x] Live on hardware
 - [x] Tests passing (31 tests covering snapshot, rollback, conflict detection, batch undo)
 - [x] Docs complete
-- [x] Ready for public
+- [x] Layer stable
 
 ### In pipeline / planned
 - Dashboard integration for visual rollback (click to undo from the web UI)
@@ -107,11 +115,13 @@ These are two separate capabilities that are sometimes confused:
 
 Ghost Mode is about **visibility without consequences**. Amber challenges are about **human-in-the-loop approval**. They can work together (Ghost Mode on a tainted session) but they are architecturally distinct.
 
+**Pipeline relationship:** Ghost Mode Gate is enforcement pipeline stage 9. The standalone `ghostmode` package runs a subset of the pipeline (classification + shadow VFS + egress guard) without the full 15-stage enforcement.
+
 ### Current status
 - [x] Live on hardware
 - [x] Tests passing (147 tests across shadow VFS, tool classification, egress guard, approve/discard)
 - [x] Docs complete
-- [x] Ready for public (also ships as standalone `ghostmode` package)
+- [x] Layer stable (also ships as standalone `ghostmode` package)
 
 ### Operational hardening notes (from Sentinel)
 - Add explicit acceptance tests for on/off transitions after restart
@@ -130,7 +140,7 @@ You're about to let your agent run a complex task but you're not sure what it'll
 ## 4. CRAFT (Cryptographic Relay Authentication for Faithful Transmission)
 
 ### What it is
-A tamper-evident flight recorder that cryptographically chains every tool call together, so you can prove exactly what your agent did, in what order, and that nobody altered the record.
+A transport-layer authentication protocol and tamper-evident flight recorder that cryptographically chains every tool call together, so you can prove who sent a command, that it wasn't tampered with, what your agent did, in what order, and that nobody altered the record.
 
 ### What it does
 - Every tool call is recorded with a SHA-256 hash that links it to the previous event — break one link and every hash after it fails verification
@@ -149,7 +159,7 @@ A tamper-evident flight recorder that cryptographically chains every tool call t
 - [x] Live on hardware (170 events in chain, verified, 1 anchor, no tamper)
 - [x] Tests passing (40+ CRAFT tests + chain verification in proof pack)
 - [x] Docs complete (CRAFT Protocol v4.2 specification)
-- [x] Ready for public
+- [x] Layer stable
 
 ### Operational hardening notes (from Sentinel)
 - Continue hardening persistence/resync edge cases
@@ -257,7 +267,7 @@ A consent framework baked into Cadence that ensures every piece of timing data c
 - [x] Live on hardware (every pulse.jsonl and state.env write carries CRIP headers)
 - [x] Tests passing (9 tests covering headers, validation, scopes, retention policies, immutability)
 - [x] Docs complete (protocol documented in code, consent scopes defined)
-- [x] Ready for public
+- [x] Layer stable
 
 ### In pipeline / planned
 - CRIP v2: retention enforcement automation (auto-purge entries past their retention window)

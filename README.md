@@ -219,34 +219,15 @@ Both adapters enforce the same policy, produce the same telemetry, and use the s
 
 ## Security Model and Limits
 
-UNWIND focuses on practical risk reduction through deterministic enforcement and reversibility. It is designed for real-world developer and SME environments where most threats are accidental or opportunistic.
+UNWIND focuses on practical risk reduction through deterministic enforcement and reversibility. Designed for real-world developer and SME environments where most threats are accidental or opportunistic.
 
-**Designed to mitigate:**
+**Mitigates:** transport-layer spoofing/replay/tampering (CRAFT), accidental destructive tool use, prompt-injection-triggered exfiltration, opportunistic data leakage (DLP-lite), runaway automation (circuit breaker), unobserved autonomous sessions (taint + trust light).
 
-- Command spoofing, relay tampering, and replay attacks on the transport layer (CRAFT)
-- Session hijacking and confused-deputy misuse via capability tokens (CRAFT)
-- Accidental destructive tool use (wrong file deleted, unintended email sent)
-- Prompt-injection-triggered misuse (hostile content causes agent to exfiltrate data)
-- Opportunistic data exfiltration (API keys, credentials, PEM certs in outbound payloads)
-- Runaway automation (rapid-fire state modifications without human oversight)
-- Unobserved autonomous sessions (agent acts while user is away)
+**Does not defend against:** host OS / Python runtime / MCP client compromise, determined adversary with full system access, side-channel attacks on the proxy process. UNWIND is a user-space enforcement layer, not a trusted execution environment.
 
-**Not designed to defend against:**
+**Adapter notes:** OpenClaw plugin slash commands bypass the tool loop. The adapter enforces fail-closed — sidecar errors block, never allow. MCP stdio proxy fully mediates agent-to-server communication.
 
-- Compromise of the host OS, the Python runtime, or the MCP client it mediates — UNWIND operates as a user-space enforcement layer, not a trusted execution environment
-- Determined adversary with full system access
-- Side-channel attacks on the proxy process itself
-
-**Adapter-specific considerations:**
-
-- **OpenClaw adapter:** Plugin slash commands bypass the tool loop and are not intercepted by `before_tool_call`. The adapter enforces fail-closed policy mode — sidecar errors result in blocked calls, never silent allows.
-- **MCP stdio proxy:** The agent cannot access upstream servers without passing through the proxy. Self-protection checks guard UNWIND's own data directory.
-
-UNWIND reduces the practical attack surface for agent-driven operations. It is not a guarantee against all possible threats — it is a meaningful layer of defence that makes agent actions visible, enforceable, and recoverable.
-
-## Security Coverage
-
-UNWIND maintains a `SECURITY_COVERAGE.md` mapping every attack category to the specific check, test, and CVE reference that covers it. Currently 36+ coverage entries across path traversal, SSRF (including IPv6 transition bypasses), DLP, canary honeypots, taint tracking, and more.
+See `docs/THREAT_MODEL_BOUNDARIES.md` for the full threat model, and `SECURITY_COVERAGE.md` for the attack-to-check mapping.
 
 ## CLI Reference
 
