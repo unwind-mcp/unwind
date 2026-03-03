@@ -29,7 +29,7 @@
       background: var(--bg);
       color: var(--text);
       line-height: 1.5;
-      padding-bottom: 60px;
+      padding-bottom: 16px;
     }
 
     /* ─── Header ───────────────────────────────── */
@@ -356,19 +356,26 @@
       border-left: 3px solid var(--red);
     }
 
-    /* ─── Ask Bar ──────────────────────────────── */
-    .ask-bar {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
+    /* ─── Ask Bar (compact, under header) ─────── */
+    .ask-wrapper {
+      border-bottom: 1px solid var(--border);
       background: var(--surface);
-      border-top: 1px solid var(--border);
-      padding: 10px 24px;
+    }
+    .ask-trigger {
+      padding: 8px 24px;
+      font-size: 12px;
+      color: var(--blue);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .ask-trigger:hover { color: var(--text); }
+    .ask-bar {
+      padding: 0 24px 10px;
       display: flex;
       gap: 8px;
       align-items: center;
-      z-index: 100;
     }
     .ask-bar input {
       flex: 1;
@@ -398,15 +405,11 @@
       padding: 10px 24px;
       font-size: 13px;
       background: var(--surface-2);
-      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
       color: var(--text);
-      position: fixed;
-      bottom: 47px;
-      left: 0;
-      right: 0;
-      z-index: 99;
-      max-height: 120px;
+      max-height: 160px;
       overflow-y: auto;
+      white-space: pre-wrap;
     }
 
     /* ─── Empty State ──────────────────────────── */
@@ -438,6 +441,20 @@
     </div>
   </div>
 
+  <!-- Ask Bar (collapsible) -->
+  <div class="ask-wrapper">
+    <div class="ask-trigger" onclick="toggleAsk()">
+      <span>&#x1f50d;</span> Ask about your agent's activity...
+    </div>
+    <div id="ask-expanded" class="hidden">
+      <div class="ask-bar">
+        <input type="text" id="ask-input" placeholder="Try: what happened last hour? / how many emails today? / any blocked actions? / security issues since 3pm?" onkeydown="if(event.key==='Enter')askQuestion()">
+        <button onclick="askQuestion()">Ask</button>
+      </div>
+      <div id="ask-response" class="ask-response hidden"></div>
+    </div>
+  </div>
+
   <!-- Ghost Mode Banner -->
   <div id="ghost-banner" class="ghost-banner hidden">
     Ghost Mode Active — writes are simulated, nothing reaches the real world.
@@ -445,7 +462,7 @@
 
   <!-- Trust Light -->
   <div class="trust-light">
-    <img src="{{ url_for('static', filename='logo.png') }}" alt="UNWIND" style="width:300px;height:300px;object-fit:contain;flex-shrink:0;">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="UNWIND" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
     <div id="trust-orb" class="trust-orb green"></div>
     <div class="trust-info">
       <h2 id="trust-label">All Clear</h2>
@@ -510,12 +527,6 @@
     </div>
   </div>
 
-  <!-- Ask Bar -->
-  <div id="ask-response" class="ask-response hidden"></div>
-  <div class="ask-bar">
-    <input type="text" id="ask-input" placeholder="Ask about your agent's activity..." onkeydown="if(event.key==='Enter')askQuestion()">
-    <button onclick="askQuestion()">Ask</button>
-  </div>
 
 <script>
   // ─── State ────────────────────────────────────
@@ -914,6 +925,16 @@
   }
 
   // ─── Ask Bar ──────────────────────────────────
+  function toggleAsk() {
+    const expanded = document.getElementById('ask-expanded');
+    const isHidden = expanded.classList.toggle('hidden');
+    if (!isHidden) {
+      document.getElementById('ask-input').focus();
+    } else {
+      document.getElementById('ask-response').classList.add('hidden');
+    }
+  }
+
   async function askQuestion() {
     const input = document.getElementById('ask-input');
     const responseDiv = document.getElementById('ask-response');

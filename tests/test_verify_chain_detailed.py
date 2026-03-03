@@ -94,7 +94,7 @@ class TestIntactChain:
         assert result["event_count"] == 5
         assert result["classification"] == "intact"
         assert result["break_count"] == 0
-        assert "all intact" in result["human_message"].lower()
+        assert "cryptographically verified" in result["human_message"].lower()
 
 
 # ------------------------------------------------------------------ #
