@@ -557,7 +557,7 @@ def create_app(
             )
             return JSONResponse(status_code=400, content=error.to_wire())
 
-        session = _resolve_session(session_key, sessions, config)
+        session = _resolve_session(sessions, session_key, config)
 
         status = session.ghost_status()
         resp = GhostStatusResponse(
@@ -598,7 +598,7 @@ def create_app(
         if session_key:
             # Auto-create session if it doesn't exist (matches adapter
             # behaviour — sessions are created on first use).
-            session = _resolve_session(session_key, sessions, config)
+            session = _resolve_session(sessions, session_key, config)
             session.ghost_mode = bool(enabled)
             if not enabled:
                 session.clear_ghost()
