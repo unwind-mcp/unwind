@@ -522,6 +522,7 @@
   let pollTimer = null;
   let awayAutoShown = false;
   let expandedEventId = null;
+  let expandedDetailHtml = null; // cached detail panel content
   const POLL_INTERVAL = 3000; // 3 seconds
 
   // ─── Tool icons ───────────────────────────────
@@ -700,6 +701,7 @@
     if (expandedEventId === eventId) {
       panel.classList.add('hidden');
       expandedEventId = null;
+      expandedDetailHtml = null;
       return;
     }
 
@@ -748,8 +750,10 @@
           </div>
         </div>
       `;
+      expandedDetailHtml = panel.innerHTML;
     } catch (e) {
       panel.innerHTML = '<div style="color:var(--red);padding:8px;">Failed to load details</div>';
+      expandedDetailHtml = null;
     }
   }
 
@@ -769,15 +773,19 @@
       }
 
       const prevExpanded = expandedEventId;
+      const prevHtml = expandedDetailHtml;
       container.innerHTML = data.events.map(renderEvent).join('');
-      // Re-expand if still in list
-      if (prevExpanded) {
+      // Restore expanded panel from cache (no re-fetch)
+      if (prevExpanded && prevHtml) {
         const panel = document.getElementById('detail-' + prevExpanded);
-        if (panel && panel.innerHTML) {
-          expandedEventId = null; // reset so toggle works
-          toggleEventDetail(prevExpanded);
+        if (panel) {
+          panel.innerHTML = prevHtml;
+          panel.classList.remove('hidden');
+          expandedEventId = prevExpanded;
+          expandedDetailHtml = prevHtml;
         } else {
           expandedEventId = null;
+          expandedDetailHtml = null;
         }
       }
     } catch (e) {
