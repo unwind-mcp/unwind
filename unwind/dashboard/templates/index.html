@@ -412,6 +412,54 @@
       white-space: pre-wrap;
     }
 
+    /* ─── About Cards ─────────────────────────── */
+    .about-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .about-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .about-icon { font-size: 24px; }
+    .about-header h3 { font-size: 18px; font-weight: 600; }
+    .about-tagline {
+      font-size: 14px;
+      color: var(--blue);
+      font-weight: 500;
+      margin-bottom: 12px;
+    }
+    .about-card p {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+      line-height: 1.6;
+    }
+    .about-card code {
+      background: var(--surface-2);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 12px;
+      color: var(--text);
+    }
+    .about-detail {
+      margin-top: 14px;
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+    .about-detail-item {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      line-height: 1.6;
+    }
+    .about-detail-item strong { color: var(--text); }
+
     /* ─── Empty State ──────────────────────────── */
     .empty-state {
       text-align: center;
@@ -502,6 +550,7 @@
     <div class="tab active" data-tab="timeline" onclick="switchTab('timeline')">Timeline</div>
     <div class="tab" data-tab="away" onclick="switchTab('away')">Away Mode</div>
     <div class="tab" data-tab="verify" onclick="switchTab('verify')">Chain Verify</div>
+    <div class="tab" data-tab="about" onclick="switchTab('about')">What Is This?</div>
   </div>
 
   <!-- Content Panels -->
@@ -524,6 +573,60 @@
         <div id="verify-breaks" class="verify-breaks hidden"></div>
         <button class="undo-btn" style="margin-top:16px;padding:8px 20px;font-size:13px;" onclick="verifyChain()">Verify Now</button>
       </div>
+    </div>
+
+    <!-- About -->
+    <div id="panel-about" class="hidden">
+
+      <div class="about-card">
+        <div class="about-header">
+          <span class="about-icon">&#x1f6e1;&#xfe0f;</span>
+          <h3>UNWIND</h3>
+        </div>
+        <div class="about-tagline">See Everything. Undo Anything. Test Anything Safely.</div>
+        <p>UNWIND is a security layer that sits between your AI agent and the tools it uses. Every tool call &mdash; reading a file, sending an email, running a command &mdash; passes through a 15-stage enforcement pipeline before it reaches the real world.</p>
+        <p>If something looks wrong, UNWIND blocks it. If something goes through and you change your mind, UNWIND can undo it. If you want to test something risky, UNWIND can simulate it without consequences.</p>
+        <p>No AI in the security path. Every check is deterministic. The agent doesn't know UNWIND exists.</p>
+        <div class="about-detail">
+          <div class="about-detail-item"><strong>Trust Light</strong> &mdash; the coloured orb at the top. Green means all clear. Amber means the session has ingested external content and high-risk actions need your approval. Red means something was blocked or a security rule was triggered.</div>
+          <div class="about-detail-item"><strong>Flight Recorder</strong> &mdash; every tool call is logged to a tamper-evident database with cryptographic hash chaining. The timeline below shows what happened, when, and whether it was allowed.</div>
+          <div class="about-detail-item"><strong>Undo Button</strong> &mdash; before every file write, UNWIND takes a snapshot. You can undo any action, or undo everything since a point in time.</div>
+        </div>
+      </div>
+
+      <div class="about-card">
+        <div class="about-header">
+          <span class="about-icon">&#x1f47b;</span>
+          <h3>Ghost Mode</h3>
+        </div>
+        <div class="about-tagline">See what your agent would do &mdash; without it actually doing anything.</div>
+        <p>Ghost Mode is a dry-run sandbox. When active, all state-modifying actions (file writes, emails, commands) are intercepted and simulated. The agent receives a fake success response and continues working normally, but nothing real changes.</p>
+        <p>A shadow filesystem serves back "written" content on subsequent reads, so the agent stays internally consistent. An egress guard scans outbound requests for leaked secrets before they leave your device.</p>
+        <p>Use it to test untrusted tools, risky prompts, or new agent configurations. When the purple banner appears at the top of this dashboard, Ghost Mode is active.</p>
+      </div>
+
+      <div class="about-card">
+        <div class="about-header">
+          <span class="about-icon">&#x1f517;</span>
+          <h3>CRAFT Protocol</h3>
+        </div>
+        <div class="about-tagline">Cryptographic proof that every command is genuine, in sequence, and untampered.</div>
+        <p>CRAFT (Cryptographic Relay Authentication for Faithful Transmission) authenticates every command before it reaches the enforcement pipeline. It provides proof of who sent a command, that it hasn't been modified in transit, and that it arrived in the correct order.</p>
+        <p>Every event in the timeline is linked to the previous one by a cryptographic hash &mdash; forming an unbreakable chain of evidence. If anyone alters or deletes a record, the chain breaks and the dashboard will show you exactly where.</p>
+        <p>The "Chain Verify" tab lets you check this at any time. CRAFT has zero external dependencies and can be used independently as a standalone audit library.</p>
+      </div>
+
+      <div class="about-card">
+        <div class="about-header">
+          <span class="about-icon">&#x23f1;&#xfe0f;</span>
+          <h3>Cadence</h3>
+        </div>
+        <div class="about-tagline">Your agent learns your rhythm &mdash; and uses it to keep you safe.</div>
+        <p>Cadence watches timing patterns (never content) to understand when you're actively working, reading, in deep focus, or away from your device. It feeds these signals into the enforcement pipeline.</p>
+        <p>If tool calls arrive at machine speed while you appear to be away, Cadence raises the alert level. If the timing between actions is suspiciously regular (like a bot, not a human), it flags it. The small pill in the header shows your current detected state.</p>
+        <p>All timing data stays on your device, auto-deletes after 7 days, and UNWIND works perfectly without it. Cadence is opt-in &mdash; enable it with <code>UNWIND_CADENCE_BRIDGE=1</code>, disable it any time with no side effects.</p>
+      </div>
+
     </div>
   </div>
 
@@ -975,6 +1078,7 @@
     document.getElementById('panel-timeline').classList.toggle('hidden', tab !== 'timeline');
     document.getElementById('panel-away').classList.toggle('hidden', tab !== 'away');
     document.getElementById('panel-verify').classList.toggle('hidden', tab !== 'verify');
+    document.getElementById('panel-about').classList.toggle('hidden', tab !== 'about');
 
     if (tab === 'away') refreshAway();
     if (tab === 'verify') verifyChain();
