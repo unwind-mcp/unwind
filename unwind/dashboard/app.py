@@ -2,12 +2,16 @@
 
 Provides:
 - REST API for event timeline, trust state, snapshots, away mode
+- Ghost Mode proxy endpoints (status, toggle, approve, discard, events)
 - Single-page dashboard with real-time polling
 - Undo actions via API
 """
 
 import json
+import os
 import time
+import urllib.request
+import urllib.error
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
@@ -18,6 +22,40 @@ from ..snapshots.manager import SnapshotManager, Snapshot
 from ..snapshots.rollback import RollbackEngine, RollbackStatus
 from .away_mode import generate_away_summary
 from .explanations import explain
+
+# Sidecar base URL — read once at import time, endpoints build on this
+SIDECAR_URL = os.environ.get("UNWIND_SIDECAR_URL", "http://127.0.0.1:9100")
+
+
+def _proxy_sidecar(method, path, params=None, body=None):
+    """Forward request to sidecar. Returns (status_code, json_body).
+    On connection failure: returns (503, {"error": "Sidecar unavailable"})."""
+    url = SIDECAR_URL.rstrip("/") + path
+    if params:
+        qs = "&".join(f"{k}={urllib.request.quote(str(v))}" for k, v in params.items())
+        url += "?" + qs
+
+    data = None
+    if body is not None:
+        data = json.dumps(body).encode("utf-8")
+
+    req = urllib.request.Request(
+        url,
+        method=method,
+        data=data,
+        headers={"Content-Type": "application/json"} if data else {},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return resp.status, json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        try:
+            body_text = e.read().decode("utf-8")
+            return e.code, json.loads(body_text)
+        except Exception:
+            return e.code, {"error": str(e)}
+    except (urllib.error.URLError, OSError):
+        return 503, {"error": "Sidecar unavailable"}
 
 
 def create_app(config: UnwindConfig = None) -> Flask:
@@ -321,6 +359,106 @@ def create_app(config: UnwindConfig = None) -> Flask:
         anchoring = ChainAnchoring(config)
         report = anchoring.detect_tampering(store)
         return jsonify(report)
+
+    # ─── API: Ghost Mode Proxy ────────────────────────────────
+
+    @app.route("/api/ghost/status")
+    def api_ghost_status():
+        """Proxy ghost status from sidecar."""
+        session = request.args.get("session", "")
+        params = {"sessionKey": session} if session else {}
+        status_code, body = _proxy_sidecar("GET", "/v1/ghost/status", params=params)
+        if status_code == 503:
+            return jsonify({"error": "Sidecar unavailable", "ghost_mode": False}), 200
+        return jsonify(body), status_code
+
+    @app.route("/api/ghost/toggle", methods=["POST"])
+    def api_ghost_toggle():
+        """Toggle ghost mode via sidecar."""
+        data = request.json or {}
+        sidecar_body = {"enabled": data.get("enabled", False)}
+        if data.get("session"):
+            sidecar_body["sessionKey"] = data["session"]
+        status_code, body = _proxy_sidecar("POST", "/v1/ghost/toggle", body=sidecar_body)
+        if status_code == 503:
+            return jsonify({"error": "Sidecar unavailable"}), 503
+        return jsonify(body), status_code
+
+    @app.route("/api/ghost/approve", methods=["POST"])
+    def api_ghost_approve():
+        """Approve ghost-buffered writes via sidecar."""
+        data = request.json or {}
+        sidecar_body = {"sessionKey": data.get("session", "")}
+        status_code, body = _proxy_sidecar("POST", "/v1/ghost/approve", body=sidecar_body)
+        if status_code == 503:
+            return jsonify({"error": "Sidecar unavailable"}), 503
+        return jsonify(body), status_code
+
+    @app.route("/api/ghost/discard", methods=["POST"])
+    def api_ghost_discard():
+        """Discard ghost-buffered writes via sidecar."""
+        data = request.json or {}
+        sidecar_body = {"sessionKey": data.get("session", "")}
+        status_code, body = _proxy_sidecar("POST", "/v1/ghost/discard", body=sidecar_body)
+        if status_code == 503:
+            return jsonify({"error": "Sidecar unavailable"}), 503
+        return jsonify(body), status_code
+
+    @app.route("/api/ghost/events")
+    def api_ghost_events():
+        """Query ghost mode events from EventStore with interception stage enrichment."""
+        since = request.args.get("since", type=float)
+        limit = request.args.get("limit", default=200, type=int)
+
+        conditions = ["ghost_mode = 1"]
+        params = []
+        if since:
+            conditions.append("timestamp >= ?")
+            params.append(since)
+
+        where = "WHERE " + " AND ".join(conditions)
+        query = f"SELECT * FROM events {where} ORDER BY timestamp DESC LIMIT ?"
+        params.append(min(limit, 500))
+
+        rows = store._conn.execute(query, params).fetchall()
+        events = [dict(row) for row in rows]
+
+        for ev in events:
+            summary = ev.get("result_summary", "") or ""
+            if summary.upper().startswith("GHOST"):
+                ev["interception_stage"] = 9
+                ev["interception_label"] = "Safe but simulated"
+            elif ev.get("status") == "blocked":
+                ev["interception_stage"] = 0
+                ev["interception_label"] = "Security violation (also simulated)"
+            else:
+                ev["interception_stage"] = 9
+                ev["interception_label"] = "Simulated"
+
+        writes = sum(1 for e in events if e.get("tool", "").startswith("fs_write") or e.get("tool") == "write")
+        commands = sum(1 for e in events if e.get("tool") in ("bash_exec", "exec"))
+        emails = sum(1 for e in events if "email" in (e.get("tool") or "").lower())
+        network = sum(1 for e in events if e.get("tool") in ("fetch_web", "search_web", "http_post"))
+        other = len(events) - writes - commands - emails - network
+
+        parts = []
+        if writes: parts.append(f"write {writes} file{'s' if writes != 1 else ''}")
+        if emails: parts.append(f"send {emails} email{'s' if emails != 1 else ''}")
+        if commands: parts.append(f"run {commands} command{'s' if commands != 1 else ''}")
+        if network: parts.append(f"make {network} network request{'s' if network != 1 else ''}")
+        if other > 0: parts.append(f"perform {other} other action{'s' if other != 1 else ''}")
+
+        if parts:
+            summary_text = "Your agent tried to " + ", ".join(parts) + ". None of these happened. Your system is unchanged."
+        else:
+            summary_text = "No ghost mode activity recorded."
+
+        return jsonify({
+            "events": events,
+            "count": len(events),
+            "summary": summary_text,
+            "timestamp": time.time(),
+        })
 
     # ─── Helpers ─────────────────────────────────────────────
 
