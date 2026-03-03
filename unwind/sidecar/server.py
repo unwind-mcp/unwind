@@ -230,8 +230,11 @@ def create_app(
     # - OpenClaw hook failures (hooks not firing after updates)
     # - Adapter crashes (TS plugin dies, sidecar keeps running)
     # - Hook bypass (tool called outside the hooked flow)
+    # Default: 3600s (1 hour). Users pause, go AFK, read long outputs.
+    # 30s was too aggressive and caused gateway to refuse tool calls during
+    # normal idle periods. Override with UNWIND_WATCHDOG_THRESHOLD env var.
     WATCHDOG_THRESHOLD_SECONDS = float(
-        os.environ.get("UNWIND_WATCHDOG_THRESHOLD", "30")
+        os.environ.get("UNWIND_WATCHDOG_THRESHOLD", "3600")
     )
 
     # --- Session store (minimal — maps session_key to Session) ---
@@ -327,12 +330,14 @@ def create_app(
             1 for ts in session_last_seen.values() if ts > active_cutoff
         )
 
-        # Stale = we have sessions, a policy check has happened before,
-        # but the last one was longer ago than the threshold
+        # Stale = we have recently active sessions, a policy check has
+        # happened before, but the last one was longer ago than the threshold.
+        # If no sessions are active (user went AFK), this is normal idle —
+        # not a watchdog failure.
         watchdog_stale = False
         if (
             last_policy_check_mono[0] > 0  # At least one check has happened
-            and sessions                     # At least one session exists
+            and active_count > 0             # Sessions with recent activity
             and (now - last_policy_check_mono[0]) > WATCHDOG_THRESHOLD_SECONDS
         ):
             watchdog_stale = True
