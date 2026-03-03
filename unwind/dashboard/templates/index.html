@@ -1332,7 +1332,15 @@
     try {
       const body = { enabled: !ghostState.active };
       if (ghostSelectedSession) body.session = ghostSelectedSession;
-      await apiPost('/api/ghost/toggle', body);
+      const result = await apiPost('/api/ghost/toggle', body);
+      if (result.error) {
+        alert('Ghost toggle failed: ' + (result.error.message || result.error));
+        return;
+      }
+      if (result.sessions_toggled === 0) {
+        alert('No active agent sessions found. Ghost Mode needs an agent session — start or connect an agent first.');
+        return;
+      }
       if (!ghostState.active) ghostState.lifecycle = 'running';
       refreshGhostStatus();
     } catch (e) { alert('Ghost toggle failed: ' + e.message); }

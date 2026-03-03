@@ -371,21 +371,66 @@ def create_app(config: UnwindConfig = None) -> Flask:
 
     @app.route("/api/ghost/status")
     def api_ghost_status():
-        """Proxy ghost status from sidecar."""
+        """Proxy ghost status from sidecar.
+
+        If no session is specified, discovers the most recent session from
+        EventStore and queries the sidecar for that session.  Falls back to
+        a clean 'off' state if no sessions exist or the sidecar doesn't
+        recognise the session.
+        """
         session = request.args.get("session", "")
-        params = {"sessionKey": session} if session else {}
-        status_code, body = _proxy_sidecar("GET", "/v1/ghost/status", params=params)
+
+        # Auto-discover session from EventStore when none specified
+        if not session:
+            recent = store.query_events(limit=1)
+            if recent:
+                session = recent[0].get("session_id", "")
+
+        if not session:
+            # No sessions in EventStore — ghost is effectively off
+            return jsonify({
+                "ghost_mode": False,
+                "files_buffered": 0,
+                "paths": [],
+                "total_size_bytes": 0,
+            })
+
+        status_code, body = _proxy_sidecar(
+            "GET", "/v1/ghost/status", params={"sessionKey": session},
+        )
         if status_code == 503:
             return jsonify({"error": "Sidecar unavailable", "ghost_mode": False}), 200
+        if status_code == 404:
+            # Sidecar doesn't know this session — return clean off state
+            return jsonify({
+                "ghost_mode": False,
+                "files_buffered": 0,
+                "paths": [],
+                "total_size_bytes": 0,
+                "session_id": session,
+            })
         return jsonify(body), status_code
 
     @app.route("/api/ghost/toggle", methods=["POST"])
     def api_ghost_toggle():
-        """Toggle ghost mode via sidecar."""
+        """Toggle ghost mode via sidecar.
+
+        Auto-discovers the most recent session from EventStore when none
+        is specified, so the dashboard toggle works without manual session
+        selection.
+        """
         data = request.json or {}
+        session = data.get("session", "")
+
+        # Auto-discover session when none specified
+        if not session:
+            recent = store.query_events(limit=1)
+            if recent:
+                session = recent[0].get("session_id", "")
+
         sidecar_body = {"enabled": data.get("enabled", False)}
-        if data.get("session"):
-            sidecar_body["sessionKey"] = data["session"]
+        if session:
+            sidecar_body["sessionKey"] = session
         status_code, body = _proxy_sidecar("POST", "/v1/ghost/toggle", body=sidecar_body)
         if status_code == 503:
             return jsonify({"error": "Sidecar unavailable"}), 503
@@ -395,7 +440,12 @@ def create_app(config: UnwindConfig = None) -> Flask:
     def api_ghost_approve():
         """Approve ghost-buffered writes via sidecar."""
         data = request.json or {}
-        sidecar_body = {"sessionKey": data.get("session", "")}
+        session = data.get("session", "")
+        if not session:
+            recent = store.query_events(limit=1)
+            if recent:
+                session = recent[0].get("session_id", "")
+        sidecar_body = {"sessionKey": session}
         status_code, body = _proxy_sidecar("POST", "/v1/ghost/approve", body=sidecar_body)
         if status_code == 503:
             return jsonify({"error": "Sidecar unavailable"}), 503
@@ -405,7 +455,12 @@ def create_app(config: UnwindConfig = None) -> Flask:
     def api_ghost_discard():
         """Discard ghost-buffered writes via sidecar."""
         data = request.json or {}
-        sidecar_body = {"sessionKey": data.get("session", "")}
+        session = data.get("session", "")
+        if not session:
+            recent = store.query_events(limit=1)
+            if recent:
+                session = recent[0].get("session_id", "")
+        sidecar_body = {"sessionKey": session}
         status_code, body = _proxy_sidecar("POST", "/v1/ghost/discard", body=sidecar_body)
         if status_code == 503:
             return jsonify({"error": "Sidecar unavailable"}), 503
