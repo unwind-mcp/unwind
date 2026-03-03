@@ -890,7 +890,7 @@
     const SNAPSHOT_TOOLS = new Set([
       'fs_write','fs_delete','fs_rename','fs_mkdir','fs_move','fs_copy',
       'write_file','delete_file','rename_file','move_file','create_directory',
-      'edit','apply_patch'
+      'write','edit','apply_patch'
     ]);
     const hasSnapshot = SNAPSHOT_TOOLS.has(event.tool) && event.status === 'success';
     const eid = escapeHtml(event.event_id);
