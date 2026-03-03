@@ -487,6 +487,7 @@ def create_app(config: UnwindConfig = None) -> Flask:
 def run_dashboard(config: UnwindConfig = None, port: int = 9001, debug: bool = False):
     """Run the dashboard web server."""
     app = create_app(config)
-    print(f"\n  UNWIND Dashboard running at http://127.0.0.1:{port}")
+    host = os.environ.get("UNWIND_DASHBOARD_HOST", "0.0.0.0")
+    print(f"\n  UNWIND Dashboard running at http://{host}:{port}")
     print(f"  Press Ctrl+C to stop\n")
-    app.run(host="127.0.0.1", port=port, debug=debug)
+    app.run(host=host, port=port, debug=debug)
