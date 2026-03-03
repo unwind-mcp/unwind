@@ -460,6 +460,66 @@
     }
     .about-detail-item strong { color: var(--text); }
 
+    /* ─── Ghost Mode Tab ─────────────────────────── */
+    .ghost-tab-wrapper { position: relative; }
+    .ghost-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 48px; font-weight: 800; color: var(--ghost); opacity: 0.06; pointer-events: none; white-space: nowrap; z-index: 1; letter-spacing: 6px; text-transform: uppercase; user-select: none; }
+    .ghost-footer { background: rgba(137,87,229,0.08); border: 1px solid rgba(137,87,229,0.2); border-radius: 6px; padding: 10px 16px; text-align: center; font-size: 12px; color: var(--ghost); margin-top: 24px; }
+    .ghost-status-card { background: var(--surface); border: 2px solid var(--border); border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; position: relative; z-index: 2; }
+    .ghost-status-card.active { border-color: var(--ghost); animation: ghost-pulse-border 3s ease-in-out infinite; }
+    .ghost-status-card.ended { border-color: var(--ghost); }
+    @keyframes ghost-pulse-border { 0%, 100% { border-color: var(--ghost); box-shadow: 0 0 0 0 rgba(137,87,229,0); } 50% { border-color: var(--purple); box-shadow: 0 0 12px rgba(137,87,229,0.15); } }
+    .ghost-lifecycle { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-dim); margin-bottom: 12px; }
+    .ghost-lifecycle .step { padding: 2px 8px; border-radius: 10px; }
+    .ghost-lifecycle .step.current { background: rgba(137,87,229,0.15); color: var(--ghost); font-weight: 600; }
+    .ghost-lifecycle .arrow { color: var(--border); }
+    .ghost-status-label { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .ghost-status-sub { font-size: 13px; color: var(--text-dim); }
+    .ghost-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ghost); margin-right: 6px; animation: ghost-dot-pulse 1.5s ease-in-out infinite; }
+    @keyframes ghost-dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .ghost-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .ghost-btn { padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid; transition: all 0.15s; }
+    .ghost-btn.toggle-on { border-color: var(--ghost); background: rgba(137,87,229,0.12); color: var(--ghost); }
+    .ghost-btn.toggle-on:hover { background: rgba(137,87,229,0.2); }
+    .ghost-btn.toggle-off { border-color: var(--border); background: var(--surface-2); color: var(--text-dim); }
+    .ghost-btn.toggle-off:hover { background: var(--surface); color: var(--text); }
+    .ghost-btn.approve { border-color: var(--green); background: rgba(63,185,80,0.1); color: var(--green); }
+    .ghost-btn.approve:hover { background: rgba(63,185,80,0.2); }
+    .ghost-btn.discard { border-color: var(--red); background: rgba(248,81,73,0.1); color: var(--red); }
+    .ghost-btn.discard:hover { background: rgba(248,81,73,0.2); }
+    .ghost-files-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; position: relative; z-index: 2; }
+    .ghost-files-panel h4 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+    .ghost-file-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .ghost-file-row:last-child { border-bottom: none; }
+    .ghost-file-icon { color: var(--ghost); font-size: 14px; }
+    .ghost-file-path { flex: 1; color: var(--text); font-family: monospace; font-size: 12px; }
+    .ghost-summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 16px; text-align: center; position: relative; z-index: 2; }
+    .ghost-summary-text { font-size: 16px; line-height: 1.7; }
+    .ghost-summary-text strong { color: var(--text); }
+    .ghost-summary-reassurance { font-size: 15px; font-weight: 600; color: var(--green); margin-top: 8px; }
+    .ghost-timeline-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-bottom: 2px; border-radius: 6px; overflow: hidden; position: relative; z-index: 2; }
+    .ghost-timeline-row.intercepted { border-left: 3px solid var(--ghost); }
+    .ghost-timeline-row.passed { border-left: 3px solid var(--green); }
+    .ghost-tl-cell { padding: 10px 14px; font-size: 13px; background: var(--surface); }
+    .ghost-tl-cell.result { background: var(--surface-2); }
+    .ghost-tl-cell .tl-tool { font-weight: 600; font-size: 12px; }
+    .ghost-tl-cell .tl-target { color: var(--text-dim); font-size: 12px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ghost-tl-cell .tl-outcome { color: var(--text-dim); font-size: 12px; }
+    .ghost-tl-header { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-bottom: 4px; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; padding: 0 14px; }
+    .ghost-stage-badge { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 600; margin-left: 6px; }
+    .ghost-stage-badge.safe { background: var(--green-bg); color: var(--green); }
+    .ghost-stage-badge.violation { background: var(--amber-bg); color: var(--amber); }
+    .ghost-egress-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; position: relative; z-index: 2; }
+    .ghost-egress-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+    .ghost-egress-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; color: var(--text-dim); }
+    .tab.active[data-tab="ghost"] { border-bottom-color: var(--ghost); }
+    .ghost-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 200; display: flex; align-items: center; justify-content: center; }
+    .ghost-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; max-width: 480px; width: 90%; }
+    .ghost-modal h3 { font-size: 16px; margin-bottom: 12px; }
+    .ghost-modal p { font-size: 13px; color: var(--text-dim); margin-bottom: 8px; }
+    .ghost-modal .file-list { font-family: monospace; font-size: 12px; background: var(--surface-2); border-radius: 4px; padding: 10px; margin: 10px 0; max-height: 200px; overflow-y: auto; }
+    .ghost-modal .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+    .ghost-session-select { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: 12px; color: var(--text); margin-bottom: 12px; }
+
     /* ─── Empty State ──────────────────────────── */
     .empty-state {
       text-align: center;
@@ -548,6 +608,7 @@
   <!-- Tabs -->
   <div class="tab-bar">
     <div class="tab active" data-tab="timeline" onclick="switchTab('timeline')">Timeline</div>
+    <div class="tab" data-tab="ghost" onclick="switchTab('ghost')">Ghost Mode</div>
     <div class="tab" data-tab="away" onclick="switchTab('away')">Away Mode</div>
     <div class="tab" data-tab="verify" onclick="switchTab('verify')">Chain Verify</div>
     <div class="tab" data-tab="about" onclick="switchTab('about')">What Is This?</div>
@@ -558,6 +619,47 @@
     <!-- Timeline -->
     <div id="panel-timeline">
       <div id="timeline-container" class="loading">Loading events...</div>
+    </div>
+
+    <!-- Ghost Mode -->
+    <div id="panel-ghost" class="hidden">
+      <div class="ghost-tab-wrapper">
+        <div class="ghost-watermark">SIMULATED &mdash; NO CHANGES MADE</div>
+        <div id="ghost-session-selector" class="hidden">
+          <select id="ghost-session-select" class="ghost-session-select" onchange="ghostSelectSession(this.value)"></select>
+        </div>
+        <div id="ghost-status-card" class="ghost-status-card">
+          <div class="ghost-lifecycle" id="ghost-lifecycle">
+            <span class="step current" id="gl-off">OFF</span><span class="arrow">&rarr;</span>
+            <span class="step" id="gl-running">RUNNING</span><span class="arrow">&rarr;</span>
+            <span class="step" id="gl-ended">ENDED</span><span class="arrow">&rarr;</span>
+            <span class="step" id="gl-reviewed">REVIEWED</span>
+          </div>
+          <div class="ghost-status-label" id="ghost-status-label">Ghost Mode is off. Your agent's actions are live.</div>
+          <div class="ghost-status-sub" id="ghost-status-sub"></div>
+          <div class="ghost-actions" id="ghost-actions">
+            <button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>
+          </div>
+        </div>
+        <div id="ghost-files-panel" class="ghost-files-panel hidden">
+          <h4>Files your agent wrote to the sandbox</h4>
+          <div id="ghost-files-list"><div style="color:var(--text-dim);font-size:13px;">No files buffered yet. Your agent's writes will appear here.</div></div>
+        </div>
+        <div id="ghost-summary-card" class="ghost-summary-card hidden">
+          <div class="ghost-summary-text" id="ghost-summary-text"></div>
+          <div class="ghost-summary-reassurance" id="ghost-summary-reassurance"></div>
+        </div>
+        <div id="ghost-timeline-section" class="hidden" style="position:relative;z-index:2;">
+          <div class="ghost-tl-header"><div>What the agent tried to do</div><div>What actually happened</div></div>
+          <div id="ghost-timeline-rows"></div>
+        </div>
+        <div id="ghost-egress-card" class="ghost-egress-card hidden">
+          <h4>Network Activity</h4>
+          <div id="ghost-egress-sub"></div>
+          <div id="ghost-egress-list"></div>
+        </div>
+        <div class="ghost-footer">This is a Ghost Mode view. Zero changes were made to your system.</div>
+      </div>
     </div>
 
     <!-- Away Mode -->
@@ -1077,14 +1179,224 @@
     }
   }
 
+  // ─── Ghost Mode ─────────────────────────────
+  let ghostState = { active: false, filesBuffered: 0, paths: [], totalSize: 0, lifecycle: 'off' };
+  let ghostSelectedSession = '';
+  let ghostPollTimer = null;
+  let ghostEventsPollTimer = null;
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  function updateGhostLifecycle(stage) {
+    ['off', 'running', 'ended', 'reviewed'].forEach(s => {
+      document.getElementById('gl-' + s).classList.toggle('current', s === stage);
+    });
+  }
+
+  async function refreshGhostStatus() {
+    try {
+      const url = ghostSelectedSession ? `/api/ghost/status?session=${encodeURIComponent(ghostSelectedSession)}` : '/api/ghost/status';
+      const data = await api(url);
+      const card = document.getElementById('ghost-status-card');
+      const label = document.getElementById('ghost-status-label');
+      const sub = document.getElementById('ghost-status-sub');
+      const actions = document.getElementById('ghost-actions');
+      const filesPanel = document.getElementById('ghost-files-panel');
+
+      if (data.error && !data.ghost_mode) {
+        card.className = 'ghost-status-card';
+        ghostState.active = false;
+        ghostState.lifecycle = 'off';
+        updateGhostLifecycle('off');
+        label.textContent = 'Ghost Mode is off. Your agent\'s actions are live.';
+        sub.textContent = data.error === 'Sidecar unavailable' ? 'Sidecar is not running.' : '';
+        actions.innerHTML = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+        filesPanel.classList.add('hidden');
+        return;
+      }
+
+      const ghostMode = data.ghostMode !== undefined ? data.ghostMode : data.ghost_mode;
+      const buffered = data.filesBuffered !== undefined ? data.filesBuffered : (data.files_buffered || 0);
+      const paths = data.paths || [];
+      const totalSize = data.totalSizeBytes !== undefined ? data.totalSizeBytes : (data.total_size_bytes || 0);
+      ghostState.active = ghostMode;
+      ghostState.filesBuffered = buffered;
+      ghostState.paths = paths;
+      ghostState.totalSize = totalSize;
+
+      if (ghostMode) {
+        card.className = 'ghost-status-card active';
+        ghostState.lifecycle = 'running';
+        updateGhostLifecycle('running');
+        label.innerHTML = '<span class="ghost-dot"></span>Ghost Mode Active' + (buffered > 0 ? ` &mdash; ${buffered} file${buffered !== 1 ? 's' : ''} buffered (${formatBytes(totalSize)})` : '');
+        sub.textContent = 'All writes are being intercepted and simulated.';
+        actions.innerHTML = '<button class="ghost-btn toggle-off" onclick="ghostToggle()">Disable Ghost Mode</button>';
+        filesPanel.classList.remove('hidden');
+        document.getElementById('ghost-files-list').innerHTML = buffered > 0
+          ? paths.map(p => `<div class="ghost-file-row"><span class="ghost-file-icon">&#x1f4c4;</span><span class="ghost-file-path">${escapeHtml(p)}</span></div>`).join('')
+          : '<div style="color:var(--text-dim);font-size:13px;">No files buffered yet. Your agent\'s writes will appear here.</div>';
+      } else if (ghostState.lifecycle === 'running' || buffered > 0) {
+        card.className = 'ghost-status-card ended';
+        ghostState.lifecycle = 'ended';
+        updateGhostLifecycle('ended');
+        label.textContent = 'Ghost Mode session ended. Review what happened below.';
+        sub.textContent = '';
+        let btns = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+        if (buffered > 0) {
+          btns += ' <button class="ghost-btn approve" onclick="ghostApprove()">Approve All</button>';
+          btns += ' <button class="ghost-btn discard" onclick="ghostDiscard()">Discard All</button>';
+          filesPanel.classList.remove('hidden');
+          document.getElementById('ghost-files-list').innerHTML = paths.map(p => `<div class="ghost-file-row"><span class="ghost-file-icon">&#x1f4c4;</span><span class="ghost-file-path">${escapeHtml(p)}</span></div>`).join('');
+        } else { filesPanel.classList.add('hidden'); }
+        actions.innerHTML = btns;
+      } else {
+        card.className = 'ghost-status-card';
+        ghostState.lifecycle = 'off';
+        updateGhostLifecycle('off');
+        label.textContent = 'Ghost Mode is off. Your agent\'s actions are live.';
+        sub.textContent = '';
+        actions.innerHTML = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+        filesPanel.classList.add('hidden');
+      }
+    } catch (e) { console.error('Ghost status fetch failed:', e); }
+  }
+
+  async function refreshGhostEvents() {
+    try {
+      const data = await api('/api/ghost/events?limit=200');
+      const events = data.events || [];
+      const summaryCard = document.getElementById('ghost-summary-card');
+      if (events.length > 0 && data.summary) {
+        summaryCard.classList.remove('hidden');
+        const summaryHtml = escapeHtml(data.summary).replace(/(\d+ \w+)/g, '<strong>$1</strong>');
+        const reassurance = document.getElementById('ghost-summary-reassurance');
+        if (data.summary.indexOf('None of these happened') >= 0) {
+          document.getElementById('ghost-summary-text').innerHTML = summaryHtml.substring(0, summaryHtml.indexOf('None of these happened'));
+          reassurance.textContent = 'None of these happened. Your system is unchanged.';
+        } else {
+          document.getElementById('ghost-summary-text').innerHTML = summaryHtml;
+          reassurance.textContent = '';
+        }
+      } else { summaryCard.classList.add('hidden'); }
+
+      const timelineSection = document.getElementById('ghost-timeline-section');
+      const timelineRows = document.getElementById('ghost-timeline-rows');
+      if (events.length > 0) {
+        timelineSection.classList.remove('hidden');
+        timelineRows.innerHTML = events.map(ev => {
+          const tool = ev.tool || 'unknown';
+          const target = truncTarget(ev.target || '', 40);
+          const icon = TOOL_ICONS[tool] || '&#x2022;';
+          const stageLabel = ev.interception_label || '';
+          let rowClass = 'intercepted', outcomeText = '', badgeHtml = '';
+          if (ev.status === 'ghost_success' || (ev.result_summary || '').toUpperCase().startsWith('GHOST')) {
+            outcomeText = 'Intercepted &mdash; written to sandbox only';
+            badgeHtml = `<span class="ghost-stage-badge safe">${escapeHtml(stageLabel)}</span>`;
+          } else if (ev.status === 'blocked') {
+            outcomeText = 'Blocked &mdash; ' + escapeHtml(truncTarget(ev.result_summary || '', 50));
+            badgeHtml = `<span class="ghost-stage-badge violation">${escapeHtml(stageLabel)}</span>`;
+          } else if (ev.status === 'success' && (tool.includes('read') || tool === 'fs_read')) {
+            rowClass = 'passed';
+            outcomeText = 'Allowed (read-only)';
+          } else {
+            outcomeText = 'Simulated &mdash; nothing changed';
+            badgeHtml = stageLabel ? `<span class="ghost-stage-badge safe">${escapeHtml(stageLabel)}</span>` : '';
+          }
+          let triedText = `${icon} <span class="tl-tool">${escapeHtml(tool)}</span>`;
+          if (target) triedText += `<div class="tl-target">${escapeHtml(target)}</div>`;
+          return `<div class="ghost-timeline-row ${rowClass}"><div class="ghost-tl-cell tried">${triedText}</div><div class="ghost-tl-cell result"><span class="tl-outcome">${outcomeText}</span>${badgeHtml}</div></div>`;
+        }).join('');
+      } else { timelineSection.classList.add('hidden'); }
+
+      const egressCard = document.getElementById('ghost-egress-card');
+      const networkEvents = events.filter(ev => (ev.tool || '').match(/fetch_web|search_web|http_post|api_call/) || (ev.result_summary || '').includes('GHOST_MODE_NETWORK_BLOCKED'));
+      if (networkEvents.length > 0) {
+        egressCard.classList.remove('hidden');
+        document.getElementById('ghost-egress-sub').innerHTML = `Your agent attempted to contact <strong>${networkEvents.length} external URL${networkEvents.length !== 1 ? 's' : ''}</strong> during this session:`;
+        document.getElementById('ghost-egress-list').innerHTML = networkEvents.map(ev =>
+          `<div class="ghost-egress-row"><span>${TOOL_ICONS[ev.tool] || '&#x1f310;'}</span><span>${escapeHtml(ev.tool)}</span><span>&rarr;</span><span style="color:var(--text);">${escapeHtml(truncTarget(ev.target || '', 50))}</span><span class="badge ${ev.status === 'blocked' ? 'red' : 'ghost'}" style="margin-left:auto;">${ev.status === 'blocked' ? 'blocked' : 'simulated'}</span></div>`
+        ).join('');
+      } else { egressCard.classList.add('hidden'); }
+    } catch (e) { console.error('Ghost events fetch failed:', e); }
+  }
+
+  function ghostSelectSession(val) { ghostSelectedSession = val; refreshGhostStatus(); refreshGhostEvents(); }
+
+  async function ghostToggle() {
+    try {
+      const body = { enabled: !ghostState.active };
+      if (ghostSelectedSession) body.session = ghostSelectedSession;
+      await apiPost('/api/ghost/toggle', body);
+      if (!ghostState.active) ghostState.lifecycle = 'running';
+      refreshGhostStatus();
+    } catch (e) { alert('Ghost toggle failed: ' + e.message); }
+  }
+
+  function showGhostModal(title, message, fileList, confirmLabel, confirmClass, onConfirm) {
+    const overlay = document.createElement('div');
+    overlay.className = 'ghost-modal-overlay';
+    overlay.innerHTML = `<div class="ghost-modal"><h3>${escapeHtml(title)}</h3><p>${escapeHtml(message)}</p>${fileList ? `<div class="file-list">${fileList.map(f => escapeHtml(f)).join('<br>')}</div>` : ''}<p style="font-size:12px;color:var(--amber);">This cannot be undone.</p><div class="modal-actions"><button class="ghost-btn toggle-off" onclick="this.closest('.ghost-modal-overlay').remove()">Cancel</button><button class="ghost-btn ${confirmClass}" id="ghost-modal-confirm">${escapeHtml(confirmLabel)}</button></div></div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('ghost-modal-confirm').onclick = async () => { overlay.remove(); await onConfirm(); };
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  }
+
+  async function ghostApprove() {
+    showGhostModal('Approve Ghost Writes', `This will write ${ghostState.filesBuffered} file${ghostState.filesBuffered !== 1 ? 's' : ''} to the real filesystem:`, ghostState.paths, 'Approve', 'approve', async () => {
+      try {
+        const result = await apiPost('/api/ghost/approve', { session: ghostSelectedSession });
+        if (result.error) { alert('Approve failed: ' + (result.error.message || result.error)); }
+        else {
+          const count = result.filesCount || result.files_count || 0;
+          ghostState.lifecycle = 'reviewed';
+          updateGhostLifecycle('reviewed');
+          document.getElementById('ghost-status-label').textContent = count + ' file' + (count !== 1 ? 's' : '') + ' written successfully. Ghost Mode session approved.';
+          document.getElementById('ghost-status-sub').textContent = 'Approve writes the files your agent created. Commands and emails that were intercepted cannot be replayed.';
+          document.getElementById('ghost-actions').innerHTML = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+          document.getElementById('ghost-files-panel').classList.add('hidden');
+        }
+        refreshGhostStatus();
+      } catch (e) { alert('Approve error: ' + e.message); }
+    });
+  }
+
+  async function ghostDiscard() {
+    showGhostModal('Discard Ghost Writes', 'This will permanently discard all buffered writes. Nothing will be saved.', null, 'Discard All', 'discard', async () => {
+      try {
+        const result = await apiPost('/api/ghost/discard', { session: ghostSelectedSession });
+        if (result.error) { alert('Discard failed: ' + (result.error.message || result.error)); }
+        else {
+          ghostState.lifecycle = 'reviewed';
+          updateGhostLifecycle('reviewed');
+          document.getElementById('ghost-status-label').textContent = 'All buffered writes discarded. Your system remains unchanged.';
+          document.getElementById('ghost-status-sub').textContent = '';
+          document.getElementById('ghost-actions').innerHTML = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+          document.getElementById('ghost-files-panel').classList.add('hidden');
+        }
+        refreshGhostStatus();
+      } catch (e) { alert('Discard error: ' + e.message); }
+    });
+  }
+
+  function startGhostPolling() { refreshGhostStatus(); refreshGhostEvents(); ghostPollTimer = setInterval(refreshGhostStatus, 3000); ghostEventsPollTimer = setInterval(refreshGhostEvents, 5000); }
+  function stopGhostPolling() { if (ghostPollTimer) { clearInterval(ghostPollTimer); ghostPollTimer = null; } if (ghostEventsPollTimer) { clearInterval(ghostEventsPollTimer); ghostEventsPollTimer = null; } }
+
   // ─── Tab Switching ────────────────────────────
   function switchTab(tab) {
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
     document.getElementById('panel-timeline').classList.toggle('hidden', tab !== 'timeline');
+    document.getElementById('panel-ghost').classList.toggle('hidden', tab !== 'ghost');
     document.getElementById('panel-away').classList.toggle('hidden', tab !== 'away');
     document.getElementById('panel-verify').classList.toggle('hidden', tab !== 'verify');
     document.getElementById('panel-about').classList.toggle('hidden', tab !== 'about');
 
+    if (tab === 'ghost') { startGhostPolling(); } else { stopGhostPolling(); }
     if (tab === 'away') refreshAway();
     if (tab === 'verify') verifyChain();
   }
