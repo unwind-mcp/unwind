@@ -109,8 +109,12 @@ def create_app(config: UnwindConfig = None) -> Flask:
         tainted = sum(1 for e in recent if e.get("session_tainted"))
         red = sum(1 for e in recent if e.get("trust_state") == "red")
 
-        # Compute enhanced fields
-        ghost_active = any(e.get("ghost_mode") for e in recent)
+        # Compute enhanced fields — check live sidecar state, not historical events
+        ghost_active = False
+        _gs_code, _gs_body = _proxy_sidecar("GET", "/v1/ghost/status",
+                                            params={"sessionKey": events[0].get("session_id", "")} if events else {})
+        if _gs_code == 200:
+            ghost_active = bool(_gs_body.get("ghostMode") or _gs_body.get("ghost_mode"))
 
         taint_level = None
         if any(e.get("trust_state") == "red" and e.get("session_tainted") for e in recent):
