@@ -354,19 +354,26 @@ class EventStore:
 
         if break_count == 0:
             classification = "intact"
-            human_message = f"Audit trail verified: {event_count} events, all intact."
+            human_message = (
+                f"Every action your agent took has been cryptographically verified. "
+                f"{event_count} in total, forming an unbroken chain of evidence. "
+                f"No tampering detected."
+            )
         elif all(b["is_restart"] for b in breaks):
             classification = "restart_gaps_only"
             human_message = (
-                f"{event_count} events verified. {break_count} expected gap(s) "
-                f"from service restarts \u2014 not tampering."
+                f"Every action your agent took has been cryptographically verified. "
+                f"{event_count} in total, forming a chain of evidence. "
+                f"{break_count} small gap(s) were found where the security service "
+                f"restarted \u2014 these are expected and not signs of tampering."
             )
         else:
             classification = "suspicious"
             suspicious_count = sum(1 for b in breaks if not b["is_restart"])
             human_message = (
-                f"WARNING: {suspicious_count} unexplained chain break(s) detected. "
-                f"Review required."
+                f"WARNING: The audit trail has {suspicious_count} unexplained "
+                f"break(s) in the chain of evidence. This could mean records were "
+                f"altered or deleted. Investigate immediately."
             )
 
         valid = classification in ("intact", "restart_gaps_only")
