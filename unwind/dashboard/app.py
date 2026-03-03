@@ -23,8 +23,9 @@ from ..snapshots.rollback import RollbackEngine, RollbackStatus
 from .away_mode import generate_away_summary
 from .explanations import explain
 
-# Sidecar base URL — read once at import time, endpoints build on this
+# Sidecar base URL and auth — read once at import time
 SIDECAR_URL = os.environ.get("UNWIND_SIDECAR_URL", "http://127.0.0.1:9100")
+SIDECAR_SECRET = os.environ.get("UNWIND_SIDECAR_SHARED_SECRET", "")
 
 
 def _proxy_sidecar(method, path, params=None, body=None):
@@ -39,11 +40,17 @@ def _proxy_sidecar(method, path, params=None, body=None):
     if body is not None:
         data = json.dumps(body).encode("utf-8")
 
+    headers = {}
+    if data:
+        headers["Content-Type"] = "application/json"
+    if SIDECAR_SECRET:
+        headers["Authorization"] = f"Bearer {SIDECAR_SECRET}"
+
     req = urllib.request.Request(
         url,
         method=method,
         data=data,
-        headers={"Content-Type": "application/json"} if data else {},
+        headers=headers,
     )
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
