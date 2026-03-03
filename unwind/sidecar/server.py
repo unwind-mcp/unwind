@@ -239,6 +239,10 @@ def create_app(
     # For now, a simple in-memory map suffices for the sidecar prototype.
     sessions: dict[str, Session] = {}
 
+    # Global ghost mode flag — when True, all new sessions inherit ghost_mode=True.
+    # Set via POST /v1/ghost/toggle without a sessionKey.
+    global_ghost_mode: bool = False
+
     # Track session activity timestamps for watchdog
     session_last_seen: dict[str, float] = {}
 
@@ -429,7 +433,8 @@ def create_app(
             )
 
             # --- Resolve session ---
-            session = _resolve_session(sessions, check_req.session_key, config)
+            session = _resolve_session(sessions, check_req.session_key, config,
+                                       global_ghost_mode=global_ghost_mode)
 
             # --- P0-1: apply_patch multi-path jail validation (fail-closed) ---
             patch_paths = _extract_patch_paths(check_req.tool_name, check_req.params)
@@ -557,7 +562,8 @@ def create_app(
             )
             return JSONResponse(status_code=400, content=error.to_wire())
 
-        session = _resolve_session(sessions, session_key, config)
+        session = _resolve_session(sessions, session_key, config,
+                                   global_ghost_mode=global_ghost_mode)
 
         status = session.ghost_status()
         resp = GhostStatusResponse(
@@ -595,10 +601,13 @@ def create_app(
         session_key = body.get("sessionKey", "") if isinstance(body, dict) else ""
         toggled = []
 
+        # Set global flag so new sessions also inherit ghost state
+        nonlocal global_ghost_mode
+        global_ghost_mode = bool(enabled)
+
         if session_key:
-            # Auto-create session if it doesn't exist (matches adapter
-            # behaviour — sessions are created on first use).
-            session = _resolve_session(sessions, session_key, config)
+            session = _resolve_session(sessions, session_key, config,
+                                       global_ghost_mode=global_ghost_mode)
             session.ghost_mode = bool(enabled)
             if not enabled:
                 session.clear_ghost()
@@ -613,6 +622,7 @@ def create_app(
         return JSONResponse(status_code=200, content={
             "ghost_mode": bool(enabled),
             "sessions_toggled": len(toggled),
+            "global": True,
         })
 
     @app.post("/v1/ghost/approve")
@@ -793,6 +803,7 @@ def _resolve_session(
     sessions: dict[str, Session],
     session_key: str,
     config: UnwindConfig,
+    global_ghost_mode: bool = False,
 ) -> Session:
     """Resolve or create a Session for the given session_key.
 
@@ -800,12 +811,15 @@ def _resolve_session(
     - In enforce mode, missing session should block. But for the initial
       prototype we auto-create sessions (explicit binding API comes next).
     - Session keyed by session_key from adapter.
+    - New sessions inherit global_ghost_mode if set.
     """
     if session_key not in sessions:
         session = Session(
             session_id=session_key,
             config=config,
         )
+        if global_ghost_mode:
+            session.ghost_mode = True
         sessions[session_key] = session
     return sessions[session_key]
 
