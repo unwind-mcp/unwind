@@ -271,9 +271,15 @@ def explain(raw_reason: str) -> Dict[str, str]:
 
     # Fallback for unrecognised reasons
     return {
-        "headline": "Policy enforcement triggered",
-        "detail": f"UNWIND enforced a policy rule: {raw_reason}",
-        "action": "Check the event details for more context.",
+        "headline": "A security policy was applied to this action",
+        "detail": (
+            f"UNWIND's enforcement pipeline flagged this action but the specific "
+            f"reason isn't in the known pattern list. Raw detail: {raw_reason}"
+        ),
+        "action": (
+            "Check the timeline for surrounding events. If this keeps appearing, "
+            "it may indicate a new rule or edge case worth investigating."
+        ),
         "severity": "info",
         "stage": "unknown",
     }

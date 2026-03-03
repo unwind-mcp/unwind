@@ -76,7 +76,7 @@ def create_app(config: UnwindConfig = None) -> Flask:
         explanation = None
         if current_trust in ("amber", "red") and events:
             reason = events[0].get("result_summary", "")
-            if reason:
+            if reason and not reason.upper().startswith("OK"):
                 explanation = explain(reason)
 
         return jsonify({
@@ -167,7 +167,7 @@ def create_app(config: UnwindConfig = None) -> Flask:
         explanation = None
         if event.get("status") in ("blocked", "red_alert") or event.get("trust_state") in ("amber", "red"):
             reason = event.get("result_summary", "")
-            if reason:
+            if reason and not reason.upper().startswith("OK"):
                 explanation = explain(reason)
 
         return jsonify({
