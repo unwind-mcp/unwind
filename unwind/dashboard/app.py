@@ -40,7 +40,7 @@ def _proxy_sidecar(method, path, params=None, body=None):
     if body is not None:
         data = json.dumps(body).encode("utf-8")
 
-    headers = {}
+    headers = {"X-UNWIND-API-Version": "1"}
     if data:
         headers["Content-Type"] = "application/json"
     if SIDECAR_SECRET:
