@@ -87,9 +87,9 @@
     .trust-light {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 20px 24px;
-      background: var(--surface);
+      gap: 24px;
+      padding: 20px 40px;
+      background: var(--bg);
       border-bottom: 1px solid var(--border);
     }
     .trust-orb {
@@ -427,10 +427,7 @@
 <body>
 
   <div class="header">
-    <div style="display:flex;align-items:center;gap:12px;">
-      <img src="{{ url_for('static', filename='logo.png') }}" alt="UNWIND" style="height:40px;width:auto;">
-      <h1><span>See Everything. Undo Anything. Test Anything Safely.</span></h1>
-    </div>
+    <h1>UNWIND <span>See Everything. Undo Anything. Test Anything Safely.</span></h1>
     <div class="header-right">
       <span id="cadence-pill" class="cadence-pill hidden">
         <span id="cadence-dot" class="cadence-dot"></span>
@@ -448,6 +445,7 @@
 
   <!-- Trust Light -->
   <div class="trust-light">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="UNWIND" style="width:300px;height:300px;object-fit:contain;flex-shrink:0;">
     <div id="trust-orb" class="trust-orb green"></div>
     <div class="trust-info">
       <h2 id="trust-label">All Clear</h2>
