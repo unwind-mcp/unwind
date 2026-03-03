@@ -30,7 +30,8 @@ def create_app(config: UnwindConfig = None) -> Flask:
     validate_and_enforce(config)
 
     template_dir = Path(__file__).parent / "templates"
-    app = Flask(__name__, template_folder=str(template_dir))
+    static_dir = Path(__file__).parent / "static"
+    app = Flask(__name__, template_folder=str(template_dir), static_folder=str(static_dir))
     app.config["UNWIND_CONFIG"] = config
 
     store = EventStore(config.events_db_path)
