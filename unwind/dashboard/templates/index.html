@@ -314,6 +314,15 @@
       border-color: var(--border);
       color: var(--text-dim);
     }
+    .undo-btn.danger {
+      border-color: var(--red);
+      color: var(--red);
+    }
+    .undo-btn.danger:hover {
+      background: var(--red-bg);
+      border-color: var(--red);
+      color: var(--red);
+    }
 
     .undo-panel {
       background: var(--surface);
@@ -337,6 +346,15 @@
       flex-wrap: wrap;
       justify-content: flex-end;
     }
+    .undo-filters {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-dim);
+      flex-wrap: wrap;
+    }
+    .undo-filters label { display: inline-flex; gap: 6px; align-items: center; }
     .undo-select {
       min-width: 320px;
       max-width: 520px;
@@ -1154,13 +1172,10 @@
     if (event.ghost_mode) badges.push('<span class="badge ghost">ghost</span>');
     if (event.status === 'blocked') badges.push('<span class="badge red">blocked</span>');
 
-    const SNAPSHOT_TOOLS = new Set([
-      'fs_write','fs_delete','fs_rename','fs_mkdir','fs_move','fs_copy',
-      'write_file','delete_file','rename_file','move_file','create_directory',
-      'write','edit','apply_patch'
-    ]);
-    const hasSnapshot = SNAPSHOT_TOOLS.has(event.tool) && event.status === 'success';
-    const eid = escapeHtml(event.event_id);
+    const hasSnapshot = !!event.has_snapshot;
+    const rolledBack = !!event.rolled_back;
+    const eidRaw = event.event_id || '';
+    const eid = escapeHtml(eidRaw);
 
     return `
       <div class="${classes.join(' ')}" onclick="toggleEventDetail('${eid}', event)">
@@ -1173,7 +1188,8 @@
           <div class="event-badges">${badges.join('')}</div>
         </div>
         <div class="event-actions">
-          ${hasSnapshot ? `<button class="undo-btn" onclick="event.stopPropagation();undoEvent('${eid}')">&#x21a9;&#xfe0f; Undo</button>` : ''}
+          ${hasSnapshot && !rolledBack ? `<button class="undo-btn" onclick="event.stopPropagation();undoEvent('${eidRaw}')" title="Restore from snapshot">&#x21a9;&#xfe0f; Rewind</button>` : ''}
+          ${hasSnapshot && rolledBack ? `<button class="undo-btn" disabled title="Already restored">&#x2705; Restored</button>` : ''}
         </div>
         <div class="status-icon">${statusIcon}</div>
       </div>
@@ -1207,6 +1223,7 @@
       const data = await api(`/api/events/${eventId}`);
       const ev = data.event;
       const ex = data.explanation;
+      const snapshot = data.snapshot;
 
       let explanationHtml = '';
       if (ex) {
@@ -1221,12 +1238,38 @@
           </div>`;
       }
 
+      let snapshotHtml = '';
+      if (snapshot) {
+        const action = snapshotRestoreAction(snapshot);
+        const restored = isRestoredSnapshot(snapshot);
+        const restoredAt = restored && snapshot.rolled_back_at ? formatSnapshotTimestamp(snapshot.rolled_back_at) : null;
+        const actionBtn = restored
+          ? `<button class="undo-btn" disabled>&#x2705; Restored</button>`
+          : `<button class="undo-btn ${action.startsWith('Delete') ? 'danger' : ''}" onclick="event.stopPropagation();undoEventFromSnapshot('${escapeHtml(snapshot.event_id || ev.event_id || '')}')">${action.startsWith('Delete') ? 'Delete' : 'Restore'}</button>`;
+
+        snapshotHtml = `
+          <div class="edp-section">
+            <div class="edp-label">Snapshot status</div>
+            <div class="edp-meta">
+              <div>Type: ${escapeHtml(snapshotTypeLabel(snapshot))}</div>
+              <div>Size: ${escapeHtml(snapshotSizeLabel(snapshot))}</div>
+              <div>Action: ${escapeHtml(action)}</div>
+              <div>Status: ${restored ? `Restored${restoredAt ? ' at ' + restoredAt : ''}` : 'Not restored yet'}</div>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+              ${actionBtn}
+              <button class="undo-btn" onclick="event.stopPropagation();switchTab('undo')">Open Undo tab</button>
+            </div>
+          </div>`;
+      }
+
       panel.innerHTML = `
         ${ev.result_summary ? `
           <div class="edp-section">
             <div class="edp-label">What happened</div>
             <div>${escapeHtml(ev.result_summary)}</div>
           </div>` : ''}
+        ${snapshotHtml}
         ${explanationHtml}
         <div class="edp-section">
           <div class="edp-label">Metadata</div>
@@ -1434,6 +1477,8 @@
 
   // ─── Undo ─────────────────────────────────────
   let undoSnapshotsCache = [];
+  let undoShowRestored = false;
+  let undoShowAllSnapshotTypes = false; // false = rewrites-only view
 
   function formatSnapshotTimestamp(ts) {
     if (!ts) return 'Unknown time';
@@ -1456,6 +1501,12 @@
     return Number(snapshot.rolled_back || 0) === 1;
   }
 
+  function isNewFileDeleteSnapshot(snapshot) {
+    const t = (snapshot.snapshot_type || '').toLowerCase();
+    const meta = parseSnapshotMeta(snapshot);
+    return (meta.type === 'new_file') || (meta.existed === false) || (t === 'content_only' && !snapshot.snapshot_path && Number(snapshot.original_size || 0) === 0);
+  }
+
   function snapshotTypeLabel(snapshot) {
     const t = (snapshot.snapshot_type || '').toLowerCase();
     if (t === 'file_copy') return 'file_copy';
@@ -1467,10 +1518,7 @@
 
   function snapshotRestoreAction(snapshot) {
     const t = (snapshot.snapshot_type || '').toLowerCase();
-    const meta = parseSnapshotMeta(snapshot);
-    const isNewFile = (meta.type === 'new_file') || (meta.existed === false) || (t === 'content_only' && !snapshot.snapshot_path && Number(snapshot.original_size || 0) === 0);
-
-    if (isNewFile) return 'Delete (was a new file)';
+    if (isNewFileDeleteSnapshot(snapshot)) return 'Delete (was a new file)';
     if (t === 'file_copy') return 'Revert to previous version';
     if (t === 'json_diff') return 'Revert JSON content';
     if (t === 'atomic_move') return 'Restore moved file';
@@ -1481,6 +1529,12 @@
   function snapshotSizeLabel(snapshot) {
     const n = Number(snapshot.original_size || 0);
     return Number.isFinite(n) ? formatBytes(n) : 'n/a';
+  }
+
+  function setUndoFilter(kind, checked) {
+    if (kind === 'restored') undoShowRestored = !!checked;
+    if (kind === 'allTypes') undoShowAllSnapshotTypes = !!checked;
+    refreshUndoSnapshots();
   }
 
   async function refreshUndoSnapshots() {
@@ -1500,29 +1554,64 @@
         return;
       }
 
-      const restorable = snapshots.filter(s => !isRestoredSnapshot(s));
+      const filtered = snapshots
+        .filter(s => undoShowRestored || !isRestoredSnapshot(s))
+        .filter(s => undoShowAllSnapshotTypes || !isNewFileDeleteSnapshot(s));
+
+      const restorable = filtered.filter(s => !isRestoredSnapshot(s));
       const restorePoints = restorable.map(s => `
         <option value="${s.timestamp}">${formatSnapshotTimestamp(s.timestamp)} &mdash; ${escapeHtml(truncTarget(s.original_path || '(unknown path)', 70))}</option>
       `).join('');
+
+      const hiddenByType = snapshots.filter(s => isNewFileDeleteSnapshot(s)).length;
+      const hiddenByRestored = snapshots.filter(s => isRestoredSnapshot(s)).length;
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="undo-panel">
+            <div class="undo-header">
+              <div>
+                <strong>Snapshots</strong>
+                <div style="margin-top:4px;">0 shown of ${snapshots.length}</div>
+              </div>
+              <div class="undo-filters">
+                <label><input type="checkbox" ${undoShowAllSnapshotTypes ? 'checked' : ''} onchange="setUndoFilter('allTypes', this.checked)"> Show all snapshot types</label>
+                <label><input type="checkbox" ${undoShowRestored ? 'checked' : ''} onchange="setUndoFilter('restored', this.checked)"> Show restored history</label>
+              </div>
+            </div>
+            <div class="empty-state">
+              <div class="icon">&#x1f50d;</div>
+              <div>No snapshots match current filters.</div>
+              <div style="margin-top:8px;font-size:13px;">Try enabling “Show all snapshot types” and/or “Show restored history”.</div>
+            </div>
+          </div>`;
+        return;
+      }
 
       container.innerHTML = `
         <div class="undo-panel">
           <div class="undo-header">
             <div>
               <strong>Snapshots</strong>
-              <div style="margin-top:4px;">${restorable.length} restorable &bull; ${snapshots.length - restorable.length} restored</div>
+              <div style="margin-top:4px;">${restorable.length} restorable shown &bull; ${filtered.length} shown / ${snapshots.length} total</div>
+              <div style="margin-top:4px;">${undoShowAllSnapshotTypes ? hiddenByType + ' new-file deletion rows visible' : hiddenByType + ' new-file deletion rows hidden'} &bull; ${undoShowRestored ? hiddenByRestored + ' restored rows visible' : hiddenByRestored + ' restored rows hidden'}</div>
             </div>
             <div class="undo-bulk-controls">
               <select id="undo-since-select" class="undo-select" ${restorable.length === 0 ? 'disabled' : ''}>
                 ${restorePoints}
               </select>
               <button class="undo-btn" ${restorable.length === 0 ? 'disabled' : ''} onclick="undoSinceSelected()">Restore all since selected</button>
+              <div class="undo-filters">
+                <label><input type="checkbox" ${undoShowAllSnapshotTypes ? 'checked' : ''} onchange="setUndoFilter('allTypes', this.checked)"> Show all snapshot types</label>
+                <label><input type="checkbox" ${undoShowRestored ? 'checked' : ''} onchange="setUndoFilter('restored', this.checked)"> Show restored history</label>
+              </div>
             </div>
           </div>
           <div class="undo-list">
-            ${snapshots.map(s => {
+            ${filtered.map(s => {
               const restored = isRestoredSnapshot(s);
               const action = snapshotRestoreAction(s);
+              const destructive = action.startsWith('Delete');
               const restoredAt = restored && s.rolled_back_at ? ` &bull; restored ${formatSnapshotTimestamp(s.rolled_back_at)}` : '';
               return `
                 <div class="undo-row ${restored ? 'restored' : ''}">
@@ -1538,7 +1627,7 @@
                       ${restoredAt}
                     </div>
                   </div>
-                  <button class="undo-btn" ${restored ? 'disabled' : ''} onclick="undoEventFromSnapshot('${s.event_id}')">${restored ? 'Restored' : 'Restore'}</button>
+                  <button class="undo-btn ${destructive ? 'danger' : ''}" ${restored ? 'disabled' : ''} onclick="undoEventFromSnapshot('${s.event_id}')">${restored ? 'Restored' : (destructive ? 'Delete' : 'Restore')}</button>
                 </div>`;
             }).join('')}
           </div>
