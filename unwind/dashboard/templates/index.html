@@ -291,6 +291,7 @@
     .badge.amber { background: var(--amber-bg); color: var(--amber); }
     .badge.red { background: var(--red-bg); color: var(--red); }
     .badge.ghost { background: rgba(137,87,229,0.15); color: var(--ghost); }
+    .badge.info { background: var(--info-bg); color: var(--blue); }
 
     .event-actions {
       display: flex;
@@ -697,7 +698,7 @@
         <span id="cadence-label">Active</span>
       </span>
       <span id="chain-badge" class="badge green" style="font-size:11px;cursor:pointer;" onclick="verifyChain()" title="Click to verify">&#x1f512; Chain OK</span>
-      <span id="poll-indicator" style="font-size:10px;color:var(--text-dim);">&#x25cf; Live</span>
+      <span id="poll-indicator" style="font-size:10px;color:var(--text-dim);" title="Dashboard polling is expected: your browser requests /api/trust-state, /api/events, /api/cadence-state, and /api/system-health on a timer.">&#x25cf; Live</span>
     </div>
   </div>
 
@@ -1113,7 +1114,7 @@
         warnings.push('Sidecar watchdog is stale. The adapter may have stopped sending policy checks.');
       }
       if (es.stale) {
-        warnings.push('The sidecar has active sessions but no events are being recorded. Check the gateway connection.');
+        warnings.push('No new events have been recorded for over 5 minutes while sessions are active. This can indicate gateway/adapter drift; if you are idle, run one test action to confirm.');
       }
       if (!ch.verified && ch.error) {
         warnings.push('CRAFT chain integrity check failed: ' + ch.error + '. Investigate immediately.');
@@ -1158,6 +1159,14 @@
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  function classifySession(sessionId) {
+    if (!sessionId) return { short: 'unknown', long: 'Unknown session source' };
+    if (sessionId === 'agent:main:main') return { short: 'this-session', long: 'Current chat session (agent:main:main)' };
+    if (sessionId.includes(':cron:')) return { short: 'scheduled', long: `Scheduled run (${sessionId})` };
+    if (sessionId.startsWith('agent:')) return { short: 'agent', long: `Agent session (${sessionId})` };
+    return { short: 'other', long: `Session: ${sessionId}` };
+  }
+
   function renderEvent(event) {
     const icon = TOOL_ICONS[event.tool] || '&#x2022;';
     const statusIcon = STATUS_ICONS[event.status] || '';
@@ -1171,6 +1180,8 @@
     if (event.trust_state === 'red') badges.push('<span class="badge red">red</span>');
     if (event.ghost_mode) badges.push('<span class="badge ghost">ghost</span>');
     if (event.status === 'blocked') badges.push('<span class="badge red">blocked</span>');
+    const source = classifySession(event.session_id);
+    badges.push(`<span class="badge info" title="${escapeHtml(source.long)}">${escapeHtml(source.short)}</span>`);
 
     const hasSnapshot = !!event.has_snapshot;
     const rolledBack = !!event.rolled_back;
@@ -1274,7 +1285,8 @@
         <div class="edp-section">
           <div class="edp-label">Metadata</div>
           <div class="edp-meta">
-            <div>Session: ${escapeHtml((ev.session_id || '').substring(0, 12))}...</div>
+            <div>Source: ${escapeHtml(classifySession(ev.session_id).long)}</div>
+            <div>Session ID: ${escapeHtml(ev.session_id || 'n/a')}</div>
             <div>Tool class: ${escapeHtml(ev.tool_class)}</div>
             <div>Duration: ${ev.duration_ms != null ? ev.duration_ms.toFixed(0) + 'ms' : 'n/a'}</div>
             <div>Chain: ${escapeHtml((ev.chain_hash || '').substring(0, 16))}...</div>
