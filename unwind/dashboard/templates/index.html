@@ -172,6 +172,14 @@
 
     .trust-info h2 { font-size: 20px; font-weight: 600; }
     .trust-info .subtitle { color: var(--text-dim); font-size: 13px; }
+    .trust-guidance {
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      max-width: 620px;
+    }
+    .trust-guidance.amber { color: var(--amber); }
+    .trust-guidance.red { color: var(--red); }
     .trust-stats {
       margin-left: auto;
       display: flex;
@@ -300,6 +308,49 @@
       transition: all 0.15s;
     }
     .undo-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--blue); }
+
+    .undo-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .undo-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      color: var(--text-dim);
+      font-size: 12px;
+    }
+    .undo-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .undo-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      background: var(--surface-2);
+    }
+    .undo-path {
+      font-size: 13px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 560px;
+    }
+    .undo-meta {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
 
     .status-icon { font-size: 14px; min-width: 20px; text-align: center; }
 
@@ -630,6 +681,7 @@
     <div class="trust-info">
       <h2 id="trust-label">All Clear</h2>
       <div class="subtitle" id="trust-subtitle">Loading...</div>
+      <div id="trust-guidance" class="trust-guidance hidden"></div>
     </div>
     <div class="trust-stats">
       <div class="stat">
@@ -686,6 +738,7 @@
     <div class="tab" data-tab="ghost" onclick="switchTab('ghost')">Ghost Mode</div>
     <div class="tab" data-tab="away" onclick="switchTab('away')">Away Mode</div>
     <div class="tab" data-tab="verify" onclick="switchTab('verify')">Chain Verify</div>
+    <div class="tab" data-tab="undo" onclick="switchTab('undo')">Undo</div>
     <div class="tab" data-tab="about" onclick="switchTab('about')">What Is This?</div>
   </div>
 
@@ -750,6 +803,11 @@
         <div id="verify-breaks" class="verify-breaks hidden"></div>
         <button class="undo-btn" style="margin-top:16px;padding:8px 20px;font-size:13px;" onclick="verifyChain()">Verify Now</button>
       </div>
+    </div>
+
+    <!-- Undo -->
+    <div id="panel-undo" class="hidden">
+      <div id="undo-container" class="loading">Loading restorable snapshots...</div>
     </div>
 
     <!-- About -->
@@ -868,8 +926,21 @@
       const label = document.getElementById('trust-label');
       const subtitle = document.getElementById('trust-subtitle');
 
-      orb.className = 'trust-orb ' + (data.orb_state || data.trust_state);
-      label.textContent = TRUST_LABELS[data.orb_state || data.trust_state] || (data.orb_state || data.trust_state);
+      const orbState = data.orb_state || data.trust_state;
+      orb.className = 'trust-orb ' + orbState;
+      label.textContent = TRUST_LABELS[orbState] || orbState;
+
+      const guidance = document.getElementById('trust-guidance');
+      if (orbState === 'amber') {
+        guidance.textContent = "Your agent has ingested external content. High-risk actions are flagged for review. Check the Timeline — if tool calls don't match what you asked for, end the session.";
+        guidance.className = 'trust-guidance amber';
+      } else if (orbState === 'red') {
+        guidance.textContent = 'Something was blocked. Check the red events in the Timeline. In most cases no action is needed — the block already happened. If you see disable_security_audit, end the session immediately.';
+        guidance.className = 'trust-guidance red';
+      } else {
+        guidance.textContent = '';
+        guidance.className = 'trust-guidance hidden';
+      }
 
       const h = data.last_hour;
       let subtitleText =
@@ -1334,6 +1405,57 @@
   }
 
   // ─── Undo ─────────────────────────────────────
+  function formatSnapshotTimestamp(ts) {
+    if (!ts) return 'Unknown time';
+    const d = new Date(ts * 1000);
+    return d.toLocaleString([], {
+      year: 'numeric', month: 'short', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+  }
+
+  async function refreshUndoSnapshots() {
+    const container = document.getElementById('undo-container');
+    try {
+      const data = await api('/api/snapshots?limit=200');
+      const snapshots = data.snapshots || [];
+      container.classList.remove('loading');
+
+      if (snapshots.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon">&#x21a9;&#xfe0f;</div>
+            <div>No restorable snapshots found.</div>
+            <div style="margin-top:8px;font-size:13px;">Snapshots appear here when UNWIND captures pre-change backups.</div>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="undo-panel">
+          <div class="undo-header">
+            <strong>Restorable snapshots</strong>
+            <span>${snapshots.length} available</span>
+          </div>
+          <div class="undo-list">
+            ${snapshots.map(s => `
+              <div class="undo-row">
+                <div style="min-width:0;flex:1;">
+                  <div class="undo-path" title="${escapeHtml(s.original_path || '')}">${escapeHtml(s.original_path || '(unknown path)')}</div>
+                  <div class="undo-meta">${formatSnapshotTimestamp(s.timestamp)} &bull; event ${escapeHtml((s.event_id || '').slice(0, 12))}</div>
+                </div>
+                <button class="undo-btn" onclick="undoEvent('${s.event_id}')">Restore</button>
+              </div>
+            `).join('')}
+          </div>
+        </div>`;
+    } catch (e) {
+      container.classList.remove('loading');
+      container.innerHTML = '<div class="empty-state" style="color:var(--red);">Failed to load snapshots</div>';
+      console.error('Snapshots fetch failed:', e);
+    }
+  }
+
   async function undoEvent(eventId) {
     if (!confirm(`Undo event ${eventId}?`)) return;
     try {
@@ -1341,6 +1463,7 @@
       if (result.status === 'success') {
         alert(`Restored: ${result.message}`);
         refreshTimeline();
+        refreshUndoSnapshots();
       } else {
         alert(`Undo failed: ${result.message}`);
       }
@@ -1599,11 +1722,13 @@
     document.getElementById('panel-ghost').classList.toggle('hidden', tab !== 'ghost');
     document.getElementById('panel-away').classList.toggle('hidden', tab !== 'away');
     document.getElementById('panel-verify').classList.toggle('hidden', tab !== 'verify');
+    document.getElementById('panel-undo').classList.toggle('hidden', tab !== 'undo');
     document.getElementById('panel-about').classList.toggle('hidden', tab !== 'about');
 
     if (tab === 'ghost') { startGhostPolling(); } else { stopGhostPolling(); }
     if (tab === 'away') refreshAway();
     if (tab === 'verify') verifyChain();
+    if (tab === 'undo') refreshUndoSnapshots();
   }
 
   // ─── Polling ──────────────────────────────────
