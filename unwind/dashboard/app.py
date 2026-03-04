@@ -13,6 +13,7 @@ import time
 import urllib.request
 import urllib.error
 from pathlib import Path
+from typing import Optional
 
 from flask import Flask, jsonify, render_template, request
 
@@ -38,6 +39,147 @@ from ..sidecar.health_schema import (
 
 _HEALTH_SIGNING_KEY = derive_health_signing_key(SIDECAR_SECRET) if SIDECAR_SECRET else None
 _HEALTH_SEQ_TRACKER = SequenceTracker()
+
+
+def _cron_jobs_path() -> Path:
+    """Return the OpenClaw cron jobs registry path used for dashboard labels."""
+    explicit = os.environ.get("UNWIND_DASHBOARD_CRON_JOBS_PATH") or os.environ.get("OPENCLAW_CRON_JOBS_PATH")
+    if explicit:
+        return Path(explicit).expanduser()
+    return Path.home() / ".openclaw" / "cron" / "jobs.json"
+
+
+def _load_scheduled_task_labels() -> dict[str, str]:
+    """Load cron job id->name mapping.
+
+    Returns an empty mapping if the registry is missing or malformed.
+    """
+    jobs_path = _cron_jobs_path()
+    try:
+        raw = json.loads(jobs_path.read_text())
+    except Exception:
+        return {}
+
+    jobs = raw.get("jobs") if isinstance(raw, dict) else None
+    if not isinstance(jobs, list):
+        return {}
+
+    labels: dict[str, str] = {}
+    for job in jobs:
+        if not isinstance(job, dict):
+            continue
+        jid = str(job.get("id") or "").strip()
+        if not jid:
+            continue
+        name = str(job.get("name") or "").strip()
+        labels[jid] = name or jid
+    return labels
+
+
+def _truncate_label(text: str, max_len: int = 24) -> str:
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1] + "…"
+
+
+def _classify_session_source(session_id: Optional[str], scheduled_labels: dict[str, str]) -> dict:
+    """Classify session source for dashboard badges and metadata."""
+    if not session_id:
+        return {
+            "kind": "unknown",
+            "short": "unknown",
+            "long": "Unknown session source",
+            "scheduled_job_id": None,
+            "scheduled_job_name": None,
+        }
+
+    if session_id == "agent:main:main":
+        return {
+            "kind": "interactive",
+            "short": "this-session",
+            "long": "Current chat session (agent:main:main)",
+            "scheduled_job_id": None,
+            "scheduled_job_name": None,
+        }
+
+    if ":cron:" in session_id:
+        job_id = session_id.rsplit(":cron:", 1)[-1]
+        job_name = scheduled_labels.get(job_id)
+        if job_name:
+            return {
+                "kind": "scheduled",
+                "short": _truncate_label(job_name),
+                "long": f"Scheduled task: {job_name} ({job_id})",
+                "scheduled_job_id": job_id,
+                "scheduled_job_name": job_name,
+            }
+        return {
+            "kind": "scheduled",
+            "short": "scheduled",
+            "long": f"Scheduled run ({session_id})",
+            "scheduled_job_id": job_id,
+            "scheduled_job_name": None,
+        }
+
+    if ":subagent:" in session_id:
+        return {
+            "kind": "subagent",
+            "short": "subagent",
+            "long": f"Sub-agent session ({session_id})",
+            "scheduled_job_id": None,
+            "scheduled_job_name": None,
+        }
+
+    if session_id.startswith("agent:"):
+        return {
+            "kind": "agent",
+            "short": "agent",
+            "long": f"Agent session ({session_id})",
+            "scheduled_job_id": None,
+            "scheduled_job_name": None,
+        }
+
+    if session_id.startswith("sentinel:"):
+        return {
+            "kind": "scheduled",
+            "short": _truncate_label(session_id),
+            "long": f"Scheduled task ({session_id})",
+            "scheduled_job_id": None,
+            "scheduled_job_name": session_id,
+        }
+
+    return {
+        "kind": "other",
+        "short": "other",
+        "long": f"Session: {session_id}",
+        "scheduled_job_id": None,
+        "scheduled_job_name": None,
+    }
+
+
+def _approval_required(event: dict) -> bool:
+    """Best-effort detector for human approval challenges."""
+    summary = str(event.get("result_summary") or "").upper()
+    status = str(event.get("status") or "").lower()
+    trust = str(event.get("trust_state") or "").lower()
+
+    if summary.startswith("AMBER:"):
+        return True
+    if "CHALLENGE_REQUIRED" in summary or "REQUIRES APPROVAL" in summary:
+        return True
+    return status == "blocked" and trust == "amber"
+
+
+def _enrich_event(event: dict, scheduled_labels: dict[str, str]) -> dict:
+    """Attach dashboard UX metadata to an event row."""
+    source = _classify_session_source(event.get("session_id"), scheduled_labels)
+    event["session_source"] = source["kind"]
+    event["session_source_short"] = source["short"]
+    event["session_source_long"] = source["long"]
+    event["scheduled_job_id"] = source["scheduled_job_id"]
+    event["scheduled_job_name"] = source["scheduled_job_name"]
+    event["approval_required"] = _approval_required(event)
+    return event
 
 
 def _proxy_sidecar(method, path, params=None, body=None):
@@ -94,6 +236,7 @@ def create_app(config: UnwindConfig = None) -> Flask:
     store = EventStore(config.events_db_path)
     store.initialize()
     rollback_engine = RollbackEngine(config)
+    scheduled_labels = _load_scheduled_task_labels()
 
     # ─── Pages ───────────────────────────────────────────────
 
@@ -233,6 +376,7 @@ def create_app(config: UnwindConfig = None) -> Flask:
             ev["rolled_back"] = bool(snap and snap.get("rolled_back"))
             ev["snapshot_type"] = snap.get("snapshot_type") if snap else None
             ev["snapshot_restorable"] = bool(snap.get("restorable")) if snap else False
+            _enrich_event(ev, scheduled_labels)
 
         return jsonify({
             "events": events,
@@ -248,6 +392,7 @@ def create_app(config: UnwindConfig = None) -> Flask:
         if not event:
             return jsonify({"error": "Event not found"}), 404
 
+        _enrich_event(event, scheduled_labels)
         snapshot = store.get_snapshot_for_event(event_id)
 
         explanation = None

@@ -259,6 +259,7 @@
     .timeline-event:hover { background: var(--surface-2); }
     .timeline-event.ghost { opacity: 0.7; border-left: 3px solid var(--ghost); }
     .timeline-event.blocked { border-left: 3px solid var(--red); }
+    .timeline-event.approval { border-left: 3px solid var(--amber); }
     .timeline-event.tainted { border-left: 3px solid var(--amber); }
 
     .event-time {
@@ -291,6 +292,7 @@
     .badge.amber { background: var(--amber-bg); color: var(--amber); }
     .badge.red { background: var(--red-bg); color: var(--red); }
     .badge.ghost { background: rgba(137,87,229,0.15); color: var(--ghost); }
+    .badge.approval { background: var(--amber-bg); color: var(--amber); }
     .badge.info { background: var(--info-bg); color: var(--blue); }
 
     .event-actions {
@@ -1159,20 +1161,35 @@
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  function classifySession(sessionId) {
+  function classifySession(sessionId, event = null) {
+    if (event && event.session_source_short && event.session_source_long) {
+      return { short: event.session_source_short, long: event.session_source_long };
+    }
     if (!sessionId) return { short: 'unknown', long: 'Unknown session source' };
     if (sessionId === 'agent:main:main') return { short: 'this-session', long: 'Current chat session (agent:main:main)' };
     if (sessionId.includes(':cron:')) return { short: 'scheduled', long: `Scheduled run (${sessionId})` };
+    if (sessionId.includes(':subagent:')) return { short: 'subagent', long: `Sub-agent session (${sessionId})` };
+    if (sessionId.startsWith('sentinel:')) return { short: sessionId.length > 24 ? sessionId.slice(0, 23) + '…' : sessionId, long: `Scheduled task (${sessionId})` };
     if (sessionId.startsWith('agent:')) return { short: 'agent', long: `Agent session (${sessionId})` };
     return { short: 'other', long: `Session: ${sessionId}` };
+  }
+
+  function eventNeedsApproval(event) {
+    if (!event) return false;
+    if (event.approval_required === true) return true;
+    const summary = String(event.result_summary || '').toUpperCase();
+    if (summary.startsWith('AMBER:')) return true;
+    return event.status === 'blocked' && event.trust_state === 'amber';
   }
 
   function renderEvent(event) {
     const icon = TOOL_ICONS[event.tool] || '&#x2022;';
     const statusIcon = STATUS_ICONS[event.status] || '';
     const classes = ['timeline-event'];
+    const needsApproval = eventNeedsApproval(event);
     if (event.ghost_mode) classes.push('ghost');
     if (event.status === 'blocked' || event.trust_state === 'red') classes.push('blocked');
+    if (needsApproval) classes.push('approval');
     if (event.session_tainted) classes.push('tainted');
 
     const badges = [];
@@ -1180,7 +1197,8 @@
     if (event.trust_state === 'red') badges.push('<span class="badge red">red</span>');
     if (event.ghost_mode) badges.push('<span class="badge ghost">ghost</span>');
     if (event.status === 'blocked') badges.push('<span class="badge red">blocked</span>');
-    const source = classifySession(event.session_id);
+    if (needsApproval) badges.push('<span class="badge approval" title="Action paused pending human review">approval</span>');
+    const source = classifySession(event.session_id, event);
     badges.push(`<span class="badge info" title="${escapeHtml(source.long)}">${escapeHtml(source.short)}</span>`);
 
     const hasSnapshot = !!event.has_snapshot;
@@ -1249,6 +1267,15 @@
           </div>`;
       }
 
+      const needsApproval = eventNeedsApproval(ev);
+      const approvalContext = ev.scheduled_job_name || ev.scheduled_job_id || null;
+      const approvalDetail = approvalContext
+        ? `This action came from scheduled task <strong>${escapeHtml(approvalContext)}</strong> and is paused pending review.`
+        : 'This action is paused pending human review.';
+      const approvalHtml = needsApproval
+        ? `<div class="edp-section"><div class="edp-label">Approval required</div><div class="edp-explanation severity-warning"><div style="font-weight:600;">Human approval needed before execution</div><div style="margin-top:4px;color:var(--text-dim);">${approvalDetail}</div><div style="margin-top:6px;color:var(--blue);font-size:12px;">Approve or deny from the controlling session. If this keeps recurring, adjust the scheduled task or policy.</div></div></div>`
+        : '';
+
       let snapshotHtml = '';
       if (snapshot) {
         const action = snapshotRestoreAction(snapshot);
@@ -1280,12 +1307,13 @@
             <div class="edp-label">What happened</div>
             <div>${escapeHtml(ev.result_summary)}</div>
           </div>` : ''}
+        ${approvalHtml}
         ${snapshotHtml}
         ${explanationHtml}
         <div class="edp-section">
           <div class="edp-label">Metadata</div>
           <div class="edp-meta">
-            <div>Source: ${escapeHtml(classifySession(ev.session_id).long)}</div>
+            <div>Source: ${escapeHtml(classifySession(ev.session_id, ev).long)}</div>
             <div>Session ID: ${escapeHtml(ev.session_id || 'n/a')}</div>
             <div>Tool class: ${escapeHtml(ev.tool_class)}</div>
             <div>Duration: ${ev.duration_ms != null ? ev.duration_ms.toFixed(0) + 'ms' : 'n/a'}</div>
