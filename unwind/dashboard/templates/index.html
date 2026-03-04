@@ -73,6 +73,61 @@
     }
     .cadence-dot.anomaly { background: var(--amber); }
 
+    /* ─── Integrity Bar ───────────────────────── */
+    .integrity-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 24px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .integrity-pills {
+      display: flex;
+      gap: 8px;
+      flex: 1;
+    }
+    .integrity-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+    .integrity-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .integrity-dot.green { background: var(--green); }
+    .integrity-dot.amber { background: var(--amber); }
+    .integrity-dot.red { background: var(--red); }
+    .integrity-ts {
+      color: var(--text-dim);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+    .integrity-warning {
+      padding: 6px 24px;
+      font-size: 12px;
+      border-bottom: 1px solid var(--border);
+      line-height: 1.4;
+    }
+    .integrity-warning.warn-amber {
+      background: var(--amber-bg);
+      color: var(--amber);
+    }
+    .integrity-warning.warn-red {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
     /* ─── Ghost Banner ─────────────────────────── */
     .ghost-banner {
       background: rgba(137,87,229,0.12);
@@ -596,6 +651,26 @@
     </div>
   </div>
 
+  <!-- System Integrity Bar -->
+  <div id="integrity-bar" class="integrity-bar">
+    <div class="integrity-pills">
+      <span class="integrity-pill" id="pill-sidecar">
+        <span class="integrity-dot" id="dot-sidecar"></span>
+        <span id="label-sidecar">Sidecar: Checking...</span>
+      </span>
+      <span class="integrity-pill" id="pill-pipeline">
+        <span class="integrity-dot" id="dot-pipeline"></span>
+        <span id="label-pipeline">Pipeline: Checking...</span>
+      </span>
+      <span class="integrity-pill" id="pill-chain">
+        <span class="integrity-dot" id="dot-chain"></span>
+        <span id="label-chain">Chain: Checking...</span>
+      </span>
+    </div>
+    <span class="integrity-ts" id="integrity-ts"></span>
+  </div>
+  <div id="integrity-warning" class="integrity-warning hidden"></div>
+
   <!-- Contextual Explanation Panel -->
   <div id="explanation-panel" class="explanation-panel hidden">
     <div>
@@ -658,7 +733,7 @@
           <div id="ghost-egress-sub"></div>
           <div id="ghost-egress-list"></div>
         </div>
-        <div class="ghost-footer">This is a Ghost Mode view. Zero changes were made to your system.</div>
+        <div id="ghost-footer" class="ghost-footer">When Ghost Mode is active, all writes are intercepted. Nothing reaches your real system.</div>
       </div>
     </div>
 
@@ -793,8 +868,8 @@
       const label = document.getElementById('trust-label');
       const subtitle = document.getElementById('trust-subtitle');
 
-      orb.className = 'trust-orb ' + data.trust_state;
-      label.textContent = TRUST_LABELS[data.trust_state] || data.trust_state;
+      orb.className = 'trust-orb ' + (data.orb_state || data.trust_state);
+      label.textContent = TRUST_LABELS[data.orb_state || data.trust_state] || (data.orb_state || data.trust_state);
 
       const h = data.last_hour;
       let subtitleText =
@@ -854,6 +929,99 @@
       dot.classList.toggle('anomaly', data.anomaly_score > 0.5);
     } catch (e) {
       document.getElementById('cadence-pill').classList.add('hidden');
+    }
+  }
+
+  // ─── System Integrity Bar ────────────────────
+  function setIntegrityPill(id, color, label) {
+    const dot = document.getElementById('dot-' + id);
+    const lbl = document.getElementById('label-' + id);
+    dot.className = 'integrity-dot ' + color;
+    lbl.textContent = label;
+  }
+
+  function formatAge(seconds) {
+    if (seconds == null) return 'n/a';
+    if (seconds < 60) return Math.round(seconds) + 's';
+    if (seconds < 3600) return Math.round(seconds / 60) + 'm';
+    return Math.round(seconds / 3600) + 'h';
+  }
+
+  async function refreshIntegrity() {
+    const warningDiv = document.getElementById('integrity-warning');
+    const tsSpan = document.getElementById('integrity-ts');
+
+    try {
+      const res = await fetch('/api/system-health');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+
+      // --- Sidecar pill ---
+      const sc = data.sidecar;
+      if (!sc.connected) {
+        setIntegrityPill('sidecar', 'red', 'Sidecar: Unreachable');
+      } else if (sc.watchdog_stale) {
+        setIntegrityPill('sidecar', 'amber', 'Sidecar: Watchdog Stale');
+      } else if (sc.status === 'degraded') {
+        setIntegrityPill('sidecar', 'amber', 'Sidecar: Degraded');
+      } else {
+        setIntegrityPill('sidecar', 'green', 'Sidecar: Connected');
+      }
+
+      // --- Pipeline pill ---
+      const es = data.event_store;
+      if (!es.connected) {
+        setIntegrityPill('pipeline', 'red', 'Pipeline: DB Error');
+      } else if (es.stale) {
+        setIntegrityPill('pipeline', 'amber', 'Pipeline: No events for ' + formatAge(es.last_event_age));
+      } else {
+        const calls = sc.tool_calls_processed != null ? sc.tool_calls_processed : es.total_events;
+        setIntegrityPill('pipeline', 'green', 'Pipeline: ' + calls + ' calls');
+      }
+
+      // --- Chain pill ---
+      const ch = data.craft_chain;
+      if (ch.verified) {
+        setIntegrityPill('chain', 'green', 'Chain: Verified');
+      } else {
+        setIntegrityPill('chain', 'red', 'Chain: Tamper Detected');
+      }
+
+      // --- Warning text ---
+      const warnings = [];
+      if (!sc.connected) {
+        warnings.push('Dashboard cannot reach the sidecar. Agent actions are not being monitored. Events shown may be stale.');
+      }
+      if (sc.watchdog_stale) {
+        warnings.push('Sidecar watchdog is stale. The adapter may have stopped sending policy checks.');
+      }
+      if (es.stale) {
+        warnings.push('The sidecar has active sessions but no events are being recorded. Check the gateway connection.');
+      }
+      if (!ch.verified && ch.error) {
+        warnings.push('CRAFT chain integrity check failed: ' + ch.error + '. Investigate immediately.');
+      }
+
+      if (warnings.length > 0) {
+        warningDiv.textContent = warnings.join(' ');
+        warningDiv.className = 'integrity-warning ' + (data.overall === 'disconnected' ? 'warn-red' : 'warn-amber');
+        warningDiv.classList.remove('hidden');
+      } else {
+        warningDiv.classList.add('hidden');
+      }
+
+      // --- Timestamp ---
+      tsSpan.textContent = 'Checked: just now';
+
+    } catch (e) {
+      // Dashboard can't reach its own backend
+      setIntegrityPill('sidecar', 'red', 'Sidecar: Unknown');
+      setIntegrityPill('pipeline', 'red', 'Pipeline: Unknown');
+      setIntegrityPill('chain', 'red', 'Chain: Unknown');
+      warningDiv.textContent = 'Dashboard polling failed. Connection to backend lost.';
+      warningDiv.className = 'integrity-warning warn-red';
+      warningDiv.classList.remove('hidden');
+      tsSpan.textContent = 'Check failed';
     }
   }
 
@@ -982,6 +1150,7 @@
     try {
       const data = await api('/api/events?limit=100');
       const container = document.getElementById('timeline-container');
+      container.classList.remove('loading');
 
       if (data.events.length === 0) {
         container.innerHTML = `
@@ -1061,6 +1230,7 @@
           ` : ''}
         </div>
       `;
+      container.classList.remove('loading');
     } catch (e) {
       console.error('Away summary fetch failed:', e);
     }
@@ -1182,6 +1352,7 @@
   // ─── Ghost Mode ─────────────────────────────
   let ghostState = { active: false, filesBuffered: 0, paths: [], totalSize: 0, lifecycle: 'off' };
   let ghostSelectedSession = '';
+  let ghostHasHistory = false;
   let ghostPollTimer = null;
   let ghostEventsPollTimer = null;
 
@@ -1241,7 +1412,7 @@
         document.getElementById('ghost-files-list').innerHTML = buffered > 0
           ? paths.map(p => `<div class="ghost-file-row"><span class="ghost-file-icon">&#x1f4c4;</span><span class="ghost-file-path">${escapeHtml(p)}</span></div>`).join('')
           : '<div style="color:var(--text-dim);font-size:13px;">No files buffered yet. Your agent\'s writes will appear here.</div>';
-      } else if (ghostState.lifecycle === 'running' || buffered > 0) {
+      } else if (ghostState.lifecycle === 'running' || buffered > 0 || ghostHasHistory) {
         card.className = 'ghost-status-card ended';
         ghostState.lifecycle = 'ended';
         updateGhostLifecycle('ended');
@@ -1271,7 +1442,27 @@
     try {
       const data = await api('/api/ghost/events?limit=200');
       const events = data.events || [];
+      ghostHasHistory = events.length > 0;
+
       const summaryCard = document.getElementById('ghost-summary-card');
+      const timelineSection = document.getElementById('ghost-timeline-section');
+      const egressCard = document.getElementById('ghost-egress-card');
+      const footer = document.getElementById('ghost-footer');
+
+      if (!ghostState.active && !ghostSelectedSession) {
+        summaryCard.classList.add('hidden');
+        timelineSection.classList.add('hidden');
+        egressCard.classList.add('hidden');
+
+        if (events.length > 0 && ghostState.lifecycle === 'off') {
+          ghostState.lifecycle = 'ended';
+          updateGhostLifecycle('ended');
+        }
+
+        const neverRun = !ghostState.active && events.length === 0 && ghostState.filesBuffered === 0;
+        footer.classList.toggle('hidden', neverRun);
+        return;
+      }
       if (events.length > 0 && data.summary) {
         summaryCard.classList.remove('hidden');
         const summaryHtml = escapeHtml(data.summary).replace(/(\d+ \w+)/g, '<strong>$1</strong>');
@@ -1285,7 +1476,6 @@
         }
       } else { summaryCard.classList.add('hidden'); }
 
-      const timelineSection = document.getElementById('ghost-timeline-section');
       const timelineRows = document.getElementById('ghost-timeline-rows');
       if (events.length > 0) {
         timelineSection.classList.remove('hidden');
@@ -1314,7 +1504,6 @@
         }).join('');
       } else { timelineSection.classList.add('hidden'); }
 
-      const egressCard = document.getElementById('ghost-egress-card');
       const networkEvents = events.filter(ev => (ev.tool || '').match(/fetch_web|search_web|http_post|api_call/) || (ev.result_summary || '').includes('GHOST_MODE_NETWORK_BLOCKED'));
       if (networkEvents.length > 0) {
         egressCard.classList.remove('hidden');
@@ -1323,6 +1512,14 @@
           `<div class="ghost-egress-row"><span>${TOOL_ICONS[ev.tool] || '&#x1f310;'}</span><span>${escapeHtml(ev.tool)}</span><span>&rarr;</span><span style="color:var(--text);">${escapeHtml(truncTarget(ev.target || '', 50))}</span><span class="badge ${ev.status === 'blocked' ? 'red' : 'ghost'}" style="margin-left:auto;">${ev.status === 'blocked' ? 'blocked' : 'simulated'}</span></div>`
         ).join('');
       } else { egressCard.classList.add('hidden'); }
+
+      if (!ghostState.active && events.length > 0 && ghostState.lifecycle === 'off') {
+        ghostState.lifecycle = 'ended';
+        updateGhostLifecycle('ended');
+      }
+
+      const neverRun = !ghostState.active && events.length === 0 && ghostState.filesBuffered === 0;
+      footer.classList.toggle('hidden', neverRun);
     } catch (e) { console.error('Ghost events fetch failed:', e); }
   }
 
@@ -1414,10 +1611,12 @@
     refreshTrustState();
     refreshTimeline();
     refreshCadence();
+    refreshIntegrity();
     pollTimer = setInterval(() => {
       refreshTrustState();
       refreshTimeline();
       refreshCadence();
+      refreshIntegrity();
     }, POLL_INTERVAL);
   }
 
