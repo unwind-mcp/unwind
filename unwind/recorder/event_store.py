@@ -479,6 +479,21 @@ class EventStore:
         ).fetchone()
         return dict(row) if row else None
 
+    def get_snapshots_for_events(self, event_ids: list[str]) -> dict[str, dict]:
+        """Get snapshot rows for a list of event IDs.
+
+        Returns a mapping of event_id -> snapshot row dict.
+        """
+        if not event_ids:
+            return {}
+
+        placeholders = ",".join("?" for _ in event_ids)
+        rows = self._conn.execute(
+            f"SELECT * FROM snapshots WHERE event_id IN ({placeholders})",
+            event_ids,
+        ).fetchall()
+        return {row["event_id"]: dict(row) for row in rows}
+
     def get_restorable_snapshots(
         self,
         session_id: Optional[str] = None,

@@ -223,6 +223,17 @@ def create_app(config: UnwindConfig = None) -> Flask:
             limit=min(limit, 500),
         )
 
+        # Enrich timeline rows with snapshot availability/status so the
+        # frontend can render consistent rewind/restored indicators.
+        event_ids = [e.get("event_id") for e in events if e.get("event_id")]
+        snap_by_event = store.get_snapshots_for_events(event_ids)
+        for ev in events:
+            snap = snap_by_event.get(ev.get("event_id"))
+            ev["has_snapshot"] = bool(snap and snap.get("restorable"))
+            ev["rolled_back"] = bool(snap and snap.get("rolled_back"))
+            ev["snapshot_type"] = snap.get("snapshot_type") if snap else None
+            ev["snapshot_restorable"] = bool(snap.get("restorable")) if snap else False
+
         return jsonify({
             "events": events,
             "count": len(events),
