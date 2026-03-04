@@ -308,6 +308,12 @@
       transition: all 0.15s;
     }
     .undo-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--blue); }
+    .undo-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      border-color: var(--border);
+      color: var(--text-dim);
+    }
 
     .undo-panel {
       background: var(--surface);
@@ -318,9 +324,27 @@
     .undo-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
+      gap: 12px;
       margin-bottom: 12px;
       color: var(--text-dim);
+      font-size: 12px;
+    }
+    .undo-bulk-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .undo-select {
+      min-width: 320px;
+      max-width: 520px;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
       font-size: 12px;
     }
     .undo-list {
@@ -337,6 +361,10 @@
       border-radius: 6px;
       padding: 10px 12px;
       background: var(--surface-2);
+    }
+    .undo-row.restored {
+      opacity: 0.75;
+      border-style: dashed;
     }
     .undo-path {
       font-size: 13px;
@@ -1405,6 +1433,8 @@
   }
 
   // ─── Undo ─────────────────────────────────────
+  let undoSnapshotsCache = [];
+
   function formatSnapshotTimestamp(ts) {
     if (!ts) return 'Unknown time';
     const d = new Date(ts * 1000);
@@ -1414,39 +1444,103 @@
     });
   }
 
+  function parseSnapshotMeta(snapshot) {
+    try {
+      return snapshot && snapshot.metadata ? JSON.parse(snapshot.metadata) : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function isRestoredSnapshot(snapshot) {
+    return Number(snapshot.rolled_back || 0) === 1;
+  }
+
+  function snapshotTypeLabel(snapshot) {
+    const t = (snapshot.snapshot_type || '').toLowerCase();
+    if (t === 'file_copy') return 'file_copy';
+    if (t === 'content_only') return 'content_only';
+    if (t === 'json_diff') return 'json_diff';
+    if (t === 'atomic_move') return 'atomic_move';
+    return t || 'unknown';
+  }
+
+  function snapshotRestoreAction(snapshot) {
+    const t = (snapshot.snapshot_type || '').toLowerCase();
+    const meta = parseSnapshotMeta(snapshot);
+    const isNewFile = (meta.type === 'new_file') || (meta.existed === false) || (t === 'content_only' && !snapshot.snapshot_path && Number(snapshot.original_size || 0) === 0);
+
+    if (isNewFile) return 'Delete (was a new file)';
+    if (t === 'file_copy') return 'Revert to previous version';
+    if (t === 'json_diff') return 'Revert JSON content';
+    if (t === 'atomic_move') return 'Restore moved file';
+    if (t === 'content_only') return 'Restore previous content';
+    return 'Restore previous state';
+  }
+
+  function snapshotSizeLabel(snapshot) {
+    const n = Number(snapshot.original_size || 0);
+    return Number.isFinite(n) ? formatBytes(n) : 'n/a';
+  }
+
   async function refreshUndoSnapshots() {
     const container = document.getElementById('undo-container');
     try {
-      const data = await api('/api/snapshots?limit=200');
+      const data = await api('/api/snapshots?limit=500&include_rolled_back=1');
       const snapshots = data.snapshots || [];
+      undoSnapshotsCache = snapshots;
       container.classList.remove('loading');
 
       if (snapshots.length === 0) {
         container.innerHTML = `
           <div class="empty-state">
             <div class="icon">&#x21a9;&#xfe0f;</div>
-            <div>No restorable snapshots found.</div>
-            <div style="margin-top:8px;font-size:13px;">Snapshots appear here when UNWIND captures pre-change backups.</div>
+            <div>No snapshots yet &mdash; UNWIND will save a restore point before every file write your agent makes.</div>
           </div>`;
         return;
       }
 
+      const restorable = snapshots.filter(s => !isRestoredSnapshot(s));
+      const restorePoints = restorable.map(s => `
+        <option value="${s.timestamp}">${formatSnapshotTimestamp(s.timestamp)} &mdash; ${escapeHtml(truncTarget(s.original_path || '(unknown path)', 70))}</option>
+      `).join('');
+
       container.innerHTML = `
         <div class="undo-panel">
           <div class="undo-header">
-            <strong>Restorable snapshots</strong>
-            <span>${snapshots.length} available</span>
+            <div>
+              <strong>Snapshots</strong>
+              <div style="margin-top:4px;">${restorable.length} restorable &bull; ${snapshots.length - restorable.length} restored</div>
+            </div>
+            <div class="undo-bulk-controls">
+              <select id="undo-since-select" class="undo-select" ${restorable.length === 0 ? 'disabled' : ''}>
+                ${restorePoints}
+              </select>
+              <button class="undo-btn" ${restorable.length === 0 ? 'disabled' : ''} onclick="undoSinceSelected()">Restore all since selected</button>
+            </div>
           </div>
           <div class="undo-list">
-            ${snapshots.map(s => `
-              <div class="undo-row">
-                <div style="min-width:0;flex:1;">
-                  <div class="undo-path" title="${escapeHtml(s.original_path || '')}">${escapeHtml(s.original_path || '(unknown path)')}</div>
-                  <div class="undo-meta">${formatSnapshotTimestamp(s.timestamp)} &bull; event ${escapeHtml((s.event_id || '').slice(0, 12))}</div>
-                </div>
-                <button class="undo-btn" onclick="undoEvent('${s.event_id}')">Restore</button>
-              </div>
-            `).join('')}
+            ${snapshots.map(s => {
+              const restored = isRestoredSnapshot(s);
+              const action = snapshotRestoreAction(s);
+              const restoredAt = restored && s.rolled_back_at ? ` &bull; restored ${formatSnapshotTimestamp(s.rolled_back_at)}` : '';
+              return `
+                <div class="undo-row ${restored ? 'restored' : ''}">
+                  <div style="min-width:0;flex:1;">
+                    <div class="undo-path" title="${escapeHtml(s.original_path || '')}">${escapeHtml(s.original_path || '(unknown path)')}</div>
+                    <div class="undo-meta">
+                      ${formatSnapshotTimestamp(s.timestamp)}
+                      &bull; event ${escapeHtml(s.event_id || '')}
+                      &bull; snapshot ${escapeHtml(s.snapshot_id || '')}
+                      &bull; ${escapeHtml(snapshotTypeLabel(s))}
+                      &bull; ${escapeHtml(snapshotSizeLabel(s))}
+                      &bull; ${escapeHtml(action)}
+                      ${restoredAt}
+                    </div>
+                  </div>
+                  <button class="undo-btn" ${restored ? 'disabled' : ''} onclick="undoEventFromSnapshot('${s.event_id}')">${restored ? 'Restored' : 'Restore'}</button>
+                </div>`;
+            }).join('')}
           </div>
         </div>`;
     } catch (e) {
@@ -1456,8 +1550,59 @@
     }
   }
 
-  async function undoEvent(eventId) {
-    if (!confirm(`Undo event ${eventId}?`)) return;
+  function getSnapshotByEventId(eventId) {
+    return undoSnapshotsCache.find(s => s.event_id === eventId);
+  }
+
+  async function undoEventFromSnapshot(eventId) {
+    const snapshot = getSnapshotByEventId(eventId);
+    if (snapshot && isRestoredSnapshot(snapshot)) {
+      alert('This snapshot is already restored.');
+      return;
+    }
+
+    const path = snapshot ? (snapshot.original_path || '(unknown path)') : '(unknown path)';
+    const ts = snapshot ? formatSnapshotTimestamp(snapshot.timestamp) : 'the selected time';
+    const action = snapshot ? snapshotRestoreAction(snapshot) : 'Restore previous state';
+    const msg = `This will ${action.toLowerCase()} for:
+
+${path}
+
+Snapshot time: ${ts}
+
+Continue?`;
+    if (!confirm(msg)) return;
+
+    await undoEvent(eventId, { skipConfirm: true });
+  }
+
+  async function undoSinceSelected() {
+    const select = document.getElementById('undo-since-select');
+    if (!select || !select.value) {
+      alert('Select a restore point first.');
+      return;
+    }
+
+    const since = parseFloat(select.value);
+    const ts = formatSnapshotTimestamp(since);
+    if (!confirm(`This will restore all snapshots taken at or after ${ts}. Continue?`)) return;
+
+    try {
+      const result = await apiPost('/api/undo/since', { since });
+      if (result.status === 'success' || result.status === 'partial') {
+        alert(`Bulk restore complete: ${result.restored}/${result.attempted} restored${result.failed ? ` (${result.failed} failed)` : ''}.`);
+        refreshTimeline();
+        refreshUndoSnapshots();
+      } else {
+        alert(`Bulk restore failed: ${result.error || result.message || 'Unknown error'}`);
+      }
+    } catch (e) {
+      alert('Bulk restore error: ' + e.message);
+    }
+  }
+
+  async function undoEvent(eventId, options = {}) {
+    if (!options.skipConfirm && !confirm(`Undo event ${eventId}?`)) return;
     try {
       const result = await apiPost(`/api/undo/${eventId}`);
       if (result.status === 'success') {
