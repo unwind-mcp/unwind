@@ -484,12 +484,19 @@ class EventStore:
         session_id: Optional[str] = None,
         since: Optional[float] = None,
         limit: int = 100,
+        include_rolled_back: bool = False,
     ) -> list[dict]:
         """Get restorable snapshots, optionally filtered by session or time.
 
         Joins with events table to get session info. Returns newest-first.
+
+        Args:
+            include_rolled_back: When True, include already-restored rows
+                (rolled_back=1) so UIs can show historical restore status.
         """
-        conditions = ["s.restorable = 1", "s.rolled_back = 0"]
+        conditions = ["s.restorable = 1"]
+        if not include_rolled_back:
+            conditions.append("s.rolled_back = 0")
         params: list = []
 
         if session_id:

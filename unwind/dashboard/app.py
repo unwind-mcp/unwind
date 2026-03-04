@@ -27,6 +27,18 @@ from .explanations import explain
 SIDECAR_URL = os.environ.get("UNWIND_SIDECAR_URL", "http://127.0.0.1:9100")
 SIDECAR_SECRET = os.environ.get("UNWIND_SIDECAR_SHARED_SECRET", "")
 
+# --- Signed health verification (unwind.system_health.v1) ---
+from ..sidecar.health_schema import (
+    ReasonCode,
+    SequenceTracker,
+    check_freshness,
+    derive_health_signing_key,
+    verify_health_signature,
+)
+
+_HEALTH_SIGNING_KEY = derive_health_signing_key(SIDECAR_SECRET) if SIDECAR_SECRET else None
+_HEALTH_SEQ_TRACKER = SequenceTracker()
+
 
 def _proxy_sidecar(method, path, params=None, body=None):
     """Forward request to sidecar. Returns (status_code, json_body).
@@ -128,8 +140,20 @@ def create_app(config: UnwindConfig = None) -> Flask:
             if reason and not reason.upper().startswith("OK"):
                 explanation = explain(reason)
 
+        # Compute orb_state — fail-closed composite posture
+        # Precedence: red > amber > green
+        if red > 0 or blocked > 0:
+            orb_state = "red"
+        elif taint_level is not None:
+            orb_state = "amber"
+        elif current_trust in ("amber", "red"):
+            orb_state = current_trust
+        else:
+            orb_state = "green"
+
         return jsonify({
             "trust_state": current_trust,
+            "orb_state": orb_state,
             "last_hour": {
                 "total": total,
                 "blocked": blocked,
@@ -157,6 +181,7 @@ def create_app(config: UnwindConfig = None) -> Flask:
             "READING": "Reading",
             "DEEP_WORK": "Deep Work",
             "AWAY": "Away",
+            "NORMAL": "Normal",
             "UNKNOWN": "Unknown",
         }
 
@@ -172,9 +197,10 @@ def create_app(config: UnwindConfig = None) -> Flask:
             return jsonify({"error": "Cannot read Cadence state"}), 500
 
         user_state = data.get("USER_STATE", "UNKNOWN")
+        user_state_upper = user_state.upper()
         return jsonify({
             "user_state": user_state,
-            "user_state_label": state_labels.get(user_state, "Unknown"),
+            "user_state_label": state_labels.get(user_state_upper, user_state.title()),
             "anomaly_score": float(data.get("ANOMALY_SCORE", "0")),
             "ert_seconds": float(data.get("ERT_SECONDS", "0")),
             "timestamp": time.time(),
@@ -246,15 +272,21 @@ def create_app(config: UnwindConfig = None) -> Flask:
 
     @app.route("/api/snapshots")
     def api_snapshots():
-        """List restorable snapshots."""
+        """List restorable snapshots.
+
+        Query params:
+          - include_rolled_back=1 to include already-restored rows for history UI.
+        """
         since = request.args.get("since", type=float)
         session_id = request.args.get("session")
         limit = request.args.get("limit", default=50, type=int)
+        include_rolled_back = request.args.get("include_rolled_back", default="0") in ("1", "true", "yes")
 
         snaps = store.get_restorable_snapshots(
             session_id=session_id,
             since=since,
             limit=limit,
+            include_rolled_back=include_rolled_back,
         )
         return jsonify({"snapshots": snaps, "count": len(snaps)})
 
@@ -300,6 +332,62 @@ def create_app(config: UnwindConfig = None) -> Flask:
             "event_id": result.event_id,
             "original_path": result.original_path,
             "message": result.message,
+        })
+
+    @app.route("/api/undo/since", methods=["POST"])
+    def api_undo_since():
+        """Undo all restorable snapshots taken at/after a timestamp.
+
+        Expects JSON body: {"since": <unix_timestamp_float>, "force": bool?}
+        """
+        body = request.json or {}
+        since = body.get("since")
+        force = body.get("force", False)
+
+        if since is None:
+            return jsonify({"error": "Missing required field: since"}), 400
+
+        try:
+            since = float(since)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Invalid since timestamp"}), 400
+
+        rows = store.get_restorable_snapshots(
+            since=since,
+            limit=10000,
+            include_rolled_back=False,
+        )
+        if not rows:
+            return jsonify({"error": "No restorable snapshots found in selected range"}), 404
+
+        restored = 0
+        failed = 0
+        results = []
+
+        # rows are newest-first; keep that order for correct multi-write rollback
+        for row in rows:
+            snapshot = _row_to_snapshot(row)
+            result = rollback_engine.rollback_single(snapshot, force=force)
+            if result.status == RollbackStatus.SUCCESS:
+                store.mark_rolled_back(row["snapshot_id"])
+                restored += 1
+            else:
+                failed += 1
+            results.append({
+                "event_id": row.get("event_id"),
+                "snapshot_id": row.get("snapshot_id"),
+                "path": row.get("original_path"),
+                "status": result.status.value,
+                "message": result.message,
+            })
+
+        return jsonify({
+            "status": "success" if failed == 0 else "partial",
+            "since": since,
+            "attempted": len(rows),
+            "restored": restored,
+            "failed": failed,
+            "results": results,
         })
 
     # ─── API: Away Mode Summary ──────────────────────────────
@@ -524,6 +612,205 @@ def create_app(config: UnwindConfig = None) -> Flask:
             "count": len(events),
             "summary": summary_text,
             "timestamp": time.time(),
+        })
+
+    # ─── API: System Health ─────────────────────────────────
+
+    @app.route("/api/system-health")
+    def api_system_health():
+        """Consolidated health check for all subsystems.
+
+        Returns connection status for sidecar, EventStore, and CRAFT chain.
+        Frontend polls this to show the integrity bar.
+
+        Signed health verification gates (all must pass for green):
+          1. sig_valid — HMAC-SHA256 verified
+          2. fresh — payload within TTL
+          3. seq monotonic — no replay or rollback
+          4. state — sidecar's own assessment
+          5. checks — no critical check failure
+        """
+        now = time.time()
+
+        # --- Sidecar health ---
+        sidecar_info = {
+            "connected": False,
+            "status": "unreachable",
+            "uptime_seconds": None,
+            "tool_calls_processed": None,
+            "active_sessions": 0,
+            "watchdog_stale": False,
+            "last_policy_check_age": None,
+            # Signed health v1 fields
+            "sig_valid": None,
+            "payload_fresh": None,
+            "seq_valid": None,
+            "state": None,
+            "reason_code": None,
+        }
+
+        sc_code, sc_body = _proxy_sidecar("GET", "/v1/health")
+        if sc_code == 401:
+            # Auth mismatch — sidecar restarted with different secret
+            sidecar_info["reason_code"] = ReasonCode.ADAPTER_AUTH_FAIL_401.value
+        elif sc_code == 200:
+            sidecar_info["connected"] = True
+            sidecar_info["status"] = sc_body.get("status", "up")
+            uptime_ms = sc_body.get("uptimeMs", 0)
+            sidecar_info["uptime_seconds"] = uptime_ms / 1000.0 if uptime_ms else 0
+            sidecar_info["tool_calls_processed"] = sc_body.get("toolCallsProcessed", 0)
+            sidecar_info["active_sessions"] = sc_body.get("activeSessions", 0)
+            sidecar_info["watchdog_stale"] = bool(sc_body.get("watchdogStale", False))
+
+            last_check_ts = sc_body.get("lastPolicyCheckTs")
+            if last_check_ts:
+                try:
+                    from datetime import datetime, timezone
+                    dt = datetime.fromisoformat(last_check_ts.replace("Z", "+00:00"))
+                    sidecar_info["last_policy_check_age"] = now - dt.timestamp()
+                except (ValueError, TypeError):
+                    sidecar_info["last_policy_check_age"] = None
+
+            # --- Signed health v1 verification ---
+            has_sig = isinstance(sc_body.get("sig"), dict)
+
+            if _HEALTH_SIGNING_KEY is None:
+                # Dev mode — no secret configured, skip sig verification
+                sidecar_info["sig_valid"] = None
+                sidecar_info["reason_code"] = ReasonCode.UNKNOWN_SOURCE.value
+            elif has_sig:
+                # Gate 1: Signature verification
+                sig_ok = verify_health_signature(sc_body, _HEALTH_SIGNING_KEY)
+                sidecar_info["sig_valid"] = sig_ok
+                if not sig_ok:
+                    sidecar_info["reason_code"] = ReasonCode.SIGNATURE_INVALID.value
+
+                # Gate 2: Freshness (TTL)
+                if sig_ok:
+                    fresh = check_freshness(sc_body)
+                    sidecar_info["payload_fresh"] = fresh
+                    if not fresh:
+                        sidecar_info["reason_code"] = ReasonCode.PAYLOAD_STALE.value
+
+                # Gate 3: Sequence monotonicity
+                if sig_ok and sidecar_info.get("payload_fresh"):
+                    instance_id = sc_body.get("instance_id", "unknown")
+                    seq = sc_body.get("seq", 0)
+                    seq_ok, is_restart = _HEALTH_SEQ_TRACKER.check_and_update(
+                        instance_id, seq,
+                    )
+                    sidecar_info["seq_valid"] = seq_ok
+                    if not seq_ok:
+                        sidecar_info["reason_code"] = ReasonCode.SEQ_REPLAY_OR_ROLLBACK.value
+                    elif is_restart:
+                        # Restart detected — accept but force amber
+                        sidecar_info["state"] = "amber"
+                        sidecar_info["reason_code"] = sc_body.get(
+                            "reason_code", ReasonCode.OK.value,
+                        )
+
+                # Gate 4: Sidecar's own state assessment
+                if sidecar_info.get("reason_code") is None:
+                    sidecar_state = sc_body.get("state", sc_body.get("status", "up"))
+                    sidecar_info["state"] = sidecar_state
+                    sidecar_reason = sc_body.get("reason_code", ReasonCode.OK.value)
+                    sidecar_info["reason_code"] = sidecar_reason
+
+                # Gate 5: Critical checks
+                checks = sc_body.get("checks", {})
+                if checks.get("pipeline_enforcement") == "fail":
+                    sidecar_info["reason_code"] = ReasonCode.PIPELINE_INVARIANT_FAIL.value
+                if checks.get("audit_chain") == "fail":
+                    sidecar_info["reason_code"] = ReasonCode.AUDIT_CHAIN_DEGRADED.value
+            else:
+                # No sig envelope in response — unsigned legacy response
+                sidecar_info["sig_valid"] = None
+                sidecar_info["reason_code"] = ReasonCode.UNKNOWN_SOURCE.value
+
+        # --- EventStore health ---
+        event_store_info = {
+            "connected": False,
+            "total_events": 0,
+            "last_event_age": None,
+            "stale": False,
+        }
+
+        try:
+            total = store.event_count()
+            event_store_info["connected"] = True
+            event_store_info["total_events"] = total
+
+            if total > 0:
+                latest = store.query_events(limit=1)
+                if latest:
+                    last_ts = latest[0].get("timestamp", 0)
+                    if last_ts:
+                        event_store_info["last_event_age"] = now - last_ts
+
+                        # Stale if >300s since last event AND sidecar has active sessions
+                        if (now - last_ts > 300
+                                and sidecar_info["connected"]
+                                and sidecar_info["active_sessions"] > 0):
+                            event_store_info["stale"] = True
+        except Exception:
+            event_store_info["connected"] = False
+
+        # --- CRAFT chain check (detailed — distinguishes restarts from tampering) ---
+        chain_info = {
+            "verified": False,
+            "error": None,
+        }
+
+        try:
+            result = store.verify_chain_detailed()
+            classification = result.get("classification", "")
+            # "intact" or "restart_gaps_only" are both fine
+            if classification in ("intact", "restart_gaps_only"):
+                chain_info["verified"] = True
+            else:
+                chain_info["verified"] = False
+                # Build error from first suspicious break
+                breaks = result.get("breaks", [])
+                suspicious = [b for b in breaks if b.get("classification") != "restart"]
+                if suspicious:
+                    b = suspicious[0]
+                    chain_info["error"] = f"Suspicious break at event {b.get('event_id', '?')}"
+                else:
+                    chain_info["error"] = result.get("human_message", "Chain verification failed")
+        except Exception as exc:
+            chain_info["error"] = str(exc)
+
+        # --- Overall status (no-false-green contract) ---
+        # Green requires ALL of: sidecar connected, sidecar status "up",
+        # watchdog fresh, event store fresh, CRAFT chain intact,
+        # AND (if signed health available) sig valid, payload fresh, seq valid.
+        if not sidecar_info["connected"]:
+            overall = "disconnected"
+        elif (sidecar_info["status"] != "up"
+              or sidecar_info["watchdog_stale"]
+              or event_store_info["stale"]
+              or chain_info["error"] is not None):
+            overall = "degraded"
+        elif sidecar_info.get("sig_valid") is False:
+            overall = "degraded"
+        elif sidecar_info.get("payload_fresh") is False:
+            overall = "degraded"
+        elif sidecar_info.get("seq_valid") is False:
+            overall = "degraded"
+        elif (sidecar_info.get("state") is not None
+              and sidecar_info["state"] != "green"):
+            overall = "degraded"
+        elif sidecar_info.get("reason_code") == ReasonCode.UNKNOWN_SOURCE.value:
+            overall = "degraded"
+        else:
+            overall = "healthy"
+
+        return jsonify({
+            "sidecar": sidecar_info,
+            "event_store": event_store_info,
+            "craft_chain": chain_info,
+            "overall": overall,
+            "timestamp": now,
         })
 
     # ─── Helpers ─────────────────────────────────────────────
