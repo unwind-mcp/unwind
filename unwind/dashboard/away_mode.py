@@ -187,11 +187,18 @@ def generate_away_summary(store: EventStore, since: float) -> AwaySummary:
 
         # Items needing explicit review (blocked high-risk actuators)
         if status == "blocked" and tool_class == "actuator":
+            # Extract challenge_id from result_summary if present.
+            # result_summary may be None in historical events.
+            _rs = event.get("result_summary") or ""
+            _cid_match = None
+            if "|challenge_id=" in _rs:
+                _cid_match = _rs.split("|challenge_id=")[-1].split()[0]
             summary.review_items.append({
                 "event_id": event.get("event_id"),
                 "tool": tool,
                 "target": event.get("target", ""),
-                "reason": event.get("result_summary", "Action blocked"),
+                "reason": _rs or "Action blocked",
+                "challenge_id": _cid_match,
             })
 
     summary.trust_state = worst_state
