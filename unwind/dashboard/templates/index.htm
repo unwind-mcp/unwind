@@ -172,14 +172,6 @@
 
     .trust-info h2 { font-size: 20px; font-weight: 600; }
     .trust-info .subtitle { color: var(--text-dim); font-size: 13px; }
-    .trust-guidance {
-      margin-top: 8px;
-      font-size: 12px;
-      line-height: 1.4;
-      max-width: 620px;
-    }
-    .trust-guidance.amber { color: var(--amber); }
-    .trust-guidance.red { color: var(--red); }
     .trust-stats {
       margin-left: auto;
       display: flex;
@@ -259,7 +251,6 @@
     .timeline-event:hover { background: var(--surface-2); }
     .timeline-event.ghost { opacity: 0.7; border-left: 3px solid var(--ghost); }
     .timeline-event.blocked { border-left: 3px solid var(--red); }
-    .timeline-event.approval { border-left: 3px solid var(--amber); }
     .timeline-event.tainted { border-left: 3px solid var(--amber); }
 
     .event-time {
@@ -292,8 +283,6 @@
     .badge.amber { background: var(--amber-bg); color: var(--amber); }
     .badge.red { background: var(--red-bg); color: var(--red); }
     .badge.ghost { background: rgba(137,87,229,0.15); color: var(--ghost); }
-    .badge.approval { background: var(--amber-bg); color: var(--amber); }
-    .badge.info { background: var(--info-bg); color: var(--blue); }
 
     .event-actions {
       display: flex;
@@ -311,95 +300,6 @@
       transition: all 0.15s;
     }
     .undo-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--blue); }
-    .undo-btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-      border-color: var(--border);
-      color: var(--text-dim);
-    }
-    .undo-btn.danger {
-      border-color: var(--red);
-      color: var(--red);
-    }
-    .undo-btn.danger:hover {
-      background: var(--red-bg);
-      border-color: var(--red);
-      color: var(--red);
-    }
-
-    .undo-panel {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-    }
-    .undo-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      margin-bottom: 12px;
-      color: var(--text-dim);
-      font-size: 12px;
-    }
-    .undo-bulk-controls {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-    .undo-filters {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      font-size: 12px;
-      color: var(--text-dim);
-      flex-wrap: wrap;
-    }
-    .undo-filters label { display: inline-flex; gap: 6px; align-items: center; }
-    .undo-select {
-      min-width: 320px;
-      max-width: 520px;
-      background: var(--surface);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 6px 8px;
-      font-size: 12px;
-    }
-    .undo-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .undo-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 10px 12px;
-      background: var(--surface-2);
-    }
-    .undo-row.restored {
-      opacity: 0.75;
-      border-style: dashed;
-    }
-    .undo-path {
-      font-size: 13px;
-      color: var(--text);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      max-width: 560px;
-    }
-    .undo-meta {
-      font-size: 11px;
-      color: var(--text-dim);
-      margin-top: 4px;
-    }
 
     .status-icon { font-size: 14px; min-width: 20px; text-align: center; }
 
@@ -700,7 +600,7 @@
         <span id="cadence-label">Active</span>
       </span>
       <span id="chain-badge" class="badge green" style="font-size:11px;cursor:pointer;" onclick="verifyChain()" title="Click to verify">&#x1f512; Chain OK</span>
-      <span id="poll-indicator" style="font-size:10px;color:var(--text-dim);" title="Dashboard polling is expected: your browser requests /api/trust-state, /api/events, /api/cadence-state, and /api/system-health on a timer.">&#x25cf; Live</span>
+      <span id="poll-indicator" style="font-size:10px;color:var(--text-dim);">&#x25cf; Live</span>
     </div>
   </div>
 
@@ -725,12 +625,11 @@
 
   <!-- Trust Light -->
   <div class="trust-light">
-    <img src="{{ url_for('static', filename='logo.jpg') }}" alt="UNWIND" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="UNWIND" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
     <div id="trust-orb" class="trust-orb green"></div>
     <div class="trust-info">
       <h2 id="trust-label">All Clear</h2>
       <div class="subtitle" id="trust-subtitle">Loading...</div>
-      <div id="trust-guidance" class="trust-guidance hidden"></div>
     </div>
     <div class="trust-stats">
       <div class="stat">
@@ -787,7 +686,6 @@
     <div class="tab" data-tab="ghost" onclick="switchTab('ghost')">Ghost Mode</div>
     <div class="tab" data-tab="away" onclick="switchTab('away')">Away Mode</div>
     <div class="tab" data-tab="verify" onclick="switchTab('verify')">Chain Verify</div>
-    <div class="tab" data-tab="undo" onclick="switchTab('undo')">Undo</div>
     <div class="tab" data-tab="about" onclick="switchTab('about')">What Is This?</div>
   </div>
 
@@ -835,7 +733,7 @@
           <div id="ghost-egress-sub"></div>
           <div id="ghost-egress-list"></div>
         </div>
-        <div id="ghost-footer" class="ghost-footer">When Ghost Mode is active, all writes are intercepted. Nothing reaches your real system.</div>
+        <div class="ghost-footer">This is a Ghost Mode view. Zero changes were made to your system.</div>
       </div>
     </div>
 
@@ -852,11 +750,6 @@
         <div id="verify-breaks" class="verify-breaks hidden"></div>
         <button class="undo-btn" style="margin-top:16px;padding:8px 20px;font-size:13px;" onclick="verifyChain()">Verify Now</button>
       </div>
-    </div>
-
-    <!-- Undo -->
-    <div id="panel-undo" class="hidden">
-      <div id="undo-container" class="loading">Loading restorable snapshots...</div>
     </div>
 
     <!-- About -->
@@ -975,21 +868,8 @@
       const label = document.getElementById('trust-label');
       const subtitle = document.getElementById('trust-subtitle');
 
-      const orbState = data.orb_state || data.trust_state;
-      orb.className = 'trust-orb ' + orbState;
-      label.textContent = TRUST_LABELS[orbState] || orbState;
-
-      const guidance = document.getElementById('trust-guidance');
-      if (orbState === 'amber') {
-        guidance.textContent = "Your agent has ingested external content. High-risk actions are flagged for review. Check the Timeline — if tool calls don't match what you asked for, end the session.";
-        guidance.className = 'trust-guidance amber';
-      } else if (orbState === 'red') {
-        guidance.textContent = 'Something was blocked. Check the red events in the Timeline. In most cases no action is needed — the block already happened. If you see disable_security_audit, end the session immediately.';
-        guidance.className = 'trust-guidance red';
-      } else {
-        guidance.textContent = '';
-        guidance.className = 'trust-guidance hidden';
-      }
+      orb.className = 'trust-orb ' + (data.orb_state || data.trust_state);
+      label.textContent = TRUST_LABELS[data.orb_state || data.trust_state] || (data.orb_state || data.trust_state);
 
       const h = data.last_hour;
       let subtitleText =
@@ -1116,7 +996,7 @@
         warnings.push('Sidecar watchdog is stale. The adapter may have stopped sending policy checks.');
       }
       if (es.stale) {
-        warnings.push('No new events have been recorded for over 5 minutes while sessions are active. This can indicate gateway/adapter drift; if you are idle, run one test action to confirm.');
+        warnings.push('The sidecar has active sessions but no events are being recorded. Check the gateway connection.');
       }
       if (!ch.verified && ch.error) {
         warnings.push('CRAFT chain integrity check failed: ' + ch.error + '. Investigate immediately.');
@@ -1161,35 +1041,12 @@
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  function classifySession(sessionId, event = null) {
-    if (event && event.session_source_short && event.session_source_long) {
-      return { short: event.session_source_short, long: event.session_source_long };
-    }
-    if (!sessionId) return { short: 'unknown', long: 'Unknown session source' };
-    if (sessionId === 'agent:main:main') return { short: 'this-session', long: 'Current chat session (agent:main:main)' };
-    if (sessionId.includes(':cron:')) return { short: 'scheduled', long: `Scheduled run (${sessionId})` };
-    if (sessionId.includes(':subagent:')) return { short: 'subagent', long: `Sub-agent session (${sessionId})` };
-    if (sessionId.startsWith('sentinel:')) return { short: sessionId.length > 24 ? sessionId.slice(0, 23) + '…' : sessionId, long: `Scheduled task (${sessionId})` };
-    if (sessionId.startsWith('agent:')) return { short: 'agent', long: `Agent session (${sessionId})` };
-    return { short: 'other', long: `Session: ${sessionId}` };
-  }
-
-  function eventNeedsApproval(event) {
-    if (!event) return false;
-    if (event.approval_required === true) return true;
-    const summary = String(event.result_summary || '').toUpperCase();
-    if (summary.startsWith('AMBER:')) return true;
-    return event.status === 'blocked' && event.trust_state === 'amber';
-  }
-
   function renderEvent(event) {
     const icon = TOOL_ICONS[event.tool] || '&#x2022;';
     const statusIcon = STATUS_ICONS[event.status] || '';
     const classes = ['timeline-event'];
-    const needsApproval = eventNeedsApproval(event);
     if (event.ghost_mode) classes.push('ghost');
     if (event.status === 'blocked' || event.trust_state === 'red') classes.push('blocked');
-    if (needsApproval) classes.push('approval');
     if (event.session_tainted) classes.push('tainted');
 
     const badges = [];
@@ -1197,14 +1054,14 @@
     if (event.trust_state === 'red') badges.push('<span class="badge red">red</span>');
     if (event.ghost_mode) badges.push('<span class="badge ghost">ghost</span>');
     if (event.status === 'blocked') badges.push('<span class="badge red">blocked</span>');
-    if (needsApproval) badges.push('<span class="badge approval" title="Action paused pending human review">approval</span>');
-    const source = classifySession(event.session_id, event);
-    badges.push(`<span class="badge info" title="${escapeHtml(source.long)}">${escapeHtml(source.short)}</span>`);
 
-    const hasSnapshot = !!event.has_snapshot;
-    const rolledBack = !!event.rolled_back;
-    const eidRaw = event.event_id || '';
-    const eid = escapeHtml(eidRaw);
+    const SNAPSHOT_TOOLS = new Set([
+      'fs_write','fs_delete','fs_rename','fs_mkdir','fs_move','fs_copy',
+      'write_file','delete_file','rename_file','move_file','create_directory',
+      'write','edit','apply_patch'
+    ]);
+    const hasSnapshot = SNAPSHOT_TOOLS.has(event.tool) && event.status === 'success';
+    const eid = escapeHtml(event.event_id);
 
     return `
       <div class="${classes.join(' ')}" onclick="toggleEventDetail('${eid}', event)">
@@ -1217,8 +1074,7 @@
           <div class="event-badges">${badges.join('')}</div>
         </div>
         <div class="event-actions">
-          ${hasSnapshot && !rolledBack ? `<button class="undo-btn" onclick="event.stopPropagation();undoEvent('${eidRaw}')" title="Restore from snapshot">&#x21a9;&#xfe0f; Rewind</button>` : ''}
-          ${hasSnapshot && rolledBack ? `<button class="undo-btn" disabled title="Already restored">&#x2705; Restored</button>` : ''}
+          ${hasSnapshot ? `<button class="undo-btn" onclick="event.stopPropagation();undoEvent('${eid}')">&#x21a9;&#xfe0f; Undo</button>` : ''}
         </div>
         <div class="status-icon">${statusIcon}</div>
       </div>
@@ -1252,7 +1108,6 @@
       const data = await api(`/api/events/${eventId}`);
       const ev = data.event;
       const ex = data.explanation;
-      const snapshot = data.snapshot;
 
       let explanationHtml = '';
       if (ex) {
@@ -1267,54 +1122,17 @@
           </div>`;
       }
 
-      const needsApproval = eventNeedsApproval(ev);
-      const approvalContext = ev.scheduled_job_name || ev.scheduled_job_id || null;
-      const approvalDetail = approvalContext
-        ? `This action came from scheduled task <strong>${escapeHtml(approvalContext)}</strong> and is paused pending review.`
-        : 'This action is paused pending human review.';
-      const approvalHtml = needsApproval
-        ? `<div class="edp-section"><div class="edp-label">Approval required</div><div class="edp-explanation severity-warning"><div style="font-weight:600;">Human approval needed before execution</div><div style="margin-top:4px;color:var(--text-dim);">${approvalDetail}</div><div style="margin-top:6px;color:var(--blue);font-size:12px;">Approve or deny from the controlling session. If this keeps recurring, adjust the scheduled task or policy.</div></div></div>`
-        : '';
-
-      let snapshotHtml = '';
-      if (snapshot) {
-        const action = snapshotRestoreAction(snapshot);
-        const restored = isRestoredSnapshot(snapshot);
-        const restoredAt = restored && snapshot.rolled_back_at ? formatSnapshotTimestamp(snapshot.rolled_back_at) : null;
-        const actionBtn = restored
-          ? `<button class="undo-btn" disabled>&#x2705; Restored</button>`
-          : `<button class="undo-btn ${action.startsWith('Delete') ? 'danger' : ''}" onclick="event.stopPropagation();undoEventFromSnapshot('${escapeHtml(snapshot.event_id || ev.event_id || '')}')">${action.startsWith('Delete') ? 'Delete' : 'Restore'}</button>`;
-
-        snapshotHtml = `
-          <div class="edp-section">
-            <div class="edp-label">Snapshot status</div>
-            <div class="edp-meta">
-              <div>Type: ${escapeHtml(snapshotTypeLabel(snapshot))}</div>
-              <div>Size: ${escapeHtml(snapshotSizeLabel(snapshot))}</div>
-              <div>Action: ${escapeHtml(action)}</div>
-              <div>Status: ${restored ? `Restored${restoredAt ? ' at ' + restoredAt : ''}` : 'Not restored yet'}</div>
-            </div>
-            <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
-              ${actionBtn}
-              <button class="undo-btn" onclick="event.stopPropagation();switchTab('undo')">Open Undo tab</button>
-            </div>
-          </div>`;
-      }
-
       panel.innerHTML = `
         ${ev.result_summary ? `
           <div class="edp-section">
             <div class="edp-label">What happened</div>
             <div>${escapeHtml(ev.result_summary)}</div>
           </div>` : ''}
-        ${approvalHtml}
-        ${snapshotHtml}
         ${explanationHtml}
         <div class="edp-section">
           <div class="edp-label">Metadata</div>
           <div class="edp-meta">
-            <div>Source: ${escapeHtml(classifySession(ev.session_id, ev).long)}</div>
-            <div>Session ID: ${escapeHtml(ev.session_id || 'n/a')}</div>
+            <div>Session: ${escapeHtml((ev.session_id || '').substring(0, 12))}...</div>
             <div>Tool class: ${escapeHtml(ev.tool_class)}</div>
             <div>Duration: ${ev.duration_ms != null ? ev.duration_ms.toFixed(0) + 'ms' : 'n/a'}</div>
             <div>Chain: ${escapeHtml((ev.chain_hash || '').substring(0, 16))}...</div>
@@ -1332,8 +1150,8 @@
     try {
       const data = await api('/api/events?limit=100');
       const container = document.getElementById('timeline-container');
-      container.classList.remove('loading');
 
+      container.classList.remove('loading');
       if (data.events.length === 0) {
         container.innerHTML = `
           <div class="empty-state">
@@ -1344,6 +1162,7 @@
         return;
       }
 
+      container.classList.remove('loading');
       const prevExpanded = expandedEventId;
       const prevHtml = expandedDetailHtml;
       container.innerHTML = data.events.map(renderEvent).join('');
@@ -1371,6 +1190,7 @@
       const data = await api('/api/away-summary');
       const container = document.getElementById('away-container');
 
+      container.classList.remove('loading');
       const trustColors = { green: 'var(--green)', amber: 'var(--amber)', red: 'var(--red)' };
 
       let reviewHtml = '';
@@ -1412,7 +1232,6 @@
           ` : ''}
         </div>
       `;
-      container.classList.remove('loading');
     } catch (e) {
       console.error('Away summary fetch failed:', e);
     }
@@ -1516,228 +1335,13 @@
   }
 
   // ─── Undo ─────────────────────────────────────
-  let undoSnapshotsCache = [];
-  let undoShowRestored = false;
-  let undoShowAllSnapshotTypes = false; // false = rewrites-only view
-
-  function formatSnapshotTimestamp(ts) {
-    if (!ts) return 'Unknown time';
-    const d = new Date(ts * 1000);
-    return d.toLocaleString([], {
-      year: 'numeric', month: 'short', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit'
-    });
-  }
-
-  function parseSnapshotMeta(snapshot) {
-    try {
-      return snapshot && snapshot.metadata ? JSON.parse(snapshot.metadata) : {};
-    } catch (_) {
-      return {};
-    }
-  }
-
-  function isRestoredSnapshot(snapshot) {
-    return Number(snapshot.rolled_back || 0) === 1;
-  }
-
-  function isNewFileDeleteSnapshot(snapshot) {
-    const t = (snapshot.snapshot_type || '').toLowerCase();
-    const meta = parseSnapshotMeta(snapshot);
-    return (meta.type === 'new_file') || (meta.existed === false) || (t === 'content_only' && !snapshot.snapshot_path && Number(snapshot.original_size || 0) === 0);
-  }
-
-  function snapshotTypeLabel(snapshot) {
-    const t = (snapshot.snapshot_type || '').toLowerCase();
-    if (t === 'file_copy') return 'file_copy';
-    if (t === 'content_only') return 'content_only';
-    if (t === 'json_diff') return 'json_diff';
-    if (t === 'atomic_move') return 'atomic_move';
-    return t || 'unknown';
-  }
-
-  function snapshotRestoreAction(snapshot) {
-    const t = (snapshot.snapshot_type || '').toLowerCase();
-    if (isNewFileDeleteSnapshot(snapshot)) return 'Delete (was a new file)';
-    if (t === 'file_copy') return 'Revert to previous version';
-    if (t === 'json_diff') return 'Revert JSON content';
-    if (t === 'atomic_move') return 'Restore moved file';
-    if (t === 'content_only') return 'Restore previous content';
-    return 'Restore previous state';
-  }
-
-  function snapshotSizeLabel(snapshot) {
-    const n = Number(snapshot.original_size || 0);
-    return Number.isFinite(n) ? formatBytes(n) : 'n/a';
-  }
-
-  function setUndoFilter(kind, checked) {
-    if (kind === 'restored') undoShowRestored = !!checked;
-    if (kind === 'allTypes') undoShowAllSnapshotTypes = !!checked;
-    refreshUndoSnapshots();
-  }
-
-  async function refreshUndoSnapshots() {
-    const container = document.getElementById('undo-container');
-    try {
-      const data = await api('/api/snapshots?limit=500&include_rolled_back=1');
-      const snapshots = data.snapshots || [];
-      undoSnapshotsCache = snapshots;
-      container.classList.remove('loading');
-
-      if (snapshots.length === 0) {
-        container.innerHTML = `
-          <div class="empty-state">
-            <div class="icon">&#x21a9;&#xfe0f;</div>
-            <div>No snapshots yet &mdash; UNWIND will save a restore point before every file write your agent makes.</div>
-          </div>`;
-        return;
-      }
-
-      const filtered = snapshots
-        .filter(s => undoShowRestored || !isRestoredSnapshot(s))
-        .filter(s => undoShowAllSnapshotTypes || !isNewFileDeleteSnapshot(s));
-
-      const restorable = filtered.filter(s => !isRestoredSnapshot(s));
-      const restorePoints = restorable.map(s => `
-        <option value="${s.timestamp}">${formatSnapshotTimestamp(s.timestamp)} &mdash; ${escapeHtml(truncTarget(s.original_path || '(unknown path)', 70))}</option>
-      `).join('');
-
-      const hiddenByType = snapshots.filter(s => isNewFileDeleteSnapshot(s)).length;
-      const hiddenByRestored = snapshots.filter(s => isRestoredSnapshot(s)).length;
-
-      if (filtered.length === 0) {
-        container.innerHTML = `
-          <div class="undo-panel">
-            <div class="undo-header">
-              <div>
-                <strong>Snapshots</strong>
-                <div style="margin-top:4px;">0 shown of ${snapshots.length}</div>
-              </div>
-              <div class="undo-filters">
-                <label><input type="checkbox" ${undoShowAllSnapshotTypes ? 'checked' : ''} onchange="setUndoFilter('allTypes', this.checked)"> Show all snapshot types</label>
-                <label><input type="checkbox" ${undoShowRestored ? 'checked' : ''} onchange="setUndoFilter('restored', this.checked)"> Show restored history</label>
-              </div>
-            </div>
-            <div class="empty-state">
-              <div class="icon">&#x1f50d;</div>
-              <div>No snapshots match current filters.</div>
-              <div style="margin-top:8px;font-size:13px;">Try enabling “Show all snapshot types” and/or “Show restored history”.</div>
-            </div>
-          </div>`;
-        return;
-      }
-
-      container.innerHTML = `
-        <div class="undo-panel">
-          <div class="undo-header">
-            <div>
-              <strong>Snapshots</strong>
-              <div style="margin-top:4px;">${restorable.length} restorable shown &bull; ${filtered.length} shown / ${snapshots.length} total</div>
-              <div style="margin-top:4px;">${undoShowAllSnapshotTypes ? hiddenByType + ' new-file deletion rows visible' : hiddenByType + ' new-file deletion rows hidden'} &bull; ${undoShowRestored ? hiddenByRestored + ' restored rows visible' : hiddenByRestored + ' restored rows hidden'}</div>
-            </div>
-            <div class="undo-bulk-controls">
-              <select id="undo-since-select" class="undo-select" ${restorable.length === 0 ? 'disabled' : ''}>
-                ${restorePoints}
-              </select>
-              <button class="undo-btn" ${restorable.length === 0 ? 'disabled' : ''} onclick="undoSinceSelected()">Restore all since selected</button>
-              <div class="undo-filters">
-                <label><input type="checkbox" ${undoShowAllSnapshotTypes ? 'checked' : ''} onchange="setUndoFilter('allTypes', this.checked)"> Show all snapshot types</label>
-                <label><input type="checkbox" ${undoShowRestored ? 'checked' : ''} onchange="setUndoFilter('restored', this.checked)"> Show restored history</label>
-              </div>
-            </div>
-          </div>
-          <div class="undo-list">
-            ${filtered.map(s => {
-              const restored = isRestoredSnapshot(s);
-              const action = snapshotRestoreAction(s);
-              const destructive = action.startsWith('Delete');
-              const restoredAt = restored && s.rolled_back_at ? ` &bull; restored ${formatSnapshotTimestamp(s.rolled_back_at)}` : '';
-              return `
-                <div class="undo-row ${restored ? 'restored' : ''}">
-                  <div style="min-width:0;flex:1;">
-                    <div class="undo-path" title="${escapeHtml(s.original_path || '')}">${escapeHtml(s.original_path || '(unknown path)')}</div>
-                    <div class="undo-meta">
-                      ${formatSnapshotTimestamp(s.timestamp)}
-                      &bull; event ${escapeHtml(s.event_id || '')}
-                      &bull; snapshot ${escapeHtml(s.snapshot_id || '')}
-                      &bull; ${escapeHtml(snapshotTypeLabel(s))}
-                      &bull; ${escapeHtml(snapshotSizeLabel(s))}
-                      &bull; ${escapeHtml(action)}
-                      ${restoredAt}
-                    </div>
-                  </div>
-                  <button class="undo-btn ${destructive ? 'danger' : ''}" ${restored ? 'disabled' : ''} onclick="undoEventFromSnapshot('${s.event_id}')">${restored ? 'Restored' : (destructive ? 'Delete' : 'Restore')}</button>
-                </div>`;
-            }).join('')}
-          </div>
-        </div>`;
-    } catch (e) {
-      container.classList.remove('loading');
-      container.innerHTML = '<div class="empty-state" style="color:var(--red);">Failed to load snapshots</div>';
-      console.error('Snapshots fetch failed:', e);
-    }
-  }
-
-  function getSnapshotByEventId(eventId) {
-    return undoSnapshotsCache.find(s => s.event_id === eventId);
-  }
-
-  async function undoEventFromSnapshot(eventId) {
-    const snapshot = getSnapshotByEventId(eventId);
-    if (snapshot && isRestoredSnapshot(snapshot)) {
-      alert('This snapshot is already restored.');
-      return;
-    }
-
-    const path = snapshot ? (snapshot.original_path || '(unknown path)') : '(unknown path)';
-    const ts = snapshot ? formatSnapshotTimestamp(snapshot.timestamp) : 'the selected time';
-    const action = snapshot ? snapshotRestoreAction(snapshot) : 'Restore previous state';
-    const msg = `This will ${action.toLowerCase()} for:
-
-${path}
-
-Snapshot time: ${ts}
-
-Continue?`;
-    if (!confirm(msg)) return;
-
-    await undoEvent(eventId, { skipConfirm: true });
-  }
-
-  async function undoSinceSelected() {
-    const select = document.getElementById('undo-since-select');
-    if (!select || !select.value) {
-      alert('Select a restore point first.');
-      return;
-    }
-
-    const since = parseFloat(select.value);
-    const ts = formatSnapshotTimestamp(since);
-    if (!confirm(`This will restore all snapshots taken at or after ${ts}. Continue?`)) return;
-
-    try {
-      const result = await apiPost('/api/undo/since', { since });
-      if (result.status === 'success' || result.status === 'partial') {
-        alert(`Bulk restore complete: ${result.restored}/${result.attempted} restored${result.failed ? ` (${result.failed} failed)` : ''}.`);
-        refreshTimeline();
-        refreshUndoSnapshots();
-      } else {
-        alert(`Bulk restore failed: ${result.error || result.message || 'Unknown error'}`);
-      }
-    } catch (e) {
-      alert('Bulk restore error: ' + e.message);
-    }
-  }
-
-  async function undoEvent(eventId, options = {}) {
-    if (!options.skipConfirm && !confirm(`Undo event ${eventId}?`)) return;
+  async function undoEvent(eventId) {
+    if (!confirm(`Undo event ${eventId}?`)) return;
     try {
       const result = await apiPost(`/api/undo/${eventId}`);
       if (result.status === 'success') {
         alert(`Restored: ${result.message}`);
         refreshTimeline();
-        refreshUndoSnapshots();
       } else {
         alert(`Undo failed: ${result.message}`);
       }
@@ -1749,7 +1353,6 @@ Continue?`;
   // ─── Ghost Mode ─────────────────────────────
   let ghostState = { active: false, filesBuffered: 0, paths: [], totalSize: 0, lifecycle: 'off' };
   let ghostSelectedSession = '';
-  let ghostHasHistory = false;
   let ghostPollTimer = null;
   let ghostEventsPollTimer = null;
 
@@ -1809,7 +1412,7 @@ Continue?`;
         document.getElementById('ghost-files-list').innerHTML = buffered > 0
           ? paths.map(p => `<div class="ghost-file-row"><span class="ghost-file-icon">&#x1f4c4;</span><span class="ghost-file-path">${escapeHtml(p)}</span></div>`).join('')
           : '<div style="color:var(--text-dim);font-size:13px;">No files buffered yet. Your agent\'s writes will appear here.</div>';
-      } else if (ghostState.lifecycle === 'running' || buffered > 0 || ghostHasHistory) {
+      } else if (ghostState.lifecycle === 'running' || buffered > 0) {
         card.className = 'ghost-status-card ended';
         ghostState.lifecycle = 'ended';
         updateGhostLifecycle('ended');
@@ -1839,27 +1442,7 @@ Continue?`;
     try {
       const data = await api('/api/ghost/events?limit=200');
       const events = data.events || [];
-      ghostHasHistory = events.length > 0;
-
       const summaryCard = document.getElementById('ghost-summary-card');
-      const timelineSection = document.getElementById('ghost-timeline-section');
-      const egressCard = document.getElementById('ghost-egress-card');
-      const footer = document.getElementById('ghost-footer');
-
-      if (!ghostState.active && !ghostSelectedSession) {
-        summaryCard.classList.add('hidden');
-        timelineSection.classList.add('hidden');
-        egressCard.classList.add('hidden');
-
-        if (events.length > 0 && ghostState.lifecycle === 'off') {
-          ghostState.lifecycle = 'ended';
-          updateGhostLifecycle('ended');
-        }
-
-        const neverRun = !ghostState.active && events.length === 0 && ghostState.filesBuffered === 0;
-        footer.classList.toggle('hidden', neverRun);
-        return;
-      }
       if (events.length > 0 && data.summary) {
         summaryCard.classList.remove('hidden');
         const summaryHtml = escapeHtml(data.summary).replace(/(\d+ \w+)/g, '<strong>$1</strong>');
@@ -1873,6 +1456,7 @@ Continue?`;
         }
       } else { summaryCard.classList.add('hidden'); }
 
+      const timelineSection = document.getElementById('ghost-timeline-section');
       const timelineRows = document.getElementById('ghost-timeline-rows');
       if (events.length > 0) {
         timelineSection.classList.remove('hidden');
@@ -1901,6 +1485,7 @@ Continue?`;
         }).join('');
       } else { timelineSection.classList.add('hidden'); }
 
+      const egressCard = document.getElementById('ghost-egress-card');
       const networkEvents = events.filter(ev => (ev.tool || '').match(/fetch_web|search_web|http_post|api_call/) || (ev.result_summary || '').includes('GHOST_MODE_NETWORK_BLOCKED'));
       if (networkEvents.length > 0) {
         egressCard.classList.remove('hidden');
@@ -1909,14 +1494,6 @@ Continue?`;
           `<div class="ghost-egress-row"><span>${TOOL_ICONS[ev.tool] || '&#x1f310;'}</span><span>${escapeHtml(ev.tool)}</span><span>&rarr;</span><span style="color:var(--text);">${escapeHtml(truncTarget(ev.target || '', 50))}</span><span class="badge ${ev.status === 'blocked' ? 'red' : 'ghost'}" style="margin-left:auto;">${ev.status === 'blocked' ? 'blocked' : 'simulated'}</span></div>`
         ).join('');
       } else { egressCard.classList.add('hidden'); }
-
-      if (!ghostState.active && events.length > 0 && ghostState.lifecycle === 'off') {
-        ghostState.lifecycle = 'ended';
-        updateGhostLifecycle('ended');
-      }
-
-      const neverRun = !ghostState.active && events.length === 0 && ghostState.filesBuffered === 0;
-      footer.classList.toggle('hidden', neverRun);
     } catch (e) { console.error('Ghost events fetch failed:', e); }
   }
 
@@ -1996,13 +1573,11 @@ Continue?`;
     document.getElementById('panel-ghost').classList.toggle('hidden', tab !== 'ghost');
     document.getElementById('panel-away').classList.toggle('hidden', tab !== 'away');
     document.getElementById('panel-verify').classList.toggle('hidden', tab !== 'verify');
-    document.getElementById('panel-undo').classList.toggle('hidden', tab !== 'undo');
     document.getElementById('panel-about').classList.toggle('hidden', tab !== 'about');
 
     if (tab === 'ghost') { startGhostPolling(); } else { stopGhostPolling(); }
     if (tab === 'away') refreshAway();
     if (tab === 'verify') verifyChain();
-    if (tab === 'undo') refreshUndoSnapshots();
   }
 
   // ─── Polling ──────────────────────────────────

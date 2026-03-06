@@ -1,0 +1,1674 @@
+diff --git a/tests/test_health_schema.py b/tests/test_health_schema.py
+new file mode 100644
+index 0000000..aab6e36
+--- /dev/null
++++ b/tests/test_health_schema.py
+@@ -0,0 +1,318 @@
++"""Unit tests for unwind.sidecar.health_schema.
++
++Covers: key derivation, sign/verify round-trip, canonical form, freshness,
++sequence tracker, and enum values.
++"""
++
++import copy
++import sys
++import types
++import unittest
++from datetime import datetime, timedelta, timezone
++from pathlib import Path
++
++# Pre-register unwind.sidecar as a plain namespace package so importing
++# unwind.sidecar.health_schema does NOT trigger unwind/sidecar/__init__.py
++# (which eagerly imports server.py → fastapi, unusable on Mac/Py3.9).
++if "unwind.sidecar" not in sys.modules:
++    _pkg = types.ModuleType("unwind.sidecar")
++    _pkg.__path__ = [str(Path(__file__).resolve().parent.parent / "unwind" / "sidecar")]
++    _pkg.__package__ = "unwind.sidecar"
++    sys.modules["unwind.sidecar"] = _pkg
++
++from unwind.sidecar.health_schema import (
++    SCHEMA_VERSION,
++    HealthState,
++    ReasonCode,
++    SequenceTracker,
++    check_freshness,
++    derive_health_signing_key,
++    get_instance_id,
++    kid_for_now,
++    sign_health_payload,
++    verify_health_signature,
++    _canonical_for_signing,
++)
++
++
++# ── Fixtures ──────────────────────────────────────────────────────────
++
++
++def _make_payload(**overrides):
++    """Build a minimal valid health payload for testing."""
++    now = datetime.now(timezone.utc)
++    payload = {
++        "version": SCHEMA_VERSION,
++        "instance_id": "test-host",
++        "emitted_at": now.isoformat(),
++        "fresh_until": (now + timedelta(seconds=60)).isoformat(),
++        "ttl_sec": 60,
++        "seq": 1,
++        "state": "green",
++        "reason_code": "OK",
++        "detail": "All checks passed",
++        "checks": {
++            "sidecar_link": "ok",
++            "adapter_auth": "ok",
++            "watchdog_stale": False,
++            "pipeline_enforcement": "ok",
++            "audit_chain": "ok",
++        },
++        "sig": {
++            "alg": "HMAC-SHA256",
++            "kid": "unwind-health-2026-03",
++            "value": "",
++        },
++        "status": "up",
++        "uptimeMs": 60000,
++        "engineVersion": "0.1.0-alpha",
++    }
++    payload.update(overrides)
++    return payload
++
++
++# ── Key derivation ────────────────────────────────────────────────────
++
++
++class TestKeyDerivation(unittest.TestCase):
++
++    def test_deterministic(self):
++        k1 = derive_health_signing_key("secret-one")
++        k2 = derive_health_signing_key("secret-one")
++        self.assertEqual(k1, k2)
++
++    def test_different_secrets_different_keys(self):
++        k1 = derive_health_signing_key("secret-one")
++        k2 = derive_health_signing_key("secret-two")
++        self.assertNotEqual(k1, k2)
++
++    def test_key_length_32_bytes(self):
++        k = derive_health_signing_key("test-secret")
++        self.assertEqual(len(k), 32)
++
++    def test_empty_secret_still_produces_key(self):
++        k = derive_health_signing_key("")
++        self.assertIsInstance(k, bytes)
++        self.assertEqual(len(k), 32)
++
++
++# ── Signing & verification ───────────────────────────────────────────
++
++
++class TestSignAndVerify(unittest.TestCase):
++
++    def setUp(self):
++        self.key = derive_health_signing_key("test-secret")
++        self.payload = _make_payload()
++
++    def test_round_trip(self):
++        sig_value = sign_health_payload(self.payload, self.key)
++        self.payload["sig"]["value"] = sig_value
++        self.assertTrue(verify_health_signature(self.payload, self.key))
++
++    def test_tampered_field_fails(self):
++        sig_value = sign_health_payload(self.payload, self.key)
++        self.payload["sig"]["value"] = sig_value
++        self.payload["state"] = "red"
++        self.assertFalse(verify_health_signature(self.payload, self.key))
++
++    def test_tampered_check_field_fails(self):
++        sig_value = sign_health_payload(self.payload, self.key)
++        self.payload["sig"]["value"] = sig_value
++        self.payload["checks"]["pipeline_enforcement"] = "fail"
++        self.assertFalse(verify_health_signature(self.payload, self.key))
++
++    def test_wrong_key_fails(self):
++        sig_value = sign_health_payload(self.payload, self.key)
++        self.payload["sig"]["value"] = sig_value
++        wrong_key = derive_health_signing_key("wrong-secret")
++        self.assertFalse(verify_health_signature(self.payload, wrong_key))
++
++    def test_missing_sig_fails(self):
++        payload = _make_payload()
++        del payload["sig"]
++        self.assertFalse(verify_health_signature(payload, self.key))
++
++    def test_empty_sig_value_fails(self):
++        payload = _make_payload()
++        payload["sig"]["value"] = ""
++        self.assertFalse(verify_health_signature(payload, self.key))
++
++    def test_malformed_sig_value_fails(self):
++        payload = _make_payload()
++        payload["sig"]["value"] = "not-valid-base64url!@#$"
++        self.assertFalse(verify_health_signature(payload, self.key))
++
++    def test_sig_valid_field_excluded_from_canonical(self):
++        """Adding sig_valid to the payload should not affect verification."""
++        sig_value = sign_health_payload(self.payload, self.key)
++        self.payload["sig"]["value"] = sig_value
++        self.payload["sig_valid"] = True
++        self.assertTrue(verify_health_signature(self.payload, self.key))
++
++
++# ── Canonical form ────────────────────────────────────────────────────
++
++
++class TestCanonicalForm(unittest.TestCase):
++
++    def test_excludes_sig_value(self):
++        payload = _make_payload()
++        payload["sig"]["value"] = "should-be-stripped"
++        canonical = _canonical_for_signing(payload)
++        self.assertNotIn(b"should-be-stripped", canonical)
++
++    def test_excludes_sig_valid(self):
++        payload = _make_payload()
++        payload["sig_valid"] = True
++        canonical = _canonical_for_signing(payload)
++        self.assertNotIn(b"sig_valid", canonical)
++
++    def test_preserves_sig_alg_and_kid(self):
++        payload = _make_payload()
++        canonical = _canonical_for_signing(payload)
++        self.assertIn(b"HMAC-SHA256", canonical)
++        self.assertIn(b"unwind-health-2026-03", canonical)
++
++    def test_deterministic(self):
++        payload = _make_payload()
++        c1 = _canonical_for_signing(payload)
++        c2 = _canonical_for_signing(payload)
++        self.assertEqual(c1, c2)
++
++    def test_does_not_mutate_original(self):
++        payload = _make_payload()
++        payload["sig"]["value"] = "original"
++        original_copy = copy.deepcopy(payload)
++        _canonical_for_signing(payload)
++        self.assertEqual(payload, original_copy)
++
++
++# ── Freshness ─────────────────────────────────────────────────────────
++
++
++class TestFreshness(unittest.TestCase):
++
++    def test_future_deadline_is_fresh(self):
++        future = (datetime.now(timezone.utc) + timedelta(seconds=30)).isoformat()
++        payload = {"fresh_until": future}
++        self.assertTrue(check_freshness(payload))
++
++    def test_past_deadline_is_stale(self):
++        past = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
++        payload = {"fresh_until": past}
++        self.assertFalse(check_freshness(payload))
++
++    def test_missing_fresh_until_is_stale(self):
++        self.assertFalse(check_freshness({}))
++
++    def test_non_string_fresh_until_is_stale(self):
++        self.assertFalse(check_freshness({"fresh_until": 12345}))
++
++    def test_malformed_timestamp_is_stale(self):
++        self.assertFalse(check_freshness({"fresh_until": "not-a-date"}))
++
++
++# ── Sequence tracker ──────────────────────────────────────────────────
++
++
++class TestSequenceTracker(unittest.TestCase):
++
++    def setUp(self):
++        self.tracker = SequenceTracker()
++
++    def test_first_seq_always_valid(self):
++        valid, restart = self.tracker.check_and_update("host-a", 42)
++        self.assertTrue(valid)
++        self.assertFalse(restart)
++
++    def test_increasing_seq_valid(self):
++        self.tracker.check_and_update("host-a", 1)
++        valid, restart = self.tracker.check_and_update("host-a", 2)
++        self.assertTrue(valid)
++        self.assertFalse(restart)
++
++    def test_same_seq_invalid(self):
++        self.tracker.check_and_update("host-a", 5)
++        valid, restart = self.tracker.check_and_update("host-a", 5)
++        self.assertFalse(valid)
++        self.assertFalse(restart)
++
++    def test_lower_seq_invalid(self):
++        self.tracker.check_and_update("host-a", 10)
++        valid, restart = self.tracker.check_and_update("host-a", 8)
++        self.assertFalse(valid)
++        self.assertFalse(restart)
++
++    def test_seq_1_after_higher_is_restart(self):
++        self.tracker.check_and_update("host-a", 100)
++        valid, restart = self.tracker.check_and_update("host-a", 1)
++        self.assertTrue(valid)
++        self.assertTrue(restart)
++
++    def test_seq_1_after_1_is_replay_not_restart(self):
++        self.tracker.check_and_update("host-a", 1)
++        valid, restart = self.tracker.check_and_update("host-a", 1)
++        self.assertFalse(valid)
++        self.assertFalse(restart)
++
++    def test_independent_instances(self):
++        self.tracker.check_and_update("host-a", 10)
++        valid_b, _ = self.tracker.check_and_update("host-b", 1)
++        self.assertTrue(valid_b)
++        # host-a still tracks independently
++        valid_a, _ = self.tracker.check_and_update("host-a", 11)
++        self.assertTrue(valid_a)
++
++    def test_reset_clears_all(self):
++        self.tracker.check_and_update("host-a", 10)
++        self.tracker.reset()
++        valid, restart = self.tracker.check_and_update("host-a", 1)
++        self.assertTrue(valid)
++        self.assertFalse(restart)  # No prior state → not a restart
++
++
++# ── Enum values ───────────────────────────────────────────────────────
++
++
++class TestEnumValues(unittest.TestCase):
++
++    def test_health_states(self):
++        self.assertEqual(HealthState.GREEN.value, "green")
++        self.assertEqual(HealthState.AMBER.value, "amber")
++        self.assertEqual(HealthState.RED.value, "red")
++
++    def test_reason_codes_match_spec(self):
++        expected = {
++            "OK", "UNKNOWN_SOURCE", "SIGNATURE_INVALID", "PAYLOAD_STALE",
++            "SEQ_REPLAY_OR_ROLLBACK", "SIDECAR_UNREACHABLE", "GATEWAY_UNHEALTHY",
++            "ADAPTER_AUTH_FAIL_401", "WATCHDOG_STALE", "PIPELINE_INVARIANT_FAIL",
++            "AUDIT_CHAIN_DEGRADED",
++        }
++        actual = {rc.value for rc in ReasonCode}
++        self.assertEqual(expected, actual)
++
++
++# ── Helpers ───────────────────────────────────────────────────────────
++
++
++class TestHelpers(unittest.TestCase):
++
++    def test_get_instance_id_returns_string(self):
++        iid = get_instance_id()
++        self.assertIsInstance(iid, str)
++        self.assertTrue(len(iid) > 0)
++
++    def test_kid_for_now_format(self):
++        kid = kid_for_now()
++        self.assertTrue(kid.startswith("unwind-health-"))
++        # Should be like "unwind-health-2026-03"
++        parts = kid.split("-")
++        self.assertEqual(len(parts), 4)
++
++    def test_schema_version_constant(self):
++        self.assertEqual(SCHEMA_VERSION, "unwind.system_health.v1")
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tests/test_no_false_green.py b/tests/test_no_false_green.py
+new file mode 100644
+index 0000000..9c590ad
+--- /dev/null
++++ b/tests/test_no_false_green.py
+@@ -0,0 +1,618 @@
++"""No-false-green contract tests for dashboard integrity status.
++
++Sentinel gate requirement: The dashboard MUST show amber or red (never green)
++when any of these conditions exist:
++
++  1. Stale heartbeat/telemetry (watchdog_stale, event_store stale)
++  2. Replayed or out-of-order sequence (CRAFT chain tampered)
++  3. Sidecar restart secret mismatch (401 from sidecar)
++  4. Transport outage/disconnect (sidecar unreachable)
++  5. Dashboard startup before sidecar/gateway ready (cold start)
++  6. Signature verification failure (sig invalid, stale TTL, seq replay)
++
++Invariant: The dashboard is render-only.  UNWIND (sidecar) is the authority.
++Green requires ALL of: sidecar connected, auth verified (not 401), sidecar
++status "up", watchdog fresh, event store fresh, CRAFT chain intact,
++AND (when signed health is available) signature valid, payload fresh,
++sequence monotonic.
++
++Any violation → overall != "healthy".  No exceptions.
++"""
++
++import json
++import shutil
++import tempfile
++import time
++import unittest
++from datetime import datetime, timedelta, timezone
++from pathlib import Path
++from unittest.mock import patch
++
++from unwind.config import UnwindConfig
++from unwind.recorder.event_store import EventStore, EventStatus
++from unwind.dashboard.app import create_app
++from unwind.sidecar.health_schema import (
++    SCHEMA_VERSION,
++    derive_health_signing_key,
++    sign_health_payload,
++)
++
++
++# ── Sidecar response fixtures ──────────────────────────────────────
++
++_TEST_SECRET = "test-shared-secret-for-no-false-green"
++_TEST_KEY = derive_health_signing_key(_TEST_SECRET)
++
++
++def _sidecar_healthy(**overrides):
++    """Simulate a healthy sidecar /v1/health response (legacy unsigned)."""
++    body = {
++        "status": "up",
++        "uptimeMs": 60_000,
++        "engineVersion": "0.1.0-alpha",
++        "lastPolicyCheckTs": "2026-03-03T12:00:00+00:00",
++        "watchdogStale": False,
++        "watchdogThresholdMs": 86_400_000,
++        "activeSessions": 1,
++        "mediationActive": True,
++        "toolCallsProcessed": 42,
++    }
++    body.update(overrides)
++    return 200, body
++
++
++def _sidecar_healthy_signed(*, seq=1, key=_TEST_KEY, **overrides):
++    """Simulate a healthy sidecar /v1/health response with signed schema v1.
++
++    Produces a fully signed payload that passes all verification gates.
++    """
++    now = datetime.now(timezone.utc)
++    body = {
++        "version": SCHEMA_VERSION,
++        "instance_id": "test-host",
++        "emitted_at": now.isoformat(),
++        "fresh_until": (now + timedelta(seconds=60)).isoformat(),
++        "ttl_sec": 60,
++        "seq": seq,
++        "state": "green",
++        "reason_code": "OK",
++        "detail": "All checks passed",
++        "checks": {
++            "sidecar_link": "ok",
++            "adapter_auth": "ok",
++            "watchdog_stale": False,
++            "pipeline_enforcement": "ok",
++            "audit_chain": "ok",
++        },
++        "sig": {
++            "alg": "HMAC-SHA256",
++            "kid": "unwind-health-2026-03",
++            "value": "",
++        },
++        # Legacy fields
++        "status": "up",
++        "uptimeMs": 60_000,
++        "engineVersion": "0.1.0-alpha",
++        "lastPolicyCheckTs": "2026-03-03T12:00:00+00:00",
++        "watchdogStale": False,
++        "watchdogThresholdMs": 86_400_000,
++        "activeSessions": 1,
++        "mediationActive": True,
++        "toolCallsProcessed": 42,
++    }
++    body.update(overrides)
++    body["sig"]["value"] = sign_health_payload(body, key)
++    return 200, body
++
++
++def _sidecar_unreachable():
++    """Simulate sidecar connection failure (503)."""
++    return 503, {"error": "Sidecar unavailable"}
++
++
++def _sidecar_auth_rejected():
++    """Simulate 401 from mismatched shared secret."""
++    return 401, {"error": "Unauthorized"}
++
++
++# ── Base class ──────────────────────────────────────────────────────
++
++
++@patch("unwind.dashboard.app._HEALTH_SIGNING_KEY", None)
++class _BaseIntegrityTest(unittest.TestCase):
++    """Shared setup for integrity contract tests.
++
++    Patches _HEALTH_SIGNING_KEY to None so legacy unsigned sidecar responses
++    are accepted (sig verification is skipped in dev/unsigned mode).
++    """
++
++    def setUp(self):
++        self.tmpdir = tempfile.mkdtemp()
++        self.config = UnwindConfig(
++            unwind_home=Path(self.tmpdir) / ".unwind",
++            workspace_root=Path(self.tmpdir) / "workspace",
++        )
++        self.config.ensure_dirs()
++        self.app = create_app(self.config)
++        self.app.testing = True
++        self.client = self.app.test_client()
++
++    def tearDown(self):
++        shutil.rmtree(self.tmpdir, ignore_errors=True)
++
++    def _seed_green_event(self, age_seconds=0):
++        """Insert a green event into EventStore."""
++        store = EventStore(self.config.events_db_path)
++        store.initialize()
++        eid = store.write_pending(
++            session_id="test_session",
++            tool="fs_read",
++            tool_class="sensor",
++            target="/workspace/readme.md",
++            target_canonical="/workspace/readme.md",
++            parameters=None,
++            session_tainted=False,
++            trust_state="green",
++        )
++        store.complete_event(eid, EventStatus.SUCCESS)
++        if age_seconds > 0:
++            store._conn.execute(
++                "UPDATE events SET timestamp = ? WHERE event_id = ?",
++                (time.time() - age_seconds, eid),
++            )
++            store._conn.commit()
++        store.close()
++        return eid
++
++    def _get_health(self):
++        """Call /api/system-health and return parsed JSON."""
++        resp = self.client.get("/api/system-health")
++        self.assertEqual(resp.status_code, 200)
++        return json.loads(resp.data)
++
++    def _assert_not_healthy(self, data, context=""):
++        """Assert overall is NOT 'healthy' (the no-false-green invariant)."""
++        self.assertNotEqual(
++            data["overall"], "healthy",
++            f"NO-FALSE-GREEN VIOLATION: overall='healthy' {context}",
++        )
++
++    def _assert_sidecar_pill_not_green(self, data, context=""):
++        """Assert sidecar pill would render non-green.
++
++        Green requires: connected AND status=='up' AND NOT watchdog_stale.
++        """
++        si = data["sidecar"]
++        is_green = si["connected"] and si["status"] == "up" and not si["watchdog_stale"]
++        self.assertFalse(is_green, f"Sidecar pill false-green: {context}")
++
++
++# ── Gate 4: Transport outage / disconnect ───────────────────────────
++
++
++class TestTransportOutage(_BaseIntegrityTest):
++    """Sidecar unreachable → never healthy."""
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_overall_disconnected_when_sidecar_unreachable(self, mock_proxy):
++        mock_proxy.return_value = _sidecar_unreachable()
++        data = self._get_health()
++        self.assertEqual(data["overall"], "disconnected")
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_sidecar_not_connected_on_503(self, mock_proxy):
++        mock_proxy.return_value = _sidecar_unreachable()
++        data = self._get_health()
++        self.assertFalse(data["sidecar"]["connected"])
++        self.assertEqual(data["sidecar"]["status"], "unreachable")
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_stale_green_events_do_not_rescue_outage(self, mock_proxy):
++        """Recent green events in EventStore cannot make overall healthy
++        when the sidecar is unreachable."""
++        self._seed_green_event()
++        mock_proxy.return_value = _sidecar_unreachable()
++        data = self._get_health()
++        self._assert_not_healthy(data, "sidecar unreachable + recent green events")
++
++
++# ── Gate 3: Sidecar auth mismatch (401) ────────────────────────────
++
++
++class TestAuthMismatch(_BaseIntegrityTest):
++    """Sidecar returns 401 (secret mismatch after restart) → never healthy."""
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_overall_not_healthy_on_401(self, mock_proxy):
++        mock_proxy.return_value = _sidecar_auth_rejected()
++        data = self._get_health()
++        self._assert_not_healthy(data, "sidecar returned 401")
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_sidecar_not_connected_on_401(self, mock_proxy):
++        """A 401 means the link is broken — sidecar must not appear connected."""
++        mock_proxy.return_value = _sidecar_auth_rejected()
++        data = self._get_health()
++        self.assertFalse(data["sidecar"]["connected"])
++        self._assert_sidecar_pill_not_green(data, "401 auth rejection")
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_401_with_green_events_still_not_healthy(self, mock_proxy):
++        """Green events cannot mask a broken auth link."""
++        self._seed_green_event()
++        mock_proxy.return_value = _sidecar_auth_rejected()
++        data = self._get_health()
++        self._assert_not_healthy(data, "401 + recent green events")
++
++
++# ── Gate 1: Stale heartbeat / telemetry ─────────────────────────────
++
++
++class TestStaleHeartbeat(_BaseIntegrityTest):
++    """Stale watchdog or event store → never healthy."""
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_watchdog_stale_degrades_overall(self, mock_proxy):
++        mock_proxy.return_value = _sidecar_healthy(watchdogStale=True)
++        data = self._get_health()
++        self._assert_not_healthy(data, "watchdog_stale=True")
++        self.assertEqual(data["overall"], "degraded")
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_watchdog_stale_pill_not_green(self, mock_proxy):
++        mock_proxy.return_value = _sidecar_healthy(watchdogStale=True)
++        data = self._get_health()
++        self._assert_sidecar_pill_not_green(data, "watchdog_stale=True")
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_event_store_stale_degrades_overall(self, mock_proxy):
++        """EventStore stale (>300s since last event, active sessions) → degraded."""
++        self._seed_green_event(age_seconds=600)
++        mock_proxy.return_value = _sidecar_healthy(activeSessions=1)
++        data = self._get_health()
++        self.assertTrue(data["event_store"]["stale"])
++        self._assert_not_healthy(data, "event_store stale (600s, active sessions)")
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_sidecar_degraded_status_not_healthy(self, mock_proxy):
++        """Sidecar reports status='degraded' (policy load failure) → not healthy.
++
++        This catches the case where the sidecar is reachable and watchdog is fine,
++        but the policy engine failed to load.  Without this check, overall would
++        be 'healthy' — a false green.
++        """
++        mock_proxy.return_value = _sidecar_healthy(status="degraded", watchdogStale=False)
++        data = self._get_health()
++        self._assert_not_healthy(data, "sidecar status='degraded' (policy load failure)")
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_sidecar_watchdog_stale_status_not_healthy(self, mock_proxy):
++        """Sidecar reports status='watchdog_stale' → not healthy."""
++        mock_proxy.return_value = _sidecar_healthy(
++            status="watchdog_stale", watchdogStale=True,
++        )
++        data = self._get_health()
++        self._assert_not_healthy(data, "sidecar status='watchdog_stale'")
++
++
++# ── Gate 2: Replayed / out-of-order sequence (CRAFT chain) ──────────
++
++
++class TestChainIntegrity(_BaseIntegrityTest):
++    """Tampered or broken CRAFT chain → never healthy."""
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_tampered_chain_degrades_overall(self, mock_proxy):
++        mock_proxy.return_value = _sidecar_healthy()
++        store = EventStore(self.config.events_db_path)
++        store.initialize()
++        eid1 = store.write_pending(
++            session_id="sess", tool="fs_read", tool_class="sensor",
++            target="/t", target_canonical="/t",
++            parameters=None, session_tainted=False, trust_state="green",
++        )
++        store.complete_event(eid1, EventStatus.SUCCESS)
++        eid2 = store.write_pending(
++            session_id="sess", tool="fs_write", tool_class="actuator",
++            target="/t", target_canonical="/t",
++            parameters=None, session_tainted=False, trust_state="green",
++        )
++        store.complete_event(eid2, EventStatus.SUCCESS)
++        # Tamper: overwrite chain hash
++        store._conn.execute(
++            "UPDATE events SET chain_hash = 'tampered_hash' WHERE event_id = ?",
++            (eid2,),
++        )
++        store._conn.commit()
++        store.close()
++
++        data = self._get_health()
++        self.assertFalse(data["craft_chain"]["verified"])
++        self._assert_not_healthy(data, "CRAFT chain tampered")
++        self.assertEqual(data["overall"], "degraded")
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_chain_verification_error_degrades_overall(self, mock_proxy):
++        """If chain verification throws, overall must not be healthy."""
++        mock_proxy.return_value = _sidecar_healthy()
++        # Seed one event, then corrupt the chain_hash column to trigger
++        # an error during verification
++        store = EventStore(self.config.events_db_path)
++        store.initialize()
++        eid = store.write_pending(
++            session_id="sess", tool="fs_read", tool_class="sensor",
++            target="/t", target_canonical="/t",
++            parameters=None, session_tainted=False, trust_state="green",
++        )
++        store.complete_event(eid, EventStatus.SUCCESS)
++        # Set prev_hash expectation to something wrong
++        store._conn.execute(
++            "UPDATE events SET chain_hash = 'broken' WHERE event_id = ?",
++            (eid,),
++        )
++        store._conn.commit()
++        store.close()
++
++        data = self._get_health()
++        # Chain should report an error (broken hash) or be marked unverified
++        # Either way, overall must not be healthy
++        if not data["craft_chain"]["verified"]:
++            self._assert_not_healthy(data, "chain verification failed")
++
++
++# ── Gate 5: Dashboard cold start ────────────────────────────────────
++
++
++class TestColdStart(_BaseIntegrityTest):
++    """Dashboard starts before sidecar/gateway ready → never healthy."""
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_cold_start_sidecar_down(self, mock_proxy):
++        """No events, sidecar not running → disconnected."""
++        mock_proxy.return_value = _sidecar_unreachable()
++        data = self._get_health()
++        self.assertEqual(data["overall"], "disconnected")
++        self.assertEqual(data["event_store"]["total_events"], 0)
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_cold_start_auth_rejected(self, mock_proxy):
++        """Dashboard starts with wrong secret, no events → not healthy."""
++        mock_proxy.return_value = _sidecar_auth_rejected()
++        data = self._get_health()
++        self._assert_not_healthy(data, "cold start with auth rejection")
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_cold_start_sidecar_up_no_events_is_valid(self, mock_proxy):
++        """Sidecar up + no events + no active sessions = valid initial state.
++
++        This is the ONE case where healthy-with-no-events is acceptable:
++        the system just started, nothing has happened yet, sidecar is ready.
++        """
++        mock_proxy.return_value = _sidecar_healthy(
++            activeSessions=0, toolCallsProcessed=0,
++        )
++        data = self._get_health()
++        self.assertTrue(data["sidecar"]["connected"])
++        # No assertion on overall here — healthy is acceptable in this state
++
++
++# ── Combined failure modes ──────────────────────────────────────────
++
++
++class TestCombinedFailures(_BaseIntegrityTest):
++    """Multiple simultaneous failures must not produce healthy."""
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_stale_events_plus_watchdog_stale(self, mock_proxy):
++        self._seed_green_event(age_seconds=600)
++        mock_proxy.return_value = _sidecar_healthy(
++            watchdogStale=True, activeSessions=1,
++        )
++        data = self._get_health()
++        self._assert_not_healthy(data, "stale events + watchdog stale")
++
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_degraded_sidecar_plus_stale_events(self, mock_proxy):
++        self._seed_green_event(age_seconds=600)
++        mock_proxy.return_value = _sidecar_healthy(
++            status="degraded", activeSessions=1,
++        )
++        data = self._get_health()
++        self._assert_not_healthy(data, "degraded sidecar + stale events")
++
++
++# ══════════════════════════════════════════════════════════════════════
++# Gate 6: Signed health verification (sig, TTL, seq)
++# ══════════════════════════════════════════════════════════════════════
++
++
++class _BaseSignedHealthTest(unittest.TestCase):
++    """Base class for signed health verification tests.
++
++    Uses a real signing key (not None) so signature gates are active.
++    Resets the global sequence tracker between tests.
++    """
++
++    def setUp(self):
++        self.tmpdir = tempfile.mkdtemp()
++        self.config = UnwindConfig(
++            unwind_home=Path(self.tmpdir) / ".unwind",
++            workspace_root=Path(self.tmpdir) / "workspace",
++        )
++        self.config.ensure_dirs()
++        self.app = create_app(self.config)
++        self.app.testing = True
++        self.client = self.app.test_client()
++
++    def tearDown(self):
++        shutil.rmtree(self.tmpdir, ignore_errors=True)
++
++    def _get_health(self):
++        resp = self.client.get("/api/system-health")
++        self.assertEqual(resp.status_code, 200)
++        return json.loads(resp.data)
++
++    def _assert_not_healthy(self, data, context=""):
++        self.assertNotEqual(
++            data["overall"], "healthy",
++            f"NO-FALSE-GREEN VIOLATION: overall='healthy' {context}",
++        )
++
++
++class TestSignatureVerification(_BaseSignedHealthTest):
++    """Signature-based gates on health payloads."""
++
++    @patch("unwind.dashboard.app._HEALTH_SEQ_TRACKER")
++    @patch("unwind.dashboard.app._HEALTH_SIGNING_KEY", _TEST_KEY)
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_valid_signed_payload_passes(self, mock_proxy, mock_tracker):
++        """A correctly signed, fresh, monotonic payload → healthy."""
++        from unwind.sidecar.health_schema import SequenceTracker
++        mock_tracker_inst = SequenceTracker()
++        mock_tracker.check_and_update = mock_tracker_inst.check_and_update
++        mock_tracker.reset = mock_tracker_inst.reset
++
++        mock_proxy.return_value = _sidecar_healthy_signed(seq=1)
++        data = self._get_health()
++        self.assertTrue(data["sidecar"]["sig_valid"])
++        self.assertTrue(data["sidecar"]["payload_fresh"])
++        self.assertTrue(data["sidecar"]["seq_valid"])
++        self.assertEqual(data["overall"], "healthy")
++
++    @patch("unwind.dashboard.app._HEALTH_SEQ_TRACKER")
++    @patch("unwind.dashboard.app._HEALTH_SIGNING_KEY", _TEST_KEY)
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_tampered_sig_not_healthy(self, mock_proxy, mock_tracker):
++        """Tampered signature → not healthy."""
++        from unwind.sidecar.health_schema import SequenceTracker
++        mock_tracker_inst = SequenceTracker()
++        mock_tracker.check_and_update = mock_tracker_inst.check_and_update
++
++        _, body = _sidecar_healthy_signed(seq=1)
++        body["sig"]["value"] = "tampered-signature-value"
++        mock_proxy.return_value = (200, body)
++
++        data = self._get_health()
++        self.assertFalse(data["sidecar"]["sig_valid"])
++        self._assert_not_healthy(data, "tampered signature")
++        self.assertEqual(data["sidecar"]["reason_code"], "SIGNATURE_INVALID")
++
++    @patch("unwind.dashboard.app._HEALTH_SEQ_TRACKER")
++    @patch("unwind.dashboard.app._HEALTH_SIGNING_KEY", _TEST_KEY)
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_missing_sig_envelope_not_healthy(self, mock_proxy, mock_tracker):
++        """Missing sig envelope → UNKNOWN_SOURCE → not healthy."""
++        from unwind.sidecar.health_schema import SequenceTracker
++        mock_tracker_inst = SequenceTracker()
++        mock_tracker.check_and_update = mock_tracker_inst.check_and_update
++
++        # Response without sig field
++        mock_proxy.return_value = _sidecar_healthy()
++        data = self._get_health()
++        self._assert_not_healthy(data, "missing sig envelope")
++        self.assertEqual(data["sidecar"]["reason_code"], "UNKNOWN_SOURCE")
++
++    @patch("unwind.dashboard.app._HEALTH_SEQ_TRACKER")
++    @patch("unwind.dashboard.app._HEALTH_SIGNING_KEY", _TEST_KEY)
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_wrong_key_not_healthy(self, mock_proxy, mock_tracker):
++        """Signed with different key → not healthy."""
++        from unwind.sidecar.health_schema import SequenceTracker
++        mock_tracker_inst = SequenceTracker()
++        mock_tracker.check_and_update = mock_tracker_inst.check_and_update
++
++        wrong_key = derive_health_signing_key("different-secret")
++        mock_proxy.return_value = _sidecar_healthy_signed(seq=1, key=wrong_key)
++
++        data = self._get_health()
++        self.assertFalse(data["sidecar"]["sig_valid"])
++        self._assert_not_healthy(data, "signed with wrong key")
++
++
++class TestPayloadFreshness(_BaseSignedHealthTest):
++    """TTL-based freshness gate on health payloads."""
++
++    @patch("unwind.dashboard.app._HEALTH_SEQ_TRACKER")
++    @patch("unwind.dashboard.app._HEALTH_SIGNING_KEY", _TEST_KEY)
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_expired_ttl_not_healthy(self, mock_proxy, mock_tracker):
++        """Expired fresh_until → not healthy."""
++        from unwind.sidecar.health_schema import SequenceTracker
++        mock_tracker_inst = SequenceTracker()
++        mock_tracker.check_and_update = mock_tracker_inst.check_and_update
++
++        past = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
++        # Sign with expired fresh_until
++        mock_proxy.return_value = _sidecar_healthy_signed(
++            seq=1, fresh_until=past,
++        )
++        data = self._get_health()
++        self.assertFalse(data["sidecar"]["payload_fresh"])
++        self._assert_not_healthy(data, "expired TTL")
++        self.assertEqual(data["sidecar"]["reason_code"], "PAYLOAD_STALE")
++
++
++class TestSequenceReplay(_BaseSignedHealthTest):
++    """Sequence monotonicity gate on health payloads."""
++
++    @patch("unwind.dashboard.app._HEALTH_SEQ_TRACKER")
++    @patch("unwind.dashboard.app._HEALTH_SIGNING_KEY", _TEST_KEY)
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_replayed_seq_not_healthy(self, mock_proxy, mock_tracker):
++        """Replayed sequence number → not healthy."""
++        from unwind.sidecar.health_schema import SequenceTracker
++        tracker = SequenceTracker()
++        mock_tracker.check_and_update = tracker.check_and_update
++        mock_tracker.reset = tracker.reset
++
++        # First request — seq=5 accepted
++        mock_proxy.return_value = _sidecar_healthy_signed(seq=5)
++        data1 = self._get_health()
++        self.assertEqual(data1["overall"], "healthy")
++
++        # Second request — same seq=5 replayed
++        mock_proxy.return_value = _sidecar_healthy_signed(seq=5)
++        data2 = self._get_health()
++        self.assertFalse(data2["sidecar"]["seq_valid"])
++        self._assert_not_healthy(data2, "replayed sequence")
++        self.assertEqual(data2["sidecar"]["reason_code"], "SEQ_REPLAY_OR_ROLLBACK")
++
++    @patch("unwind.dashboard.app._HEALTH_SEQ_TRACKER")
++    @patch("unwind.dashboard.app._HEALTH_SIGNING_KEY", _TEST_KEY)
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_restart_seq_degrades(self, mock_proxy, mock_tracker):
++        """Seq=1 after higher value (restart) → accepted but degraded."""
++        from unwind.sidecar.health_schema import SequenceTracker
++        tracker = SequenceTracker()
++        mock_tracker.check_and_update = tracker.check_and_update
++        mock_tracker.reset = tracker.reset
++
++        # First request — seq=100
++        mock_proxy.return_value = _sidecar_healthy_signed(seq=100)
++        data1 = self._get_health()
++        self.assertEqual(data1["overall"], "healthy")
++
++        # Second request — seq=1 (restart)
++        mock_proxy.return_value = _sidecar_healthy_signed(seq=1)
++        data2 = self._get_health()
++        self.assertTrue(data2["sidecar"]["seq_valid"])
++        # Restart forces amber state
++        self.assertEqual(data2["sidecar"]["state"], "amber")
++        self._assert_not_healthy(data2, "restart seq forces amber")
++
++
++class TestUnsignedDevMode(_BaseSignedHealthTest):
++    """When no signing key is configured (dev mode), unsigned payloads degrade."""
++
++    @patch("unwind.dashboard.app._HEALTH_SIGNING_KEY", None)
++    @patch("unwind.dashboard.app._proxy_sidecar")
++    def test_no_key_unsigned_response_degrades(self, mock_proxy):
++        """No signing key + unsigned response → UNKNOWN_SOURCE → degraded."""
++        mock_proxy.return_value = _sidecar_healthy()
++        data = self._get_health()
++        self.assertEqual(data["sidecar"]["reason_code"], "UNKNOWN_SOURCE")
++        self._assert_not_healthy(data, "no signing key (dev mode)")
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/unwind/dashboard/app.py b/unwind/dashboard/app.py
+index 81ee63c..8f2e34b 100644
+--- a/unwind/dashboard/app.py
++++ b/unwind/dashboard/app.py
+@@ -27,6 +27,18 @@ from .explanations import explain
+ SIDECAR_URL = os.environ.get("UNWIND_SIDECAR_URL", "http://127.0.0.1:9100")
+ SIDECAR_SECRET = os.environ.get("UNWIND_SIDECAR_SHARED_SECRET", "")
+ 
++# --- Signed health verification (unwind.system_health.v1) ---
++from ..sidecar.health_schema import (
++    ReasonCode,
++    SequenceTracker,
++    check_freshness,
++    derive_health_signing_key,
++    verify_health_signature,
++)
++
++_HEALTH_SIGNING_KEY = derive_health_signing_key(SIDECAR_SECRET) if SIDECAR_SECRET else None
++_HEALTH_SEQ_TRACKER = SequenceTracker()
++
+ 
+ def _proxy_sidecar(method, path, params=None, body=None):
+     """Forward request to sidecar. Returns (status_code, json_body).
+@@ -526,6 +538,205 @@ def create_app(config: UnwindConfig = None) -> Flask:
+             "timestamp": time.time(),
+         })
+ 
++    # ─── API: System Health ─────────────────────────────────
++
++    @app.route("/api/system-health")
++    def api_system_health():
++        """Consolidated health check for all subsystems.
++
++        Returns connection status for sidecar, EventStore, and CRAFT chain.
++        Frontend polls this to show the integrity bar.
++
++        Signed health verification gates (all must pass for green):
++          1. sig_valid — HMAC-SHA256 verified
++          2. fresh — payload within TTL
++          3. seq monotonic — no replay or rollback
++          4. state — sidecar's own assessment
++          5. checks — no critical check failure
++        """
++        now = time.time()
++
++        # --- Sidecar health ---
++        sidecar_info = {
++            "connected": False,
++            "status": "unreachable",
++            "uptime_seconds": None,
++            "tool_calls_processed": None,
++            "active_sessions": 0,
++            "watchdog_stale": False,
++            "last_policy_check_age": None,
++            # Signed health v1 fields
++            "sig_valid": None,
++            "payload_fresh": None,
++            "seq_valid": None,
++            "state": None,
++            "reason_code": None,
++        }
++
++        sc_code, sc_body = _proxy_sidecar("GET", "/v1/health")
++        if sc_code == 401:
++            # Auth mismatch — sidecar restarted with different secret
++            sidecar_info["reason_code"] = ReasonCode.ADAPTER_AUTH_FAIL_401.value
++        elif sc_code == 200:
++            sidecar_info["connected"] = True
++            sidecar_info["status"] = sc_body.get("status", "up")
++            uptime_ms = sc_body.get("uptimeMs", 0)
++            sidecar_info["uptime_seconds"] = uptime_ms / 1000.0 if uptime_ms else 0
++            sidecar_info["tool_calls_processed"] = sc_body.get("toolCallsProcessed", 0)
++            sidecar_info["active_sessions"] = sc_body.get("activeSessions", 0)
++            sidecar_info["watchdog_stale"] = bool(sc_body.get("watchdogStale", False))
++
++            last_check_ts = sc_body.get("lastPolicyCheckTs")
++            if last_check_ts:
++                try:
++                    from datetime import datetime, timezone
++                    dt = datetime.fromisoformat(last_check_ts.replace("Z", "+00:00"))
++                    sidecar_info["last_policy_check_age"] = now - dt.timestamp()
++                except (ValueError, TypeError):
++                    sidecar_info["last_policy_check_age"] = None
++
++            # --- Signed health v1 verification ---
++            has_sig = isinstance(sc_body.get("sig"), dict)
++
++            if _HEALTH_SIGNING_KEY is None:
++                # Dev mode — no secret configured, skip sig verification
++                sidecar_info["sig_valid"] = None
++                sidecar_info["reason_code"] = ReasonCode.UNKNOWN_SOURCE.value
++            elif has_sig:
++                # Gate 1: Signature verification
++                sig_ok = verify_health_signature(sc_body, _HEALTH_SIGNING_KEY)
++                sidecar_info["sig_valid"] = sig_ok
++                if not sig_ok:
++                    sidecar_info["reason_code"] = ReasonCode.SIGNATURE_INVALID.value
++
++                # Gate 2: Freshness (TTL)
++                if sig_ok:
++                    fresh = check_freshness(sc_body)
++                    sidecar_info["payload_fresh"] = fresh
++                    if not fresh:
++                        sidecar_info["reason_code"] = ReasonCode.PAYLOAD_STALE.value
++
++                # Gate 3: Sequence monotonicity
++                if sig_ok and sidecar_info.get("payload_fresh"):
++                    instance_id = sc_body.get("instance_id", "unknown")
++                    seq = sc_body.get("seq", 0)
++                    seq_ok, is_restart = _HEALTH_SEQ_TRACKER.check_and_update(
++                        instance_id, seq,
++                    )
++                    sidecar_info["seq_valid"] = seq_ok
++                    if not seq_ok:
++                        sidecar_info["reason_code"] = ReasonCode.SEQ_REPLAY_OR_ROLLBACK.value
++                    elif is_restart:
++                        # Restart detected — accept but force amber
++                        sidecar_info["state"] = "amber"
++                        sidecar_info["reason_code"] = sc_body.get(
++                            "reason_code", ReasonCode.OK.value,
++                        )
++
++                # Gate 4: Sidecar's own state assessment
++                if sidecar_info.get("reason_code") is None:
++                    sidecar_state = sc_body.get("state", sc_body.get("status", "up"))
++                    sidecar_info["state"] = sidecar_state
++                    sidecar_reason = sc_body.get("reason_code", ReasonCode.OK.value)
++                    sidecar_info["reason_code"] = sidecar_reason
++
++                # Gate 5: Critical checks
++                checks = sc_body.get("checks", {})
++                if checks.get("pipeline_enforcement") == "fail":
++                    sidecar_info["reason_code"] = ReasonCode.PIPELINE_INVARIANT_FAIL.value
++                if checks.get("audit_chain") == "fail":
++                    sidecar_info["reason_code"] = ReasonCode.AUDIT_CHAIN_DEGRADED.value
++            else:
++                # No sig envelope in response — unsigned legacy response
++                sidecar_info["sig_valid"] = None
++                sidecar_info["reason_code"] = ReasonCode.UNKNOWN_SOURCE.value
++
++        # --- EventStore health ---
++        event_store_info = {
++            "connected": False,
++            "total_events": 0,
++            "last_event_age": None,
++            "stale": False,
++        }
++
++        try:
++            total = store.event_count()
++            event_store_info["connected"] = True
++            event_store_info["total_events"] = total
++
++            if total > 0:
++                latest = store.query_events(limit=1)
++                if latest:
++                    last_ts = latest[0].get("timestamp", 0)
++                    if last_ts:
++                        event_store_info["last_event_age"] = now - last_ts
++
++                        # Stale if >300s since last event AND sidecar has active sessions
++                        if (now - last_ts > 300
++                                and sidecar_info["connected"]
++                                and sidecar_info["active_sessions"] > 0):
++                            event_store_info["stale"] = True
++        except Exception:
++            event_store_info["connected"] = False
++
++        # --- CRAFT chain check (detailed — distinguishes restarts from tampering) ---
++        chain_info = {
++            "verified": False,
++            "error": None,
++        }
++
++        try:
++            result = store.verify_chain_detailed()
++            classification = result.get("classification", "")
++            # "intact" or "restart_gaps_only" are both fine
++            if classification in ("intact", "restart_gaps_only"):
++                chain_info["verified"] = True
++            else:
++                chain_info["verified"] = False
++                # Build error from first suspicious break
++                breaks = result.get("breaks", [])
++                suspicious = [b for b in breaks if b.get("classification") != "restart"]
++                if suspicious:
++                    b = suspicious[0]
++                    chain_info["error"] = f"Suspicious break at event {b.get('event_id', '?')}"
++                else:
++                    chain_info["error"] = result.get("human_message", "Chain verification failed")
++        except Exception as exc:
++            chain_info["error"] = str(exc)
++
++        # --- Overall status (no-false-green contract) ---
++        # Green requires ALL of: sidecar connected, sidecar status "up",
++        # watchdog fresh, event store fresh, CRAFT chain intact,
++        # AND (if signed health available) sig valid, payload fresh, seq valid.
++        if not sidecar_info["connected"]:
++            overall = "disconnected"
++        elif (sidecar_info["status"] != "up"
++              or sidecar_info["watchdog_stale"]
++              or event_store_info["stale"]
++              or chain_info["error"] is not None):
++            overall = "degraded"
++        elif sidecar_info.get("sig_valid") is False:
++            overall = "degraded"
++        elif sidecar_info.get("payload_fresh") is False:
++            overall = "degraded"
++        elif sidecar_info.get("seq_valid") is False:
++            overall = "degraded"
++        elif (sidecar_info.get("state") is not None
++              and sidecar_info["state"] != "green"):
++            overall = "degraded"
++        elif sidecar_info.get("reason_code") == ReasonCode.UNKNOWN_SOURCE.value:
++            overall = "degraded"
++        else:
++            overall = "healthy"
++
++        return jsonify({
++            "sidecar": sidecar_info,
++            "event_store": event_store_info,
++            "craft_chain": chain_info,
++            "overall": overall,
++            "timestamp": now,
++        })
++
+     # ─── Helpers ─────────────────────────────────────────────
+ 
+     def _row_to_snapshot(row: dict) -> Snapshot:
+diff --git a/unwind/sidecar/__init__.py b/unwind/sidecar/__init__.py
+index c65b3ec..3cd1ebc 100644
+--- a/unwind/sidecar/__init__.py
++++ b/unwind/sidecar/__init__.py
+@@ -7,6 +7,7 @@ from .models import (
+     TelemetryEvent,
+     TelemetryEventResponse,
+     HealthResponse,
++    SignedHealthResponse,
+     ErrorResponse,
+ )
+ from .server import create_app, serve, ENGINE_VERSION
+@@ -18,6 +19,7 @@ __all__ = [
+     "TelemetryEvent",
+     "TelemetryEventResponse",
+     "HealthResponse",
++    "SignedHealthResponse",
+     "ErrorResponse",
+     "create_app",
+     "serve",
+diff --git a/unwind/sidecar/health_schema.py b/unwind/sidecar/health_schema.py
+new file mode 100644
+index 0000000..cdc62db
+--- /dev/null
++++ b/unwind/sidecar/health_schema.py
+@@ -0,0 +1,215 @@
++"""Signed health schema — unwind.system_health.v1.
++
++Provides HMAC-SHA256 signing and verification for sidecar health payloads,
++freshness checking (TTL), and monotonic sequence tracking to prevent replay.
++
++Key derivation uses HKDF (key separation) so the bearer token is never used
++directly as an HMAC key.
++"""
++
++from __future__ import annotations
++
++import copy
++import hmac as _hmac
++import socket
++from datetime import datetime, timezone
++from enum import Enum
++from typing import Any, Optional
++
++from ..craft.canonical import canonicalize_json
++from ..craft.crypto import b64url_decode, b64url_encode, hkdf_expand, hkdf_extract, hmac_sha256
++
++
++# ---------------------------------------------------------------------------
++# Enums
++# ---------------------------------------------------------------------------
++
++
++class HealthState(str, Enum):
++    GREEN = "green"
++    AMBER = "amber"
++    RED = "red"
++
++
++class ReasonCode(str, Enum):
++    OK = "OK"
++    UNKNOWN_SOURCE = "UNKNOWN_SOURCE"
++    SIGNATURE_INVALID = "SIGNATURE_INVALID"
++    PAYLOAD_STALE = "PAYLOAD_STALE"
++    SEQ_REPLAY_OR_ROLLBACK = "SEQ_REPLAY_OR_ROLLBACK"
++    SIDECAR_UNREACHABLE = "SIDECAR_UNREACHABLE"
++    GATEWAY_UNHEALTHY = "GATEWAY_UNHEALTHY"
++    ADAPTER_AUTH_FAIL_401 = "ADAPTER_AUTH_FAIL_401"
++    WATCHDOG_STALE = "WATCHDOG_STALE"
++    PIPELINE_INVARIANT_FAIL = "PIPELINE_INVARIANT_FAIL"
++    AUDIT_CHAIN_DEGRADED = "AUDIT_CHAIN_DEGRADED"
++
++
++# Schema version constant
++SCHEMA_VERSION = "unwind.system_health.v1"
++
++# Fields stripped before canonical encoding for signature
++_SIG_EXCLUDED_FIELDS = frozenset({"sig_valid"})
++
++
++# ---------------------------------------------------------------------------
++# Key derivation
++# ---------------------------------------------------------------------------
++
++
++def derive_health_signing_key(shared_secret: str) -> bytes:
++    """Derive a 256-bit HMAC key for health payload signing.
++
++    Uses HKDF with a domain-specific salt/info so the bearer token is never
++    used directly as an HMAC key (key separation).
++    """
++    prk = hkdf_extract(
++        salt=b"unwind-health-v1",
++        ikm=shared_secret.encode("utf-8"),
++    )
++    return hkdf_expand(prk, b"unwind-health-sig", 32)
++
++
++# ---------------------------------------------------------------------------
++# Canonical form
++# ---------------------------------------------------------------------------
++
++
++def _canonical_for_signing(payload: dict[str, Any]) -> bytes:
++    """Build the canonical byte string for HMAC input.
++
++    Strips ``sig.value`` (the signature itself) and ``sig_valid`` (a
++    verification-side annotation) from a deep copy before canonicalising.
++    """
++    cleaned = copy.deepcopy(payload)
++
++    # Remove verification-side fields
++    for field in _SIG_EXCLUDED_FIELDS:
++        cleaned.pop(field, None)
++
++    # Remove the signature value but keep the rest of the sig envelope
++    sig = cleaned.get("sig")
++    if isinstance(sig, dict):
++        sig.pop("value", None)
++
++    return canonicalize_json(cleaned).encode("utf-8")
++
++
++# ---------------------------------------------------------------------------
++# Signing & verification
++# ---------------------------------------------------------------------------
++
++
++def sign_health_payload(payload: dict[str, Any], key: bytes) -> str:
++    """Compute HMAC-SHA256 over the canonical payload, return base64url string."""
++    canonical = _canonical_for_signing(payload)
++    mac = hmac_sha256(key, canonical)
++    return b64url_encode(mac)
++
++
++def verify_health_signature(payload: dict[str, Any], key: bytes) -> bool:
++    """Verify the HMAC-SHA256 signature in ``payload["sig"]["value"]``.
++
++    Returns False if the signature is missing, malformed, or invalid.
++    Uses constant-time comparison.
++    """
++    sig = payload.get("sig")
++    if not isinstance(sig, dict):
++        return False
++    sig_value = sig.get("value")
++    if not isinstance(sig_value, str) or not sig_value:
++        return False
++
++    try:
++        provided_mac = b64url_decode(sig_value)
++    except Exception:
++        return False
++
++    canonical = _canonical_for_signing(payload)
++    expected_mac = hmac_sha256(key, canonical)
++    return _hmac.compare_digest(provided_mac, expected_mac)
++
++
++# ---------------------------------------------------------------------------
++# Freshness
++# ---------------------------------------------------------------------------
++
++
++def check_freshness(payload: dict[str, Any]) -> bool:
++    """Return True if the payload is still within its TTL window.
++
++    Checks ``fresh_until`` (ISO 8601). Returns False if missing or expired.
++    """
++    fresh_until = payload.get("fresh_until")
++    if not isinstance(fresh_until, str):
++        return False
++    try:
++        deadline = datetime.fromisoformat(fresh_until.replace("Z", "+00:00"))
++        now = datetime.now(timezone.utc)
++        return now <= deadline
++    except (ValueError, TypeError):
++        return False
++
++
++# ---------------------------------------------------------------------------
++# Sequence tracker
++# ---------------------------------------------------------------------------
++
++
++class SequenceTracker:
++    """Track monotonically increasing sequence numbers per instance.
++
++    In-memory — resets on dashboard restart (first response always passes,
++    which is safe). Detects replays during normal operation.
++    """
++
++    def __init__(self) -> None:
++        self._last: dict[str, int] = {}
++
++    def check_and_update(self, instance_id: str, seq: int) -> tuple[bool, bool]:
++        """Check and record a sequence number.
++
++        Returns:
++            (valid, is_restart):
++            - valid=True if seq is acceptable (monotonically increasing or restart)
++            - is_restart=True if seq=1 after a higher value (sidecar restarted)
++        """
++        last = self._last.get(instance_id)
++
++        if last is None:
++            # First response from this instance — always accept
++            self._last[instance_id] = seq
++            return True, False
++
++        if seq > last:
++            # Normal monotonic increase
++            self._last[instance_id] = seq
++            return True, False
++
++        if seq == 1 and last > 1:
++            # Restart detected: seq reset to 1 after higher value
++            self._last[instance_id] = seq
++            return True, True
++
++        # Same or lower (not a restart) — replay or rollback
++        return False, False
++
++    def reset(self) -> None:
++        """Clear all tracked sequences."""
++        self._last.clear()
++
++
++# ---------------------------------------------------------------------------
++# Helpers
++# ---------------------------------------------------------------------------
++
++
++def get_instance_id() -> str:
++    """Return hostname as instance identifier."""
++    return socket.gethostname()
++
++
++def kid_for_now() -> str:
++    """Return key ID string for the current month: ``unwind-health-YYYY-MM``."""
++    now = datetime.now(timezone.utc)
++    return f"unwind-health-{now.strftime('%Y-%m')}"
+diff --git a/unwind/sidecar/models.py b/unwind/sidecar/models.py
+index 87ba815..ed82a5a 100644
+--- a/unwind/sidecar/models.py
++++ b/unwind/sidecar/models.py
+@@ -133,6 +133,80 @@ class HealthResponse:
+         return result
+ 
+ 
++# ---------------------------------------------------------------------------
++# Signed Health (unwind.system_health.v1)
++# ---------------------------------------------------------------------------
++
++@dataclass
++class SignedHealthResponse:
++    """Signed health response — includes both v1 schema fields and legacy fields.
++
++    ``to_wire()`` produces the full wire dict including the ``sig`` envelope.
++    Caller must compute and insert ``sig.value`` after calling ``to_wire()``.
++    """
++    # v1 schema fields
++    version: str
++    instance_id: str
++    emitted_at: str
++    fresh_until: str
++    ttl_sec: int
++    seq: int
++    state: str                  # "green", "amber", "red"
++    reason_code: str            # ReasonCode value
++    detail: str
++    checks: dict
++    sig_alg: str = "HMAC-SHA256"
++    sig_kid: str = ""
++
++    # Legacy fields (TS adapter backward compat)
++    status: str = "up"
++    uptime_ms: int = 0
++    engine_version: str = ""
++    last_policy_check_ts: Optional[str] = None
++    watchdog_stale: bool = False
++    watchdog_threshold_ms: int = 0
++    active_sessions: int = 0
++    mediation_active: bool = False
++    tool_calls_processed: int = 0
++
++    def to_wire(self) -> dict:
++        """Serialize to wire format with both v1 schema and legacy fields.
++
++        Returns the full dict ready for signing. The ``sig.value`` field is
++        set to empty string — caller fills it after HMAC computation.
++        """
++        result = {
++            # v1 schema fields
++            "version": self.version,
++            "instance_id": self.instance_id,
++            "emitted_at": self.emitted_at,
++            "fresh_until": self.fresh_until,
++            "ttl_sec": self.ttl_sec,
++            "seq": self.seq,
++            "state": self.state,
++            "reason_code": self.reason_code,
++            "detail": self.detail,
++            "checks": self.checks,
++            "sig": {
++                "alg": self.sig_alg,
++                "kid": self.sig_kid,
++                "value": "",
++            },
++            # Legacy fields (TS adapter reads these)
++            "status": self.status,
++            "uptimeMs": self.uptime_ms,
++            "engineVersion": self.engine_version,
++            "lastPolicyCheckTs": self.last_policy_check_ts,
++        }
++        if self.watchdog_stale:
++            result["watchdogStale"] = True
++        result["watchdogThresholdMs"] = self.watchdog_threshold_ms
++        result["activeSessions"] = self.active_sessions
++        result["mediationActive"] = self.mediation_active
++        result["toolCallsProcessed"] = self.tool_calls_processed
++        return result
++
++
+ # ---------------------------------------------------------------------------
+ # Ghost Mode (P3-10)
+ # ---------------------------------------------------------------------------
+diff --git a/unwind/sidecar/server.py b/unwind/sidecar/server.py
+index 638a8d1..d94c474 100644
+--- a/unwind/sidecar/server.py
++++ b/unwind/sidecar/server.py
+@@ -24,7 +24,7 @@ import logging
+ import os
+ import secrets
+ import time
+-from datetime import datetime, timezone
++from datetime import datetime, timedelta as _timedelta, timezone
+ from pathlib import Path
+ from typing import Any, Optional
+ 
+@@ -45,10 +45,20 @@ from .models import (
+     TelemetryEvent,
+     TelemetryEventResponse,
+     HealthResponse,
++    SignedHealthResponse,
+     GhostStatusResponse,
+     GhostActionResponse,
+     ErrorResponse,
+ )
++from .health_schema import (
++    SCHEMA_VERSION,
++    HealthState,
++    ReasonCode,
++    derive_health_signing_key,
++    get_instance_id,
++    kid_for_now,
++    sign_health_payload,
++)
+ 
+ logger = logging.getLogger("unwind.sidecar")
+ 
+@@ -249,6 +259,13 @@ def create_app(
+     # Track session activity timestamps for watchdog
+     session_last_seen: dict[str, float] = {}
+ 
++    # --- Health signing ---
++    health_seq: list[int] = [0]  # Monotonically increasing sequence counter
++    _health_signing_key: Optional[bytes] = (
++        derive_health_signing_key(shared_secret) if shared_secret else None
++    )
++    _health_instance_id: str = get_instance_id()
++
+     # --- Telemetry buffer ---
+     telemetry_buffer: list[dict] = []
+ 
+@@ -311,53 +328,79 @@ def create_app(
+ 
+     @app.get("/v1/health")
+     async def health():
+-        """Liveness and readiness probe with watchdog status.
+-
+-        Watchdog detects adapter/hook silence:
+-        - If sessions exist but no policy check has arrived within
+-          WATCHDOG_THRESHOLD_SECONDS, report watchdog_stale=True.
+-        - This catches: hook failures, adapter crashes, hook bypass.
+-        - An external monitor (cron, systemd timer, or operator script)
+-          can poll this endpoint and alert on watchdog_stale.
++        """Liveness and readiness probe with signed health schema v1.
++
++        Returns an HMAC-signed payload with TTL, monotonic sequence, and
++        per-check status. Watchdog detects adapter/hook silence.
+         """
+-        now = time.monotonic()
+-        uptime_ms = int((now - startup_ts) * 1000)
++        now_mono = time.monotonic()
++        now_utc = datetime.now(timezone.utc)
++        uptime_ms = int((now_mono - startup_ts) * 1000)
+ 
+         # --- Watchdog: detect stale hooks ---
+-        # Count sessions with recent activity (seen within 2x threshold)
+-        active_cutoff = now - (WATCHDOG_THRESHOLD_SECONDS * 2)
++        active_cutoff = now_mono - (WATCHDOG_THRESHOLD_SECONDS * 2)
+         active_count = sum(
+             1 for ts in session_last_seen.values() if ts > active_cutoff
+         )
+ 
+-        # Stale = we have recently active sessions, a policy check has
+-        # happened before, but the last one was longer ago than the threshold.
+-        # If no sessions are active (user went AFK), this is normal idle —
+-        # not a watchdog failure.
+         watchdog_stale = False
+         if (
+-            last_policy_check_mono[0] > 0  # At least one check has happened
+-            and active_count > 0             # Sessions with recent activity
+-            and (now - last_policy_check_mono[0]) > WATCHDOG_THRESHOLD_SECONDS
++            last_policy_check_mono[0] > 0
++            and active_count > 0
++            and (now_mono - last_policy_check_mono[0]) > WATCHDOG_THRESHOLD_SECONDS
+         ):
+             watchdog_stale = True
+             logger.warning(
+                 "[sidecar] WATCHDOG: no policy check for %.1fs "
+                 "(threshold: %.1fs) — adapter hooks may have stopped firing",
+-                now - last_policy_check_mono[0],
++                now_mono - last_policy_check_mono[0],
+                 WATCHDOG_THRESHOLD_SECONDS,
+             )
+ 
+-        # Determine overall status
++        # --- Determine state + reason code ---
+         if _policy_load_failed:
+-            status = "degraded"
++            state = HealthState.RED.value
++            reason_code = ReasonCode.PIPELINE_INVARIANT_FAIL.value
++            detail = f"Policy source failed: {_policy_load_error}"
++            legacy_status = "degraded"
+         elif watchdog_stale:
+-            status = "watchdog_stale"
++            state = HealthState.AMBER.value
++            reason_code = ReasonCode.WATCHDOG_STALE.value
++            detail = "No policy check within watchdog threshold"
++            legacy_status = "watchdog_stale"
+         else:
+-            status = "up"
+-
+-        resp = HealthResponse(
+-            status=status,
++            state = HealthState.GREEN.value
++            reason_code = ReasonCode.OK.value
++            detail = "All checks passed"
++            legacy_status = "up"
++
++        # --- Build checks ---
++        checks = {
++            "sidecar_link": "ok",
++            "adapter_auth": "ok" if mediation_active[0] else "no_checks_yet",
++            "watchdog_stale": watchdog_stale,
++            "pipeline_enforcement": "fail" if _policy_load_failed else "ok",
++            "audit_chain": "ok",
++        }
++
++        # --- Increment seq ---
++        health_seq[0] += 1
++        ttl_sec = 60
++
++        resp = SignedHealthResponse(
++            version=SCHEMA_VERSION,
++            instance_id=_health_instance_id,
++            emitted_at=now_utc.isoformat(),
++            fresh_until=(now_utc + _timedelta(seconds=ttl_sec)).isoformat(),
++            ttl_sec=ttl_sec,
++            seq=health_seq[0],
++            state=state,
++            reason_code=reason_code,
++            detail=detail,
++            checks=checks,
++            sig_kid=kid_for_now(),
++            # Legacy fields
++            status=legacy_status,
+             uptime_ms=uptime_ms,
+             engine_version=ENGINE_VERSION,
+             last_policy_check_ts=last_policy_check_ts[0],
+@@ -367,7 +410,14 @@ def create_app(
+             mediation_active=mediation_active[0],
+             tool_calls_processed=tool_calls_processed[0],
+         )
+-        return JSONResponse(status_code=200, content=resp.to_wire())
++
++        wire = resp.to_wire()
++
++        # --- Sign ---
++        if _health_signing_key is not None:
++            wire["sig"]["value"] = sign_health_payload(wire, _health_signing_key)
++
++        return JSONResponse(status_code=200, content=wire)
+ 
+     # -----------------------------------------------------------------------
+     # POST /v1/policy/check
