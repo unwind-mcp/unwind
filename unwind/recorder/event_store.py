@@ -10,6 +10,11 @@ Key design decisions:
 
 import asyncio
 import hashlib
+
+from .preimage import (
+    build_action_hash, compute_chain_hash as _preimage_chain_hash,
+    SCHEMA_V1, SCHEMA_V2, SUPPORTED_SCHEMAS,
+)
 import json
 import sqlite3
 import time
@@ -47,6 +52,9 @@ class Event:
     result_summary: Optional[str]
     ghost_mode: bool
     chain_hash: Optional[str] = None
+    schema_version: int = 1
+    host_id: Optional[str] = None
+    location_hint: Optional[str] = None
 
 
 class EventStore:
@@ -56,6 +64,7 @@ class EventStore:
         self.db_path = db_path
         self._conn: Optional[sqlite3.Connection] = None
         self._last_chain_hash: Optional[str] = None
+        self._attestation_context: dict = {"schema_version": 1, "host_id": None, "location_hint": None}
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         # Read collapsing: aggregate rapid sequential reads into single entries
         self._read_collapse_seconds = read_collapse_seconds
@@ -133,6 +142,17 @@ class EventStore:
 
         self._conn.commit()
 
+        # ─── CR-AFT schema migration (idempotent) ──────────────
+        existing_cols = {r[1] for r in self._conn.execute("PRAGMA table_info(events)").fetchall()}
+        for col, typedef in [
+            ("schema_version", "INTEGER NOT NULL DEFAULT 1"),
+            ("host_id", "TEXT"),
+            ("location_hint", "TEXT"),
+        ]:
+            if col not in existing_cols:
+                self._conn.execute(f"ALTER TABLE events ADD COLUMN {col} {typedef}")
+        self._conn.commit()
+
         # Load the last chain hash for CR-AFT continuity
         row = self._conn.execute(
             "SELECT chain_hash FROM events ORDER BY timestamp DESC LIMIT 1"
@@ -145,6 +165,16 @@ class EventStore:
         ts = time.strftime("%Y%m%d_%H%M%S")
         suffix = uuid.uuid4().hex[:6]
         return f"evt_{ts}_{suffix}"
+
+
+    def set_attestation_context(self, schema_version: int = 1,
+                                host_id=None, location_hint=None):
+        """Set default attestation fields for new events."""
+        self._attestation_context = {
+            "schema_version": schema_version,
+            "host_id": host_id,
+            "location_hint": location_hint,
+        }
 
     def _compute_chain_hash(self, event_id: str, timestamp: float, action_hash: str) -> str:
         """Compute CR-AFT chain hash: SHA-256(prev_hash + event_id + timestamp + action_hash)."""
@@ -181,22 +211,31 @@ class EventStore:
         timestamp = time.time()
         params_hash = self._hash_parameters(parameters)
 
-        # Compute chain hash
-        action_data = f"{tool}:{target_canonical or ''}:{params_hash or ''}"
-        action_hash = hashlib.sha256(action_data.encode()).hexdigest()
-        chain_hash = self._compute_chain_hash(event_id, timestamp, action_hash)
+        # Compute chain hash via pre-image builder
+        action_hash = build_action_hash(tool, target_canonical, params_hash)
+        ctx = self._attestation_context
+        chain_hash = _preimage_chain_hash(
+            schema_version=ctx["schema_version"],
+            prev_hash=self._last_chain_hash,
+            event_id=event_id, timestamp=timestamp,
+            action_hash=action_hash,
+            host_id=ctx.get("host_id"),
+            location_hint=ctx.get("location_hint"),
+        )
         self._last_chain_hash = chain_hash
 
         self._conn.execute(
             """INSERT INTO events
                (event_id, timestamp, session_id, tool, tool_class, target,
                 target_canonical, parameters_hash, session_tainted, trust_state,
-                status, ghost_mode, chain_hash)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                status, ghost_mode, chain_hash,
+                schema_version, host_id, location_hint)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 event_id, timestamp, session_id, tool, tool_class, target,
                 target_canonical, params_hash, int(session_tainted), trust_state,
                 EventStatus.PENDING.value, int(ghost_mode), chain_hash,
+                ctx["schema_version"], ctx.get("host_id"), ctx.get("location_hint"),
             ),
         )
         self._conn.commit()  # Synchronous — this is the crash-resilience guarantee
@@ -277,19 +316,26 @@ class EventStore:
     def verify_chain(self) -> tuple[bool, Optional[str]]:
         """Verify the CR-AFT hash chain integrity. Returns (valid, error_message)."""
         rows = self._conn.execute(
-            "SELECT event_id, timestamp, tool, target_canonical, parameters_hash, chain_hash "
+            "SELECT event_id, timestamp, tool, target_canonical, parameters_hash, "
+            "chain_hash, schema_version, host_id, location_hint "
             "FROM events ORDER BY timestamp ASC"
         ).fetchall()
 
         prev_hash = None
         for row in rows:
-            action_data = f"{row['tool']}:{row['target_canonical'] or ''}:{row['parameters_hash'] or ''}"
-            action_hash = hashlib.sha256(action_data.encode()).hexdigest()
+            sv = row["schema_version"] if "schema_version" in row.keys() else SCHEMA_V1
+            if sv not in SUPPORTED_SCHEMAS:
+                return False, f"Unknown schema version {sv} at {row['event_id']}"
 
-            prev = prev_hash or "genesis"
-            expected = hashlib.sha256(
-                f"{prev}:{row['event_id']}:{row['timestamp']}:{action_hash}".encode()
-            ).hexdigest()
+            action_hash = build_action_hash(
+                row["tool"], row["target_canonical"], row["parameters_hash"])
+            expected = _preimage_chain_hash(
+                schema_version=sv, prev_hash=prev_hash,
+                event_id=row["event_id"], timestamp=row["timestamp"],
+                action_hash=action_hash,
+                host_id=row["host_id"] if sv >= SCHEMA_V2 else None,
+                location_hint=row["location_hint"] if sv >= SCHEMA_V2 else None,
+            )
 
             if row["chain_hash"] != expected:
                 return False, f"Chain broken at {row['event_id']}: expected {expected[:16]}..., got {row['chain_hash'][:16]}..."
@@ -309,7 +355,8 @@ class EventStore:
                             classification, human_message
         """
         rows = self._conn.execute(
-            "SELECT event_id, timestamp, tool, target_canonical, parameters_hash, chain_hash "
+            "SELECT event_id, timestamp, tool, target_canonical, parameters_hash, "
+            "chain_hash, schema_version, host_id, location_hint "
             "FROM events ORDER BY timestamp ASC"
         ).fetchall()
 
@@ -318,22 +365,29 @@ class EventStore:
         prev_hash: Optional[str] = None
 
         for position, row in enumerate(rows):
-            action_data = f"{row['tool']}:{row['target_canonical'] or ''}:{row['parameters_hash'] or ''}"
-            action_hash = hashlib.sha256(action_data.encode()).hexdigest()
-
-            prev = prev_hash or "genesis"
-            expected = hashlib.sha256(
-                f"{prev}:{row['event_id']}:{row['timestamp']}:{action_hash}".encode()
-            ).hexdigest()
+            sv = row["schema_version"] if "schema_version" in row.keys() else SCHEMA_V1
+            action_hash = build_action_hash(
+                row["tool"], row["target_canonical"], row["parameters_hash"])
+            expected = _preimage_chain_hash(
+                schema_version=sv, prev_hash=prev_hash,
+                event_id=row["event_id"], timestamp=row["timestamp"],
+                action_hash=action_hash,
+                host_id=row["host_id"] if sv >= SCHEMA_V2 else None,
+                location_hint=row["location_hint"] if sv >= SCHEMA_V2 else None,
+            )
 
             if row["chain_hash"] != expected:
                 # Check if this is a restart artifact: the sidecar restarted
                 # and used a stale prev_hash from a previous chain position.
                 is_restart = False
                 for candidate in seen_hashes:
-                    recomputed = hashlib.sha256(
-                        f"{candidate}:{row['event_id']}:{row['timestamp']}:{action_hash}".encode()
-                    ).hexdigest()
+                    recomputed = _preimage_chain_hash(
+                        schema_version=sv, prev_hash=candidate,
+                        event_id=row["event_id"], timestamp=row["timestamp"],
+                        action_hash=action_hash,
+                        host_id=row["host_id"] if sv >= SCHEMA_V2 else None,
+                        location_hint=row["location_hint"] if sv >= SCHEMA_V2 else None,
+                    )
                     if recomputed == row["chain_hash"]:
                         is_restart = True
                         break
