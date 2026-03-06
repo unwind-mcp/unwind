@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import secrets
+import socket
 import time
 import uuid
 from datetime import datetime, timezone
@@ -204,6 +205,19 @@ def create_app(
         read_collapse_seconds=config.read_collapse_interval_seconds,
     )
     event_store.initialize()
+
+    # CR-AFT Batch B: populate host_id + optional location hint
+    _host_id = socket.gethostname()
+    _location_hint = os.environ.get("UNWIND_LOCATION_HINT", "").strip() or None
+    _schema_v = 2 if _location_hint else 1
+    event_store.set_attestation_context(
+        schema_version=_schema_v,
+        host_id=_host_id,
+        location_hint=_location_hint,
+    )
+    logger.info("CR-AFT attestation: host_id=%s, location_hint=%s, schema=v%d",
+                _host_id, _location_hint, _schema_v)
+
     amber_store = AmberEventStore(config.events_db_path)
     amber_store.initialize()
     snapshot_manager = SnapshotManager(config)

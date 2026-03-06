@@ -255,6 +255,10 @@ class UnwindConfig:
     snapshot_retention_days: int = 30
     snapshot_max_storage_bytes: int = 5 * 1024 * 1024 * 1024  # 5GB
 
+    # --- CR-AFT Attestation ---
+    event_schema_version: int = 1
+    location_hint_enabled: bool = False
+
     # --- Flight Recorder ---
     read_collapse_interval_seconds: float = 300.0  # 5 minutes
     events_retention_days: int = 90  # P1-6: Delete events older than this (0 = keep forever)
