@@ -725,7 +725,7 @@
 
   <!-- Trust Light -->
   <div class="trust-light">
-    <img src="{{ url_for('static', filename='logo.jpg') }}" alt="UNWIND" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="UNWIND" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
     <div id="trust-orb" class="trust-orb green"></div>
     <div class="trust-info">
       <h2 id="trust-label">All Clear</h2>

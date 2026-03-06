@@ -7,6 +7,7 @@ from .models import (
     TelemetryEvent,
     TelemetryEventResponse,
     HealthResponse,
+    SignedHealthResponse,
     ErrorResponse,
 )
 from .server import create_app, serve, ENGINE_VERSION
@@ -18,6 +19,7 @@ __all__ = [
     "TelemetryEvent",
     "TelemetryEventResponse",
     "HealthResponse",
+    "SignedHealthResponse",
     "ErrorResponse",
     "create_app",
     "serve",

@@ -134,6 +134,80 @@ class HealthResponse:
 
 
 # ---------------------------------------------------------------------------
+# Signed Health (unwind.system_health.v1)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class SignedHealthResponse:
+    """Signed health response — includes both v1 schema fields and legacy fields.
+
+    ``to_wire()`` produces the full wire dict including the ``sig`` envelope.
+    Caller must compute and insert ``sig.value`` after calling ``to_wire()``.
+    """
+    # v1 schema fields
+    version: str
+    instance_id: str
+    emitted_at: str
+    fresh_until: str
+    ttl_sec: int
+    seq: int
+    state: str                  # "green", "amber", "red"
+    reason_code: str            # ReasonCode value
+    detail: str
+    checks: dict
+    sig_alg: str = "HMAC-SHA256"
+    sig_kid: str = ""
+
+    # Legacy fields (TS adapter backward compat)
+    status: str = "up"
+    uptime_ms: int = 0
+    engine_version: str = ""
+    last_policy_check_ts: Optional[str] = None
+    watchdog_stale: bool = False
+    watchdog_threshold_ms: int = 0
+    active_sessions: int = 0
+    mediation_active: bool = False
+    tool_calls_processed: int = 0
+
+    def to_wire(self) -> dict:
+        """Serialize to wire format with both v1 schema and legacy fields.
+
+        Returns the full dict ready for signing. The ``sig.value`` field is
+        set to empty string — caller fills it after HMAC computation.
+        """
+        result = {
+            # v1 schema fields
+            "version": self.version,
+            "instance_id": self.instance_id,
+            "emitted_at": self.emitted_at,
+            "fresh_until": self.fresh_until,
+            "ttl_sec": self.ttl_sec,
+            "seq": self.seq,
+            "state": self.state,
+            "reason_code": self.reason_code,
+            "detail": self.detail,
+            "checks": self.checks,
+            "sig": {
+                "alg": self.sig_alg,
+                "kid": self.sig_kid,
+                "value": "",
+            },
+            # Legacy fields (TS adapter reads these)
+            "status": self.status,
+            "uptimeMs": self.uptime_ms,
+            "engineVersion": self.engine_version,
+            "lastPolicyCheckTs": self.last_policy_check_ts,
+        }
+        if self.watchdog_stale:
+            result["watchdogStale"] = True
+        result["watchdogThresholdMs"] = self.watchdog_threshold_ms
+        result["activeSessions"] = self.active_sessions
+        result["mediationActive"] = self.mediation_active
+        result["toolCallsProcessed"] = self.tool_calls_processed
+        return result
+
+
+# ---------------------------------------------------------------------------
 # Ghost Mode (P3-10)
 # ---------------------------------------------------------------------------
 

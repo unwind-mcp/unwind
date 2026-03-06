@@ -1,10 +1,10 @@
 # UNWIND
 
-**See Everything. Undo Anything. Test Anything Safely.**
+**See Everything. Rewind File Changes. Test Without Consequences.**
 
 One core security engine, multiple adapters. UNWIND makes AI agents observable, enforceable, and reversible — regardless of which platform runs them.
 
-No LLM in the hot path. Every check is deterministic. Sub-millisecond overhead on clean calls. Framework-agnostic — zero coupling to any specific agent platform.
+No LLM in the hot path. Every check is deterministic. Single-digit millisecond overhead on typical calls. Framework-agnostic — zero coupling to any specific agent platform.
 
 ```
     ┌─────────────────────────────────────────────────────────────────┐
@@ -19,7 +19,7 @@ No LLM in the hot path. Every check is deterministic. Sub-millisecond overhead o
     │  Enforcement Pipeline (15 stages, <10ms)                        │
     │  Flight Recorder (SQLite + CR-AFT chain)                        │
     │  Smart Snapshots (reflink-first, 25MB)                          │
-    │  Rollback Engine (undo any action)                              │
+    │  Rollback Engine (file-level snapshots + restore)                │
     │  Trust Light (green / amber / red)                              │
     └──────────┬──────────────────────────────────┬───────────────────┘
                │                                  │
@@ -144,6 +144,8 @@ CRAFT (Cryptographic Relay Authentication for Faithful Transmission) sits at the
 
 CRAFT does not claim to solve prompt injection. It solves transport-layer command spoofing, relay tampering, replay attacks, session hijacking, and confused-deputy misuse — making the downstream pipeline's job easier by guaranteeing the commands it processes are genuine. CRAFT has zero external dependencies (pure Python stdlib) and can be used independently as a standalone audit library without the rest of UNWIND.
 
+> **Why CRAFT matters:** Most agent security focuses on what an agent *can* do. CRAFT focuses on proving what it *did* do. Every command carries cryptographic proof of origin, sequence, and integrity — meaning you can demonstrate to auditors, regulators, or your own team exactly what happened, in what order, and that nobody altered the record afterwards. This is the difference between "we have logs" and "we have evidence."
+
 ### The Enforcement Pipeline
 
 15 deterministic checks/sub-stages run on every tool call, in order:
@@ -164,8 +166,8 @@ CRAFT does not claim to solve prompt injection. It solves transport-layer comman
 14. **8 Session Scope** — per-session tool allowlists
 15. **9 Ghost Mode Gate** — dry-run mode with shadow VFS for read-after-write fidelity
 
-### The Undo Button
-Smart snapshots are captured before every state-modifying action. Reflink-first (instant on APFS/btrfs), falling back to copy, with a 25MB cap and atomic moves for deletions.
+### Smart Snapshots & Rollback
+Snapshots are captured before file-modifying actions — writes, edits, deletes, renames, moves. Reflink-first (instant on APFS/btrfs), falling back to copy, with a 25MB cap and atomic moves for deletions.
 
 ```bash
 unwind undo last              # Undo the most recent action
@@ -184,7 +186,15 @@ A real-time indicator of session health:
 Taint uses graduated decay (120s per level, with clean-op gating), typically clearing over ~6–8 minutes under normal traffic.
 
 ### The Dashboard
-A web UI with a glowing trust orb, event timeline, Away Mode summary, and chain verification.
+A web UI providing real-time operational awareness and integrity evidence.
+
+- **Trust Orb** — live trust state indicator (green/amber/red), updating in real time
+- **Event Timeline** — every agent action with status, tool, target, and expandable detail
+- **Allow / Deny** — when approval workflows are enabled, amber challenges appear inline with action buttons for human decision
+- **Rewind** — one-click file restoration where snapshot coverage exists, directly in the timeline
+- **Away Mode** — summarises what happened while you were away, highlights items needing review
+- **Chain Verification** — integrity check across the full event history, displayed on load
+- **Continuity Gaps** — restart gaps in the hash chain are expected boundary markers during service restarts, not tamper evidence by default. Expected gaps align with controlled service restarts; unexplained or frequent gaps should be reviewed.
 
 ```bash
 unwind dashboard              # Launch at http://127.0.0.1:9001
@@ -195,8 +205,10 @@ Test untrusted tools or risky prompts without consequences. All state-modifying 
 
 **Ghost Mode vs Amber Challenges:** Ghost Mode is a sandbox — "what would happen?" with fake success, nothing real changes. Amber challenges are a pause — "are you sure?" before executing a high-risk action for real. They are architecturally distinct.
 
-### Cadence (Temporal Awareness)
-Your agent learns your rhythm — when you're focused, when you're away, when you're reading. Cadence watches timing patterns (never content) and feeds trust signals into the enforcement pipeline. If someone fires tool calls at machine speed while you're away, it triggers an amber challenge. Enable with `UNWIND_CADENCE_BRIDGE=1`. All timing data stays on your device (enforced by the CRIP consent protocol), auto-deletes in 7 days, and UNWIND works fully without it.
+### Cadence (Temporal Security Signal)
+Cadence turns timing into a security layer. Your agent learns your rhythm — when you're focused, when you're away, when you're reading — using only timestamps, never content. If tool calls fire at machine speed while you're marked away, Cadence feeds that anomaly directly into the enforcement pipeline, triggering amber challenges before damage occurs. This can catch abuse patterns that pass content-based checks, because commands may be valid but timing is anomalous.
+
+Enable with `UNWIND_CADENCE_BRIDGE=1`. All timing data stays on your device (enforced by the CRIP consent protocol), auto-deletes in 7 days, and UNWIND works fully without it.
 
 ### CR-AFT External Anchoring
 Export the hash chain for third-party audit. Create periodic anchor checkpoints. Detect tampering across the full event history.
@@ -309,7 +321,7 @@ ghostmode/                     # Standalone dry-run proxy (pip install ghostmode
 ├── event_log.py               # Lightweight session recorder
 └── cli.py                     # One-command entry point
 
-tests/                         # 1,702 tests across all packages (Pi, 2026-03-01)
+tests/                         # 1,816 tests across all packages (Pi, 2026-03-05)
 ```
 
 ## Development
@@ -318,7 +330,7 @@ tests/                         # 1,702 tests across all packages (Pi, 2026-03-01
 git clone https://github.com/unwind-mcp/unwind
 cd unwind
 pip install -e ".[dev]"
-pytest                         # 1,700+ tests
+pytest                         # 1,816 tests (2026-03-05)
 ```
 
 ## Development Discipline
