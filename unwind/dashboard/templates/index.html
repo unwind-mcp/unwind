@@ -1206,6 +1206,14 @@
     send_email: 'Sent an email',
     disable_security_audit: 'Tried to disable security',
     mcp_tool_call: 'Called an MCP tool',
+    exec: 'Ran a command',
+    browser: 'Opened a browser',
+    nodes: 'Accessed nodes',
+    search_web: 'Searched the web',
+    memory_search: 'Searched memory',
+    session_status: 'Checked session',
+    web_search: 'Searched the web',
+    api_call: 'Made an API call',
   };
 
   function renderEvent(event) {
@@ -1404,6 +1412,24 @@
   async function refreshAway() {
     try {
       const data = await api('/api/away-summary');
+
+  function humanizeReason(reason) {
+    if (!reason) return '';
+    let r = reason;
+    // Strip challenge_id
+    r = r.replace(/\|challenge_id=\S+/g, '');
+    // Humanize AMBER prefix
+    r = r.replace(/^AMBER:\s*/, '');
+    // Clean up common technical phrases
+    r = r.replace(/Unrestricted exec \(security=\w+, host=\w+\)/, 'Command execution');
+    r = r.replace(/on tainted session\.?\s*/, 'in a session with external content. ');
+    r = r.replace(/Review command before proceeding\.?/, 'Review before allowing.');
+    r = r.replace(/Tainted session \(level=\w+\) attempting high-risk action\.?/, 'High-risk action in a tainted session.');
+    r = r.replace(/Sources:\s*[\w_,\s]+\.?/, '');
+    r = r.replace(/Permission Denied: System Core Protected \(resolved: [^)]+\)/, 'Blocked: tried to access a protected system file');
+    return r.trim();
+  }
+
       const container = document.getElementById('away-container');
 
       const trustColors = { green: 'var(--green)', amber: 'var(--amber)', red: 'var(--red)' };
@@ -1415,7 +1441,7 @@
           ${data.review_items.map(item => `
             <div class="review-item">
               <div class="ri-tool">${TOOL_ICONS[item.tool] || ''} ${escapeHtml(TOOL_LABELS[item.tool] || item.tool)} &rarr; ${escapeHtml(truncTarget(item.target, 50))}</div>
-              <div class="ri-reason">${escapeHtml((item.reason || '').replace(/\|challenge_id=\S+/g, '').replace(/^AMBER: /, 'Paused: ').trim())}</div>
+              <div class="ri-reason">${escapeHtml(humanizeReason(item.reason))}</div>
             </div>
           `).join('')}
         `;
