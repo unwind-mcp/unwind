@@ -285,7 +285,7 @@
       padding: 1px 6px;
       border-radius: 10px;
       font-weight: 600;
-      text-transform: uppercase;
+      text-transform: none;
       letter-spacing: 0.5px;
     }
     .badge.green { background: var(--green-bg); color: var(--green); }
@@ -294,6 +294,16 @@
     .badge.ghost { background: rgba(137,87,229,0.15); color: var(--ghost); }
     .badge.approval { background: var(--amber-bg); color: var(--amber); }
     .badge.info { background: var(--info-bg); color: var(--blue); }
+
+    .amber-btn {
+      font-size: 11px; padding: 2px 10px; border-radius: 4px;
+      cursor: pointer; font-weight: 600; border: 1.5px solid;
+      background: transparent; margin-left: 4px;
+    }
+    .amber-btn.allow { color: var(--green); border-color: var(--green); }
+    .amber-btn.allow:hover { background: var(--green-bg); }
+    .amber-btn.deny { color: var(--red); border-color: var(--red); }
+    .amber-btn.deny:hover { background: var(--red-bg); }
 
     .event-actions {
       display: flex;
@@ -747,7 +757,7 @@
       </div>
       <div class="stat">
         <div class="stat-value" id="stat-tainted">&mdash;</div>
-        <div class="stat-label" title="Actions from sessions that ingested external content">Cautious</div>
+        <div class="stat-label" title="Actions from sessions that used external content">Cautious</div>
       </div>
     </div>
   </div>
@@ -785,10 +795,10 @@
   <div class="tab-bar">
     <div class="tab active" data-tab="timeline" onclick="switchTab('timeline')">Timeline</div>
     <div class="tab" data-tab="ghost" onclick="switchTab('ghost')">Ghost Mode</div>
-    <div class="tab" data-tab="away" onclick="switchTab('away')">Away Mode</div>
-    <div class="tab" data-tab="verify" onclick="switchTab('verify')">Chain Verify</div>
-    <div class="tab" data-tab="undo" onclick="switchTab('undo')">Undo</div>
-    <div class="tab" data-tab="about" onclick="switchTab('about')">What Is This?</div>
+    <div class="tab" data-tab="away" onclick="switchTab('away')">While You Were Away</div>
+    <div class="tab" data-tab="verify" onclick="switchTab('verify')">Verify History</div>
+    <div class="tab" data-tab="undo" onclick="switchTab('undo')">Rewind</div>
+    <div class="tab" data-tab="about" onclick="switchTab('about')">How It Works</div>
   </div>
 
   <!-- Content Panels -->
@@ -854,7 +864,7 @@
       </div>
     </div>
 
-    <!-- Undo -->
+    <!-- Rewind -->
     <div id="panel-undo" class="hidden">
       <div id="undo-container" class="loading">Loading restorable snapshots...</div>
     </div>
@@ -948,7 +958,7 @@
 
   const TRUST_LABELS = {
     green: 'All Clear',
-    amber: 'Attention Required',
+    amber: 'Review Recommended',
     red: 'Alert',
   };
 
@@ -981,10 +991,10 @@
 
       const guidance = document.getElementById('trust-guidance');
       if (orbState === 'amber') {
-        guidance.textContent = "Your agent has ingested external content. High-risk actions are flagged for review. Check the Timeline — if tool calls don't match what you asked for, end the session.";
+        guidance.textContent = "This session used content from outside your workspace. Any risky actions will ask for approval first. Check the timeline to review what happened.";
         guidance.className = 'trust-guidance amber';
       } else if (orbState === 'red') {
-        guidance.textContent = 'Something was blocked. Check the red events in the Timeline. In most cases no action is needed — the block already happened. If you see disable_security_audit, end the session immediately.';
+        guidance.textContent = 'Something was blocked. Check the red events in the timeline. In most cases no action is needed — the block already happened. If you see attempts to disable security, end the session immediately.';
         guidance.className = 'trust-guidance red';
       } else {
         guidance.textContent = '';
@@ -993,7 +1003,7 @@
 
       const h = data.last_hour;
       let subtitleText =
-        `${h.total} actions in the last hour` +
+        (h.total === 0 ? 'Quiet for the last hour' : `${h.total} actions in the last hour`) +
         (h.blocked > 0 ? ` \u2022 ${h.blocked} blocked` : '') +
         (h.tainted > 0 ? ` \u2022 ${h.tainted} tainted` : '');
       if (data.taint_level) {
@@ -1116,7 +1126,7 @@
         warnings.push('Sidecar watchdog is stale. The adapter may have stopped sending policy checks.');
       }
       if (es.stale) {
-        warnings.push('No new events have been recorded for over 5 minutes while sessions are active. This can indicate gateway/adapter drift; if you are idle, run one test action to confirm.');
+        warnings.push('No activity for 5+ minutes while a session is still open. If you expected activity, try a quick test action to check the connection; if you are idle, run one test action to confirm.');
       }
       if (!ch.verified && ch.error) {
         warnings.push('CRAFT chain integrity check failed: ' + ch.error + '. Investigate immediately.');
@@ -1171,7 +1181,7 @@
     if (sessionId.includes(':subagent:')) return { short: 'subagent', long: `Sub-agent session (${sessionId})` };
     if (sessionId.startsWith('sentinel:')) return { short: sessionId.length > 24 ? sessionId.slice(0, 23) + '…' : sessionId, long: `Scheduled task (${sessionId})` };
     if (sessionId.startsWith('agent:')) return { short: 'agent', long: `Agent session (${sessionId})` };
-    return { short: 'other', long: `Session: ${sessionId}` };
+    return { short: 'Session', long: `Session: ${sessionId}` };
   }
 
   function eventNeedsApproval(event) {
@@ -1181,6 +1191,22 @@
     if (summary.startsWith('AMBER:')) return true;
     return event.status === 'blocked' && event.trust_state === 'amber';
   }
+
+  const TOOL_LABELS = {
+    fetch_web: 'Fetched a webpage',
+    web_fetch: 'Fetched a webpage',
+    fs_read: 'Read a file',
+    fs_write: 'Wrote to a file',
+    fs_delete: 'Deleted a file',
+    http_post: 'Sent an HTTP request',
+    http_get: 'Sent an HTTP request',
+    shell_exec: 'Ran a shell command',
+    bash_exec: 'Ran a shell command',
+    exec_process: 'Ran a process',
+    send_email: 'Sent an email',
+    disable_security_audit: 'Tried to disable security',
+    mcp_tool_call: 'Called an MCP tool',
+  };
 
   function renderEvent(event) {
     const icon = TOOL_ICONS[event.tool] || '&#x2022;';
@@ -1193,11 +1219,11 @@
     if (event.session_tainted) classes.push('tainted');
 
     const badges = [];
-    if (event.trust_state === 'amber') badges.push('<span class="badge amber">amber</span>');
-    if (event.trust_state === 'red') badges.push('<span class="badge red">red</span>');
-    if (event.ghost_mode) badges.push('<span class="badge ghost">ghost</span>');
-    if (event.status === 'blocked') badges.push('<span class="badge red">blocked</span>');
-    if (needsApproval) badges.push('<span class="badge approval" title="Action paused pending human review">approval</span>');
+    if (event.trust_state === 'amber') badges.push('<span class="badge amber">Needs Review</span>');
+    if (event.trust_state === 'red') badges.push('<span class="badge red">Threat</span>');
+    if (event.ghost_mode) badges.push('<span class="badge ghost">Simulated</span>');
+    if (event.status === 'blocked') badges.push('<span class="badge red">Blocked</span>');
+    if (needsApproval) badges.push('<span class="badge approval" title="Action paused pending human review">Awaiting Approval</span>');
     const source = classifySession(event.session_id, event);
     badges.push(`<span class="badge info" title="${escapeHtml(source.long)}">${escapeHtml(source.short)}</span>`);
 
@@ -1211,12 +1237,21 @@
         <div class="event-time">${formatTime(event.timestamp)}</div>
         <div class="event-icon">${icon}</div>
         <div class="event-body">
-          <div class="event-tool">${escapeHtml(event.tool)}</div>
+          <div class="event-tool" title="${escapeHtml(event.tool)}">${escapeHtml(TOOL_LABELS[event.tool] || event.tool)}</div>
           <div class="event-target" title="${escapeHtml(event.target)}">${escapeHtml(truncTarget(event.target))}</div>
           ${event.result_summary ? `<div class="event-target">${escapeHtml(truncTarget(event.result_summary, 80))}</div>` : ''}
           <div class="event-badges">${badges.join('')}</div>
         </div>
         <div class="event-actions">
+          ${(() => {
+            const s = event.result_summary || '';
+            const m = s.match(/\|challenge_id=([\w_]+)/);
+            if (m && event.trust_state === 'amber' && event.status === 'blocked') {
+              return '<button class="amber-btn allow" onclick="event.stopPropagation();resolveAmber(\'' + m[1] + '\',\'allow\')" title="Allow this action">Allow</button>' +
+                     '<button class="amber-btn deny" onclick="event.stopPropagation();resolveAmber(\'' + m[1] + '\',\'deny\')" title="Deny this action">Deny</button>';
+            }
+            return '';
+          })()}
           ${hasSnapshot && !rolledBack ? `<button class="undo-btn" onclick="event.stopPropagation();undoEvent('${eidRaw}')" title="Restore from snapshot">&#x21a9;&#xfe0f; Rewind</button>` : ''}
           ${hasSnapshot && rolledBack ? `<button class="undo-btn" disabled title="Already restored">&#x2705; Restored</button>` : ''}
         </div>
@@ -1296,7 +1331,7 @@
             </div>
             <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
               ${actionBtn}
-              <button class="undo-btn" onclick="event.stopPropagation();switchTab('undo')">Open Undo tab</button>
+              <button class="undo-btn" onclick="event.stopPropagation();switchTab('undo')">Open Rewind tab</button>
             </div>
           </div>`;
       }
@@ -1727,6 +1762,27 @@ Continue?`;
       }
     } catch (e) {
       alert('Bulk restore error: ' + e.message);
+    }
+  }
+
+  async function resolveAmber(challengeId, decision) {
+    const action = decision === 'allow' ? 'ALLOW' : 'DENY';
+    if (!confirm('Are you sure you want to ' + action + ' this action?')) return;
+    try {
+      const resp = await fetch('/api/amber/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeId, decision }),
+      });
+      const result = await resp.json();
+      if (resp.ok) {
+        alert(action + ': ' + (result.message || 'Done'));
+        refreshTimeline();
+      } else {
+        alert('Error: ' + (result.error || result.detail || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Failed to resolve: ' + e.message);
     }
   }
 
