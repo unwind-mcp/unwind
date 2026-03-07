@@ -1414,8 +1414,8 @@
           <h4 style="margin-top:16px;color:var(--amber);">&#x26a0;&#xfe0f; ${data.review_items.length} item(s) for your review:</h4>
           ${data.review_items.map(item => `
             <div class="review-item">
-              <div class="ri-tool">${TOOL_ICONS[item.tool] || ''} ${escapeHtml(item.tool)} &rarr; ${escapeHtml(truncTarget(item.target, 50))}</div>
-              <div class="ri-reason">${escapeHtml(item.reason)}</div>
+              <div class="ri-tool">${TOOL_ICONS[item.tool] || ''} ${escapeHtml(TOOL_LABELS[item.tool] || item.tool)} &rarr; ${escapeHtml(truncTarget(item.target, 50))}</div>
+              <div class="ri-reason">${escapeHtml((item.reason || '').replace(/\|challenge_id=\S+/g, '').replace(/^AMBER: /, 'Paused: ').trim())}</div>
             </div>
           `).join('')}
         `;
@@ -1650,14 +1650,14 @@
                 <div style="margin-top:4px;">0 shown of ${snapshots.length}</div>
               </div>
               <div class="undo-filters">
-                <label><input type="checkbox" ${undoShowAllSnapshotTypes ? 'checked' : ''} onchange="setUndoFilter('allTypes', this.checked)"> Show all snapshot types</label>
-                <label><input type="checkbox" ${undoShowRestored ? 'checked' : ''} onchange="setUndoFilter('restored', this.checked)"> Show restored history</label>
+                <label><input type="checkbox" ${undoShowAllSnapshotTypes ? 'checked' : ''} onchange="setUndoFilter('allTypes', this.checked)"> Include deleted files</label>
+                <label><input type="checkbox" ${undoShowRestored ? 'checked' : ''} onchange="setUndoFilter('restored', this.checked)"> Show already restored</label>
               </div>
             </div>
             <div class="empty-state">
               <div class="icon">&#x1f50d;</div>
               <div>No snapshots match current filters.</div>
-              <div style="margin-top:8px;font-size:13px;">Try enabling “Show all snapshot types” and/or “Show restored history”.</div>
+              <div style="margin-top:8px;font-size:13px;">Try enabling “Include deleted files” and/or “Show already restored”.</div>
             </div>
           </div>`;
         return;
@@ -1668,8 +1668,8 @@
           <div class="undo-header">
             <div>
               <strong>Snapshots</strong>
-              <div style="margin-top:4px;">${restorable.length} restorable shown &bull; ${filtered.length} shown / ${snapshots.length} total</div>
-              <div style="margin-top:4px;">${undoShowAllSnapshotTypes ? hiddenByType + ' new-file deletion rows visible' : hiddenByType + ' new-file deletion rows hidden'} &bull; ${undoShowRestored ? hiddenByRestored + ' restored rows visible' : hiddenByRestored + ' restored rows hidden'}</div>
+              <div style="margin-top:4px;">${restorable.length} snapshots available</div>
+              <div style="margin-top:4px;">${hiddenByType > 0 ? hiddenByType + ' deleted files hidden' : ''eletion rows hidden'} &bull; ${undoShowRestored ? hiddenByRestored + ' restored rows visible' : hiddenByRestored + ' restored rows hidden'}</div>
             </div>
             <div class="undo-bulk-controls">
               <select id="undo-since-select" class="undo-select" ${restorable.length === 0 ? 'disabled' : ''}>
@@ -1694,9 +1694,6 @@
                     <div class="undo-path" title="${escapeHtml(s.original_path || '')}">${escapeHtml(s.original_path || '(unknown path)')}</div>
                     <div class="undo-meta">
                       ${formatSnapshotTimestamp(s.timestamp)}
-                      &bull; event ${escapeHtml(s.event_id || '')}
-                      &bull; snapshot ${escapeHtml(s.snapshot_id || '')}
-                      &bull; ${escapeHtml(snapshotTypeLabel(s))}
                       &bull; ${escapeHtml(snapshotSizeLabel(s))}
                       &bull; ${escapeHtml(action)}
                       ${restoredAt}
