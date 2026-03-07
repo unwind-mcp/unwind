@@ -1695,7 +1695,7 @@
             <div>
               <strong>Snapshots</strong>
               <div style="margin-top:4px;">${restorable.length} snapshots available</div>
-              <div style="margin-top:4px;">${hiddenByType > 0 ? hiddenByType + ' deleted files hidden' : ''eletion rows hidden'} &bull; ${undoShowRestored ? hiddenByRestored + ' restored rows visible' : hiddenByRestored + ' restored rows hidden'}</div>
+              <div style="margin-top:4px;">${hiddenByType > 0 ? hiddenByType + ' deleted files hidden' : ''}${hiddenByRestored > 0 ? ' &bull; ' + hiddenByRestored + ' restored files hidden' : ''}</div>
             </div>
             <div class="undo-bulk-controls">
               <select id="undo-since-select" class="undo-select" ${restorable.length === 0 ? 'disabled' : ''}>
