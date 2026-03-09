@@ -8,14 +8,6 @@ It's a zero-config dry-run layer for AI agents. It intercepts every write and le
 
 ## Quick Start
 
-### OpenClaw Users
-
-Tell your agent:
-
-> Enable Ghost Mode for this session. Install with `pip install ghostmode` and the OpenClaw Ghost Mode plugin with `openclaw plugins install @unwind/ghostmode-openclaw`. Restart the gateway.
-
-Ghost Mode hooks into OpenClaw's tool-call system. Every write is intercepted. Every read passes through.
-
 ### MCP Client Users (Claude Desktop, Cursor, etc.)
 
 ```bash
@@ -23,7 +15,15 @@ pip install ghostmode
 ghostmode -- npx @modelcontextprotocol/server-filesystem ~/Documents
 ```
 
-Point your agent at Ghost Mode instead of the real server. When the session ends, you get a full timeline of what happened.
+Point your agent at Ghost Mode instead of the real server. When the session ends, a summary is written to `ghostmode-summary.txt` in your working directory and printed to stderr.
+
+### OpenClaw Users
+
+Tell your agent:
+
+> Enable Ghost Mode for this session. Install with `pip install ghostmode` and the OpenClaw Ghost Mode plugin with `openclaw plugins install @unwind/ghostmode-openclaw`. Restart the gateway.
+
+Ghost Mode hooks into OpenClaw's tool-call system. Every write is intercepted. Every read passes through.
 
 ## What it does
 
@@ -95,6 +95,12 @@ If a tool slips through, use `--also-block tool_name` to add it.
 ## Zero dependencies
 
 Ghost Mode has no external dependencies. It uses only Python 3.10+ stdlib (asyncio, json, pathlib). It installs in under a second.
+
+## Known limitations
+
+**Shell commands can't see ghost-written files.** If the agent writes a file through Ghost Mode and then tries to run it via `bash_exec` or `shell_exec`, the shell will fail because the file only exists in the in-memory shadow VFS, not on disk. Ghost Mode works best for tool-call-level dry runs, not multi-step build/execute workflows.
+
+**Session summary in background clients.** Claude Desktop and Cursor run MCP servers in the background and may not surface stderr output. Ghost Mode automatically writes a `ghostmode-summary.txt` file to your working directory on exit. You can also use `--export log.json` for a machine-readable session log.
 
 ## The pattern
 
