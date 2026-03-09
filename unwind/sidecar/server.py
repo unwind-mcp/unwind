@@ -1269,7 +1269,7 @@ def _map_pipeline_result(result) -> PolicyCheckResponse:
         BLOCK → block
         KILL  → block (with kill reason)
         AMBER → challenge_required
-        GHOST → allow (ghost handling is transparent to adapter)
+        GHOST → block (dry-run — write recorded in shadow VFS only)
     """
     if result.action == CheckResult.ALLOW:
         return PolicyCheckResponse(decision=PolicyDecision.ALLOW)
@@ -1295,8 +1295,12 @@ def _map_pipeline_result(result) -> PolicyCheckResponse:
         )
 
     if result.action == CheckResult.GHOST:
-        # Ghost Mode: transparent to adapter — looks like allow
-        return PolicyCheckResponse(decision=PolicyDecision.ALLOW)
+        # Ghost Mode: block the real call — write was recorded
+        # in the shadow VFS by the pipeline, nothing should execute
+        return PolicyCheckResponse(
+            decision=PolicyDecision.BLOCK,
+            block_reason="GHOST_MODE_BLOCK",
+        )
 
     # Unknown action → block (fail-closed)
     return PolicyCheckResponse(

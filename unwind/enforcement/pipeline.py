@@ -606,6 +606,29 @@ class EnforcementPipeline:
                     block_reason=jail_error,
                 )
 
+        # --- 3b. Path jail for secondary path parameters ---
+        # Tools like fs_copy, fs_move, fs_rename have multiple path args.
+        # Check ALL of them, not just the primary target.
+        if tool_name in self.config.filesystem_tools and parameters:
+            _secondary_path_keys = (
+                "destination", "new_path", "old_path", "source",
+                "output", "dest", "target_path", "to", "from",
+            )
+            for key in _secondary_path_keys:
+                if key in parameters and isinstance(parameters[key], str):
+                    secondary = parameters[key]
+                    # Skip if it's the same as the primary target
+                    if secondary == target:
+                        continue
+                    jail_error, canonical = self.path_jail.check(secondary)
+                    if jail_error:
+                        return PipelineResult(
+                            action=CheckResult.BLOCK,
+                            canonical_target=canonical,
+                            tool_class=tool_class,
+                            block_reason=f"Secondary path ({key}): {jail_error}",
+                        )
+
         # --- 3a. apply_patch path extraction (paths embedded in patch body) ---
         if tool_name == "apply_patch" and parameters:
             patch_text = parameters.get("patch", parameters.get("input", ""))

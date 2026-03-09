@@ -267,8 +267,7 @@ class GhostProxy:
 
         print("\n  Full timeline:", file=sys.stderr)
         print(self.log.format_timeline(), file=sys.stderr)
-        print("\n  Upgrade to UNWIND for: rollback, enforcement, CR-AFT audit chain", file=sys.stderr)
-        print("  https://github.com/unwind-mcp/unwind", file=sys.stderr)
+        print("\n  Full security suite: https://github.com/unwind-mcp/unwind", file=sys.stderr)
         print("=" * 55 + "\n", file=sys.stderr)
 
     # ── Agent → Proxy ──
