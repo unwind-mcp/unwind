@@ -667,6 +667,11 @@ class EnforcementPipeline:
                 # Not blocked — passed DLP scanning, continue pipeline
 
         # --- 4. SSRF shield (for network tools) ---
+        # NOTE: This validates the initial URL. HTTP redirects must be
+        # re-validated via ssrf_shield.check_redirect() by the adapter
+        # or HTTP client. Adapters SHOULD set follow_redirects=False and
+        # route redirect targets back through the pipeline, or use
+        # check_redirect() before following each hop.
         if tool_name in self.config.network_tools and target:
             ssrf_result = self.ssrf_shield.check(target)
             if ssrf_result:
@@ -797,9 +802,40 @@ class EnforcementPipeline:
         # Uses broader interception than circuit breaker: explicit set + prefix
         # heuristic.  If it looks like a write, Ghost Mode catches it.
         if session.ghost_mode and self.config.is_ghost_intercepted(tool_name):
-            # Store in shadow VFS if it's a file write
+            # Update shadow VFS to keep agent reads consistent
             if tool_name in ("fs_write", "write_file") and target and payload:
                 session.ghost_write(target, payload)
+            elif tool_name in ("fs_delete", "delete_file", "remove_file") and target:
+                session.ghost_delete(target)
+            elif tool_name in ("fs_rename", "rename_file", "fs_move", "move_file") and parameters:
+                old = parameters.get("path", parameters.get("source", parameters.get("old_path", "")))
+                new = parameters.get("new_path", parameters.get("destination", parameters.get("target", "")))
+                if old and new:
+                    session.ghost_rename(str(old), str(new))
+            elif tool_name in ("fs_copy", "copy_file") and target and parameters:
+                dest = parameters.get("destination", parameters.get("new_path", parameters.get("dest", "")))
+                if dest and payload:
+                    session.ghost_write(str(dest), payload)
+                elif dest and target:
+                    # Copy: read source from shadow or mark dest as written
+                    src_content = session.ghost_read(target)
+                    if src_content is not None:
+                        session.ghost_write(str(dest), src_content)
+            elif tool_name == "apply_patch" and parameters:
+                # Parse patch markers to update shadow VFS
+                patch_text = parameters.get("patch", parameters.get("input", ""))
+                if isinstance(patch_text, str):
+                    for line in patch_text.splitlines():
+                        line_s = line.strip()
+                        if line_s.startswith("*** Delete File:"):
+                            del_path = line_s[len("*** Delete File:"):].strip()
+                            if del_path:
+                                session.ghost_delete(del_path)
+                        elif line_s.startswith("*** Add File:"):
+                            add_path = line_s[len("*** Add File:"):].strip()
+                            if add_path:
+                                # Mark as written (content unknown but file exists)
+                                session.ghost_write(add_path, "[ghost: patch applied]")
             return PipelineResult(
                 action=CheckResult.GHOST,
                 canonical_target=canonical_target,

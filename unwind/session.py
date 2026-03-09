@@ -33,6 +33,7 @@ class Session:
     # --- Ghost Mode ---
     ghost_mode: bool = False
     shadow_vfs: dict[str, bytes | str] = field(default_factory=dict)
+    _ghost_deleted: set = field(default_factory=set)
 
     # --- Circuit Breaker ---
     state_modify_timestamps: list[float] = field(default_factory=list)
@@ -114,9 +115,31 @@ class Session:
         """Read from shadow VFS. Returns None if path not in shadow."""
         return self.shadow_vfs.get(path)
 
+    def ghost_delete(self, path: str) -> None:
+        """Record a ghost delete in the shadow VFS."""
+        self.shadow_vfs.pop(path, None)
+        self._ghost_deleted.add(path)
+
+    def ghost_rename(self, old_path: str, new_path: str) -> None:
+        """Record a ghost rename/move in the shadow VFS."""
+        content = self.shadow_vfs.pop(old_path, None)
+        if content is not None:
+            self.shadow_vfs[new_path] = content
+        self._ghost_deleted.add(old_path)
+        self._ghost_deleted.discard(new_path)
+
+    def ghost_has(self, path: str) -> bool:
+        """Check if a path has been touched in ghost mode."""
+        return path in self.shadow_vfs or path in self._ghost_deleted
+
+    def ghost_is_deleted(self, path: str) -> bool:
+        """Check if a path was ghost-deleted."""
+        return path in self._ghost_deleted
+
     def clear_ghost(self) -> None:
         """Clear the shadow VFS when ghost mode is toggled off."""
         self.shadow_vfs.clear()
+        self._ghost_deleted.clear()
 
     def ghost_status(self) -> dict:
         """Return a summary of the current ghost shadow VFS state.
