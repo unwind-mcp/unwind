@@ -270,6 +270,36 @@ class GhostProxy:
         print("\n  Full security suite: https://github.com/unwind-mcp/unwind", file=sys.stderr)
         print("=" * 55 + "\n", file=sys.stderr)
 
+        # Auto-write summary to file for clients that hide stderr
+        try:
+            from pathlib import Path
+            summary_path = Path("ghostmode-summary.txt")
+            lines = []
+            lines.append("GHOST MODE SESSION SUMMARY")
+            lines.append(f"Duration:     {summary['duration_seconds']}s")
+            lines.append(f"Total events: {summary['total_events']}")
+            lines.append(f"Intercepted:  {summary['intercepted']} writes blocked")
+            lines.append(f"Passed:       {summary['passed_through']} reads forwarded")
+            lines.append(f"Shadow reads: {summary['shadow_reads']} served from VFS")
+            if shadow["write_count"] > 0:
+                lines.append(f"\nFiles the agent tried to write:")
+                for f in shadow["files_written"]:
+                    lines.append(f"  {f}")
+            if shadow["delete_count"] > 0:
+                lines.append(f"\nFiles the agent tried to delete:")
+                for f in shadow["files_deleted"]:
+                    lines.append(f"  {f}")
+            if summary["intercepted"] == 0:
+                lines.append("\nAgent performed no write operations.")
+            else:
+                lines.append(f"\n{summary['intercepted']} write(s) were blocked. Nothing was modified.")
+            lines.append("\nFull timeline:")
+            lines.append(self.log.format_timeline())
+            summary_path.write_text("\n".join(lines) + "\n")
+            print(f"  Summary written to {summary_path.resolve()}", file=sys.stderr)
+        except Exception:
+            pass  # Best-effort — don't fail shutdown over summary file
+
     # ── Agent → Proxy ──
 
     async def _agent_loop(self) -> None:
