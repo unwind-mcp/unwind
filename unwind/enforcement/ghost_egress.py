@@ -375,10 +375,17 @@ class GhostEgressGuard:
                         dlp_hit=search_hit,
                     )
 
-        # 4. HTTPS enforcement
+        # 4. Scheme whitelist + HTTPS enforcement
         if target:
             try:
                 parsed = urlparse(target)
+                _allowed_schemes = ("http", "https", "ws", "wss", "")
+                if parsed.scheme and parsed.scheme not in _allowed_schemes:
+                    return GhostEgressResult(
+                        blocked=True,
+                        reason=f"GHOST_EGRESS_DLP: Blocked scheme '{parsed.scheme}' "
+                               f"(allowed: http, https, ws, wss)",
+                    )
                 if parsed.scheme == "http":
                     return GhostEgressResult(
                         blocked=True,
