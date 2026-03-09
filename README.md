@@ -1,5 +1,7 @@
 # UNWIND
 
+*UNWIND watches what AI agents do, not what they say they'll do.*
+
 **See Everything. Rewind File Changes. Test Without Consequences.**
 
 One core security engine, multiple adapters. UNWIND makes AI agents observable, enforceable, and reversible — regardless of which platform runs them.
@@ -33,6 +35,18 @@ No LLM in the hot path. Every check is deterministic. Single-digit millisecond o
     └──────────────────────┘           └─────────────────────────────┘
 ```
 
+
+## The Six-Layer Model
+
+UNWIND is built on a six-layer security architecture, moving from immediate visibility to deep cryptographic attestation:
+
+1. **UNWIND** — The core 15-stage deterministic enforcement pipeline, flight recorder, and trust light dashboard.
+2. **Rollback** — One-command undo via file-level smart snapshots (reflink-first fallback to copy) taken before risky operations.
+3. **Ghost Mode** — Dry-run sandbox. Intercepts writes, returns fake success, maintains shadow VFS for read consistency.
+4. **CRAFT** — Transport-layer authentication and tamper-evident hash chain. Detects replay, tampering, and chain breaks.
+5. **CADENCE** — Temporal anomaly inference. Builds per-device rhythm baselines to detect if an agent operates outside normal patterns.
+6. **CRIP** — Consent protocol for rhythm data (Privacy layer over CADENCE).
+
 ## Two Products, One Codebase
 
 | | **Ghost Mode** | **UNWIND** |
@@ -48,26 +62,6 @@ No LLM in the hot path. Every check is deterministic. Single-digit millisecond o
 **Ghost Mode** is the entry point — zero risk, instant value. **UNWIND** is the full security suite for when you need control, not just visibility.
 
 ## Quick Start
-
-### OpenClaw Users
-
-OpenClaw users can ask their agent to perform the install end-to-end — plugin install, sidecar setup, gateway restart — then verify with a built-in smoke check. Tell it:
-
-> Install the UNWIND security plugin. The Python engine is at `pip install unwind-mcp` and the OpenClaw adapter is at `openclaw plugins install @unwind/openclaw-adapter`. Restart the gateway when done.
-
-Or step by step:
-
-```bash
-# 1. Install the Python security engine
-pip install unwind-mcp
-
-# 2. Install the OpenClaw plugin adapter
-openclaw plugins install @unwind/openclaw-adapter
-
-# 3. Restart the gateway
-```
-
-UNWIND hooks into OpenClaw's native `before_tool_call` / `after_tool_call` plugin system. Every tool call passes through the enforcement engine. Fail-closed — if anything goes wrong, the call is blocked, not allowed.
 
 ### MCP Client Users (Claude Desktop, Cursor, etc.)
 
@@ -90,6 +84,26 @@ Point your MCP client at UNWIND instead of the upstream server. In your client c
 ```
 
 The agent doesn't know UNWIND exists.
+
+### OpenClaw Users
+
+OpenClaw users can ask their agent to perform the install end-to-end — plugin install, sidecar setup, gateway restart — then verify with a built-in smoke check. Tell it:
+
+> Install the UNWIND security plugin. The Python engine is at `pip install unwind-mcp` and the OpenClaw adapter is at `openclaw plugins install @unwind/openclaw-adapter`. Restart the gateway when done.
+
+Or step by step:
+
+```bash
+# 1. Install the Python security engine
+pip install unwind-mcp
+
+# 2. Install the OpenClaw plugin adapter
+openclaw plugins install @unwind/openclaw-adapter
+
+# 3. Restart the gateway
+```
+
+UNWIND hooks into OpenClaw's native `before_tool_call` / `after_tool_call` plugin system. Every tool call passes through the enforcement engine. Fail-closed — if anything goes wrong, the call is blocked, not allowed.
 
 ### Ghost Mode (just watching — any platform)
 
@@ -167,7 +181,7 @@ CRAFT does not claim to solve prompt injection. It solves transport-layer comman
 15. **9 Ghost Mode Gate** — dry-run mode with shadow VFS for read-after-write fidelity
 
 ### Smart Snapshots & Rollback
-Snapshots are captured before file-modifying actions — writes, edits, deletes, renames, moves. Reflink-first (instant on APFS/btrfs), falling back to copy, with a 25MB cap and atomic moves for deletions.
+Snapshots are captured before file-modifying actions — writes, edits, deletes, renames, moves. Reflink-first (instant on APFS/btrfs), falling back to copy, with a 25MB cap and atomic moves for deletions. Files exceeding the cap are skipped safely — the action still proceeds, but without rollback coverage.
 
 ```bash
 unwind undo last              # Undo the most recent action
@@ -186,6 +200,8 @@ A real-time indicator of session health:
 Taint uses graduated decay (120s per level, with clean-op gating), typically clearing over ~6–8 minutes under normal traffic.
 
 ### The Dashboard
+![UNWIND Dashboard — Allow/Deny](unwind/dashboard/static/dashboard-preview.jpg)
+
 A web UI providing real-time operational awareness and integrity evidence.
 
 - **Trust Orb** — live trust state indicator (green/amber/red), updating in real time
@@ -201,6 +217,8 @@ unwind dashboard              # Launch at http://127.0.0.1:9001
 ```
 
 ### Ghost Mode
+![Ghost Mode Dashboard](unwind/dashboard/static/ghost-mode-preview.jpg)
+
 Test untrusted tools or risky prompts without consequences. All state-modifying calls are logged but not executed. A shadow VFS serves back "written" content on subsequent reads, so the agent stays consistent. An egress guard scans outbound URLs and search queries for known secret patterns (API key formats, high-entropy strings) before they leave. Available as a standalone package (`pip install ghostmode`) or as part of UNWIND.
 
 **Ghost Mode vs Amber Challenges:** Ghost Mode is a sandbox — "what would happen?" with fake success, nothing real changes. Amber challenges are a pause — "are you sure?" before executing a high-risk action for real. They are architecturally distinct.
@@ -321,7 +339,7 @@ ghostmode/                     # Standalone dry-run proxy (pip install ghostmode
 ├── event_log.py               # Lightweight session recorder
 └── cli.py                     # One-command entry point
 
-tests/                         # 1,816 tests across all packages (Pi, 2026-03-05)
+tests/                         # 1,845 tests across all packages (Pi, 2026-03-09)
 ```
 
 ## Development
@@ -330,7 +348,7 @@ tests/                         # 1,816 tests across all packages (Pi, 2026-03-05
 git clone https://github.com/unwind-mcp/unwind
 cd unwind
 pip install -e ".[dev]"
-pytest                         # 1,816 tests (2026-03-05)
+pytest                         # 1,845 tests (2026-03-09)
 ```
 
 ## Development Discipline
