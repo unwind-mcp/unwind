@@ -200,7 +200,7 @@ A real-time indicator of session health:
 Taint uses graduated decay (120s per level, with clean-op gating), typically clearing over ~6–8 minutes under normal traffic.
 
 ### The Dashboard
-![UNWIND Dashboard — Allow/Deny](unwind/dashboard/static/dashboard-preview.jpg)
+![UNWIND Dashboard — Allow/Deny](https://raw.githubusercontent.com/unwind-mcp/unwind/main/unwind/dashboard/static/dashboard-preview.jpg)
 
 A web UI providing real-time operational awareness and integrity evidence.
 
@@ -217,7 +217,7 @@ unwind dashboard              # Launch at http://127.0.0.1:9001
 ```
 
 ### Ghost Mode
-![Ghost Mode Dashboard](unwind/dashboard/static/ghost-mode-preview.jpg)
+![Ghost Mode Dashboard](https://raw.githubusercontent.com/unwind-mcp/unwind/main/unwind/dashboard/static/ghost-mode-preview.jpg)
 
 Test untrusted tools or risky prompts without consequences. All state-modifying calls are logged but not executed. A shadow VFS serves back "written" content on subsequent reads, so the agent stays consistent. An egress guard scans outbound URLs and search queries for known secret patterns (API key formats, high-entropy strings) before they leave. Available as a standalone package (`pip install ghostmode`) or as part of UNWIND.
 
@@ -273,7 +273,7 @@ UNWIND focuses on practical risk reduction through deterministic enforcement and
 
 **Adapter notes:** OpenClaw plugin slash commands bypass the tool loop. The adapter enforces fail-closed — sidecar errors block, never allow. MCP stdio proxy fully mediates agent-to-server communication.
 
-See `docs/THREAT_MODEL_BOUNDARIES.md` for the full threat model, and `SECURITY_COVERAGE.md` for the attack-to-check mapping.
+See `docs/THREAT_MODEL_BOUNDARIES.md` for the full threat model.
 
 ## CLI Reference
 
@@ -339,7 +339,7 @@ ghostmode/                     # Standalone dry-run proxy (pip install ghostmode
 ├── event_log.py               # Lightweight session recorder
 └── cli.py                     # One-command entry point
 
-tests/                         # 1,845 tests across all packages (Pi, 2026-03-09)
+tests/                         # 1,845 tests across all packages
 ```
 
 ## Development
