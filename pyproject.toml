@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "See Everything. Undo Anything. Test Anything Safely. — Security middleware for AI agents."
 readme = "README.md"
 license = "AGPL-3.0-or-later"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 authors = [
     {name = "David Russell"},
 ]
@@ -17,6 +17,7 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
