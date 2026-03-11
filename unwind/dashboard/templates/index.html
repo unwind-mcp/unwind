@@ -2101,5 +2101,47 @@ Continue?`;
   // ─── Init ─────────────────────────────────────
   startPolling();
 </script>
+
+    <!-- Trusted Source Rules Card -->
+    <div id="trusted-source-rules-card" class="card" style="margin-top:1rem;">
+      <div class="card-header">Trusted Source Rules</div>
+      <div class="card-body" id="trusted-rules-body">
+        <p class="text-muted">Loading...</p>
+      </div>
+    </div>
+    <script>
+    (function() {
+      function loadTrustedRules() {
+        fetch('/api/trusted-source-rules')
+          .then(r => r.json())
+          .then(data => {
+            const body = document.getElementById('trusted-rules-body');
+            if (!data.rules || data.rules.length === 0) {
+              body.innerHTML = '<p class="text-muted">No trusted source rules configured (default — all sensor traffic taints normally).</p>';
+              return;
+            }
+            let html = '<table class="table table-sm"><thead><tr><th>Rule</th><th>Sources</th><th>Tools</th><th>Domains</th></tr></thead><tbody>';
+            data.rules.forEach(r => {
+              html += '<tr><td><code>' + r.rule_id + '</code></td>';
+              html += '<td>' + r.source_types.join(', ') + '</td>';
+              html += '<td>' + r.tools.join(', ') + '</td>';
+              html += '<td>' + r.domains.join(', ') + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            html += '<small class="text-muted">' + data.count + ' rule(s) active — matching calls capped at LOW taint.</small>';
+            body.innerHTML = html;
+          })
+          .catch(() => {
+            document.getElementById('trusted-rules-body').innerHTML = '<p class="text-danger">Failed to load rules.</p>';
+          });
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadTrustedRules);
+      } else {
+        loadTrustedRules();
+      }
+    })();
+    </script>
+
 </body>
 </html>

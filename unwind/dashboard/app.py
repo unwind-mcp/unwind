@@ -805,6 +805,26 @@ def create_app(config: UnwindConfig = None) -> Flask:
             "timestamp": time.time(),
         })
 
+    
+    # ─── API: Trusted Source Rules ─────────────────────────────
+
+    @app.route("/api/trusted-source-rules")
+    def api_trusted_source_rules():
+        """Return the active trusted source rules from config."""
+        rules = config.trusted_source_rules
+        return jsonify({
+            "rules": [
+                {
+                    "rule_id": r.rule_id,
+                    "source_types": sorted(r.source_types),
+                    "tools": sorted(r.tools),
+                    "domains": sorted(r.domains),
+                }
+                for r in rules
+            ],
+            "count": len(rules),
+        })
+
     # ─── API: System Health ─────────────────────────────────
 
     @app.route("/api/system-health")

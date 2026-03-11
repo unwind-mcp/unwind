@@ -33,7 +33,6 @@ class Session:
     # --- Ghost Mode ---
     ghost_mode: bool = False
     shadow_vfs: dict[str, bytes | str] = field(default_factory=dict)
-    _ghost_deleted: set = field(default_factory=set)
 
     # --- Circuit Breaker ---
     state_modify_timestamps: list[float] = field(default_factory=list)
@@ -71,6 +70,30 @@ class Session:
         Uses graduated taint — escalates level based on frequency and cooldown.
         """
         self.taint_state.apply_taint(source_tool, self.taint_config)
+
+    def taint_trusted(self, source_tool: str, rule_id: str) -> None:
+        """Apply taint capped at LOW for trusted-source rule matches.
+
+        Cannot escalate above LOW, but must not downgrade existing level.
+        If current level > LOW (e.g. HIGH from earlier untrusted events),
+        the level is left unchanged.
+        """
+        from .enforcement.taint_decay import TaintLevel
+
+        if self.taint_state.level <= TaintLevel.LOW:
+            self.taint_state.level = TaintLevel.LOW
+            self.taint_state.last_taint_event = __import__("time").time()
+            if self.taint_state.last_level_change is None:
+                self.taint_state.last_level_change = self.taint_state.last_taint_event
+
+        # Record source with [trusted] suffix for audit trail
+        trusted_source = f"{source_tool} [trusted]"
+        if trusted_source not in self.taint_state.taint_sources:
+            self.taint_state.taint_sources.append(trusted_source)
+
+        # Record rule_id hit
+        if rule_id not in self.taint_state.trusted_hits:
+            self.taint_state.trusted_hits.append(rule_id)
 
     def check_taint_decay(self) -> None:
         """Apply time-based taint decay. Called on each pipeline check."""
@@ -115,31 +138,9 @@ class Session:
         """Read from shadow VFS. Returns None if path not in shadow."""
         return self.shadow_vfs.get(path)
 
-    def ghost_delete(self, path: str) -> None:
-        """Record a ghost delete in the shadow VFS."""
-        self.shadow_vfs.pop(path, None)
-        self._ghost_deleted.add(path)
-
-    def ghost_rename(self, old_path: str, new_path: str) -> None:
-        """Record a ghost rename/move in the shadow VFS."""
-        content = self.shadow_vfs.pop(old_path, None)
-        if content is not None:
-            self.shadow_vfs[new_path] = content
-        self._ghost_deleted.add(old_path)
-        self._ghost_deleted.discard(new_path)
-
-    def ghost_has(self, path: str) -> bool:
-        """Check if a path has been touched in ghost mode."""
-        return path in self.shadow_vfs or path in self._ghost_deleted
-
-    def ghost_is_deleted(self, path: str) -> bool:
-        """Check if a path was ghost-deleted."""
-        return path in self._ghost_deleted
-
     def clear_ghost(self) -> None:
         """Clear the shadow VFS when ghost mode is toggled off."""
         self.shadow_vfs.clear()
-        self._ghost_deleted.clear()
 
     def ghost_status(self) -> dict:
         """Return a summary of the current ghost shadow VFS state.

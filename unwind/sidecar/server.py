@@ -23,7 +23,6 @@ import json
 import logging
 import os
 import secrets
-import socket
 import time
 import uuid
 from datetime import datetime, timezone
@@ -205,19 +204,6 @@ def create_app(
         read_collapse_seconds=config.read_collapse_interval_seconds,
     )
     event_store.initialize()
-
-    # CR-AFT Batch B: populate host_id + optional location hint
-    _host_id = socket.gethostname()
-    _location_hint = os.environ.get("UNWIND_LOCATION_HINT", "").strip() or None
-    _schema_v = 2 if _location_hint else 1
-    event_store.set_attestation_context(
-        schema_version=_schema_v,
-        host_id=_host_id,
-        location_hint=_location_hint,
-    )
-    logger.info("CR-AFT attestation: host_id=%s, location_hint=%s, schema=v%d",
-                _host_id, _location_hint, _schema_v)
-
     amber_store = AmberEventStore(config.events_db_path)
     amber_store.initialize()
     snapshot_manager = SnapshotManager(config)
@@ -480,6 +466,9 @@ def create_app(
                 if not primary_target and patch_paths:
                     primary_target = patch_paths[0]
 
+                # --- Derive server-trusted source_type (never from request body) ---
+                _source_type = _derive_source_type(session)
+
                 # --- Run enforcement pipeline ---
                 result = pipeline.check(
                     session=session,
@@ -487,6 +476,7 @@ def create_app(
                     target=primary_target,
                     parameters=check_req.params,
                     payload=_extract_payload(check_req.tool_name, check_req.params),
+                    source_type=_source_type,
                 )
 
             # --- Update last policy check timestamp + watchdog ---
@@ -1050,6 +1040,25 @@ def _resolve_session(
         )
         sessions[session_key] = session
     return sessions[session_key]
+
+
+def _derive_source_type(session: Session) -> str:
+    """Derive source_type from server-attested session metadata.
+
+    Provenance is server-trusted — never read from the request body.
+    Currently: principal binding API is not yet implemented, so ALL
+    sessions default to "user" (fail-safe). Feature activates only
+    once server-attested binding is available.
+
+    When principal binding is implemented, this function will check
+    session.principal_context (set via internal API) for values like
+    "cron" or "system".
+    """
+    # Future: check session.principal_context if available
+    principal_context = getattr(session, "principal_context", None)
+    if principal_context in ("cron", "system"):
+        return principal_context
+    return "user"
 
 
 def _extract_target(params: dict) -> Optional[str]:

@@ -87,6 +87,9 @@ class TaintState:
     taint_event_count: int = 0  # Total taint events in current elevated period
     taint_sources: list[str] = field(default_factory=list)  # Tool names that caused taint
 
+    # Trusted source rule hits (audit trail)
+    trusted_hits: list[str] = field(default_factory=list)
+
     def apply_taint(self, source_tool: str, config: TaintDecayConfig) -> TaintLevel:
         """Apply a new taint event. Returns the new taint level.
 
