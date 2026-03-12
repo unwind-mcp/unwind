@@ -811,14 +811,15 @@ def create_app(config: UnwindConfig = None) -> Flask:
     @app.route("/api/trusted-source-rules")
     def api_trusted_source_rules():
         """Return the active trusted source rules from config."""
-        rules = config.trusted_source_rules
+        status_code, body = _proxy_sidecar("GET", "/v1/policy/rules")
+        rules = body.get("rules", []) if status_code == 200 else []
         return jsonify({
             "rules": [
                 {
-                    "rule_id": r.rule_id,
-                    "source_types": sorted(r.source_types),
-                    "tools": sorted(r.tools),
-                    "domains": sorted(r.domains),
+                    "rule_id": r.get("rule_id"),
+                    "source_types": sorted(r.get("source_types", [])),
+                    "tools": sorted(r.get("tools", [])),
+                    "domains": sorted(r.get("domains", [])),
                 }
                 for r in rules
             ],
