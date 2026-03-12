@@ -1,7 +1,7 @@
 # UNWIND Security Framework Mapping
 
 Last updated: 2026-02-24
-Pipeline version: 14 stages, 1166 tests
+Pipeline version: 15 stages, 1859 tests
 
 This document maps UNWIND's enforcement pipeline against three industry-standard
 security frameworks. UNWIND targets automated mass attacks against AI agents —
