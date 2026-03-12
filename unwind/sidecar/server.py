@@ -134,6 +134,33 @@ def create_app(
                 policy_load.hash_hex[-4:],
             )
 
+        # --- Wire policy.json fields into config ---
+        _pd = policy_load.config_data or {}
+        if "trusted_source_rules" in _pd:
+            from ..config import validate_trusted_rules
+            config.trusted_source_rules = validate_trusted_rules(
+                _pd["trusted_source_rules"]
+            )
+            logger.info(
+                "[sidecar] Loaded %d trusted source rule(s)",
+                len(config.trusted_source_rules),
+            )
+
+    # --- Session principal map (server-side provenance binding) ---
+    # Maps session keys to principal contexts (e.g. "system", "cron").
+    # Loaded from policy.json — server-controlled, not caller-supplied.
+    _session_principal_map: dict[str, str] = {}
+    _pd_principals = (policy_load.config_data or {}).get("session_principal_map")
+    if isinstance(_pd_principals, dict):
+        for _sk, _ctx in _pd_principals.items():
+            if isinstance(_sk, str) and isinstance(_ctx, str) and _ctx.lower() != "user":
+                _session_principal_map[_sk] = _ctx.lower()
+        if _session_principal_map:
+            logger.info(
+                "[sidecar] Session principal map: %d binding(s)",
+                len(_session_principal_map),
+            )
+
     # --- Secret Registry (known-secret exact matching) ---
     _secret_registry = None
     if config.secret_registry_enabled:
@@ -316,6 +343,21 @@ def create_app(
     # GET /v1/health
     # -----------------------------------------------------------------------
 
+    @app.get("/v1/policy/rules")
+    async def get_rules():
+        """Report active trusted source rules from config."""
+        return {
+            "rules": [
+                {
+                    "rule_id": r.rule_id, 
+                    "source_types": list(r.source_types), 
+                    "tools": list(r.tools), 
+                    "domains": list(r.domains)
+                } for r in config.trusted_source_rules
+            ], 
+            "count": len(config.trusted_source_rules)
+        }
+
     @app.get("/v1/health")
     async def health():
         """Liveness and readiness probe with watchdog status.
@@ -442,8 +484,11 @@ def create_app(
                 timestamp=body.get("timestamp"),
             )
 
-            # --- Resolve session ---
-            session = _resolve_session(sessions, check_req.session_key, config)
+            # --- Resolve session (with server-side principal binding) ---
+            session = _resolve_session(
+                sessions, check_req.session_key, config,
+                principal_map=_session_principal_map,
+            )
 
             # --- P0-1: apply_patch multi-path jail validation (fail-closed) ---
             patch_paths = _extract_patch_paths(check_req.tool_name, check_req.params)
@@ -1025,6 +1070,7 @@ def _resolve_session(
     sessions: dict[str, Session],
     session_key: str,
     config: UnwindConfig,
+    principal_map: dict[str, str] | None = None,
 ) -> Session:
     """Resolve or create a Session for the given session_key.
 
@@ -1032,11 +1078,15 @@ def _resolve_session(
     - In enforce mode, missing session should block. But for the initial
       prototype we auto-create sessions (explicit binding API comes next).
     - Session keyed by session_key from adapter.
+    - principal_map: server-side session-to-context binding from policy.json.
     """
     if session_key not in sessions:
+        # Derive principal_context from server-side map (never caller-supplied)
+        _ctx = (principal_map or {}).get(session_key)
         session = Session(
             session_id=session_key,
             config=config,
+            principal_context=_ctx,
         )
         sessions[session_key] = session
     return sessions[session_key]
@@ -1046,18 +1096,11 @@ def _derive_source_type(session: Session) -> str:
     """Derive source_type from server-attested session metadata.
 
     Provenance is server-trusted — never read from the request body.
-    Currently: principal binding API is not yet implemented, so ALL
-    sessions default to "user" (fail-safe). Feature activates only
-    once server-attested binding is available.
-
-    When principal binding is implemented, this function will check
-    session.principal_context (set via internal API) for values like
-    "cron" or "system".
+    principal_context is set server-side from policy.json session_principal_map.
     """
-    # Future: check session.principal_context if available
-    principal_context = getattr(session, "principal_context", None)
-    if principal_context in ("cron", "system"):
-        return principal_context
+    ctx = session.principal_context
+    if ctx in ("cron", "system"):
+        return ctx
     return "user"
 
 
