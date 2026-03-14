@@ -698,7 +698,11 @@
 
     /* ─── Utility ──────────────────────────────── */
     .hidden { display: none !important; }
-  </style>
+  
+  .rule-item { font-size: 0.85rem; line-height: 1.4; margin-bottom: 8px; }
+  .rule-id { font-weight: bold; color: var(--text-bright); }
+
+</style>
 </head>
 <body>
 
@@ -980,6 +984,11 @@
   // ─── Trust State ──────────────────────────────
   async function refreshTrustState() {
     try {
+      // Instant UI feedback: hide the button container
+      const btn = document.activeElement;
+      if (btn && btn.closest('.event-actions')) {
+          btn.closest('.event-actions').innerHTML = '<span class="badge amber">Processing...</span>';
+      }
       const data = await api('/api/trust-state');
       const orb = document.getElementById('trust-orb');
       const label = document.getElementById('trust-label');
@@ -1056,7 +1065,13 @@
       pill.classList.remove('hidden');
       document.getElementById('cadence-label').textContent = data.user_state_label;
       const dot = document.getElementById('cadence-dot');
-      dot.classList.toggle('anomaly', data.anomaly_score > 0.5);
+            // Anomaly levels: <0.2 Green, 0.2-0.5 Amber, >0.5 Red
+      dot.classList.remove('anomaly', 'warning');
+      if (data.anomaly_score > 0.5) {
+        dot.classList.add('anomaly'); // Red
+      } else if (data.anomaly_score > 0.2) {
+        dot.classList.add('warning'); // Amber
+      }
     } catch (e) {
       document.getElementById('cadence-pill').classList.add('hidden');
     }

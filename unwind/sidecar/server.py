@@ -1081,8 +1081,11 @@ def _resolve_session(
     - principal_map: server-side session-to-context binding from policy.json.
     """
     if session_key not in sessions:
-        # Derive principal_context from server-side map (never caller-supplied)
+        # 1. Detect cron sessions automatically (The 'Auto-Cron' Wiring)
         _ctx = (principal_map or {}).get(session_key)
+        if not _ctx and session_key.startswith("agent:main:cron:"):
+            _ctx = "system"
+            
         session = Session(
             session_id=session_key,
             config=config,
