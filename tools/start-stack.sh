@@ -6,7 +6,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-export UNWIND_SIDECAR_SHARED_SECRET="${UNWIND_SIDECAR_SHARED_SECRET:?ERROR: UNWIND_SIDECAR_SHARED_SECRET not set}"
+# Source .env if secret not already set
+if [ -z "${UNWIND_SIDECAR_SHARED_SECRET:-}" ] && [ -f "$ROOT/.env" ]; then
+    set -a; source "$ROOT/.env"; set +a
+fi
+
+export UNWIND_SIDECAR_SHARED_SECRET="${UNWIND_SIDECAR_SHARED_SECRET:?ERROR: UNWIND_SIDECAR_SHARED_SECRET not set. Create .env in project root.}"
 export UNWIND_WATCHDOG_THRESHOLD="${UNWIND_WATCHDOG_THRESHOLD:-86400}"
 
 echo "=== [1/4] Stopping existing services ==="
