@@ -7,7 +7,7 @@
 - Dashboard: running (Pi, port 9001)
 - Gateway: running (Pi)
 - Sentinel TUI: running (Pi)
-- All three machines in sync at commit `073b5bf`
+- All three machines in sync at commit `e6bdace`
 
 ## Just Completed
 - Full reboot recovery — Mac + Pi

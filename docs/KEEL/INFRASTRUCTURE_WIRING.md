@@ -35,7 +35,8 @@ Or start each service manually — see `docs/CONTINUITY.md` section 3.
 - **Browser:** Open `http://192.168.0.171:9001` (dashboard)
 - **AI Agents:** Gemini CLI / Claude Code run here to orchestrate Pi work
 - **Code State:** Synced from Pi for review/editing
-- **NEVER start sidecar or dashboard on Mac** — test suite can run on Mac but servers are Pi-only
+- **Python:** Mac has system Python 3.9.6 — too old to run the codebase (needs >=3.10). Python 3.11 is at `/opt/homebrew/bin/python3.11` but there is no venv on Mac. **Pi is the only test authority.** Mac test counts will always be lower — this is NOT drift.
+- **NEVER start sidecar or dashboard on Mac** — servers are Pi-only
 
 ## Sync Rules
 
