@@ -7,14 +7,19 @@
 
 ## 0. Recent Changes (last 72 hours)
 
-- 2026-03-02: Framework independence documented — README, SIX_LAYER, DECISIONS_LOG updated (Opus caught strategic gap)
-- 2026-03-02: Document consolidation — archiving stale docs, single sources of truth established
-- 2026-03-02: Opus review of SIX_LAYER_ALIGNMENT.md — 12 patches applied (tamper-evident, verify tags, honest Cadence status)
-- 2026-03-02: Six-layer alignment doc accepted as ground truth by all three entities (commit a9914ec)
-- 2026-03-02: README aligned with reviewed alignment doc (Cadence section added, Ghost/Amber distinction, threat model expanded)
-- 2026-03-02: Sentinel cron jobs configured — 14 jobs, 10 on spark model, 3 on full model
-- 2026-03-01: OpenClaw upgraded to 2026.2.26, Cadence Bridge wired live, full proof pack passed (1702 tests, 170 CRAFT events)
-- 2026-03-01: PII redaction completed (d73c250), README + SECURITY.md aligned (a5b6ad9)
+- 2026-03-14: KEEL hardening — start-stack.sh auto-sources .env, infrastructure wiring expanded
+- 2026-03-14: Committed Gemini's work — auto-cron wiring, principal_context, dashboard UI polish, authorized hosts
+- 2026-03-14: Temp file cleanup on Pi (fix_*.py, coverage.xml)
+- 2026-03-13: Project KEEL foundation — checkpoint script, sync runbook, state fingerprinting (954923a)
+- 2026-03-13: Dashboard fallback to local config rules when sidecar proxy unavailable (8d93f35)
+- 2026-03-13: Auto-cron wiring — sidecar trusts `agent:main:cron:*` sessions as "system"
+- 2026-03-13: Amber TTL increased from 90s to 300s (5 minutes)
+- 2026-03-13: Path jail relaxation — added `/home/dandare/.npm-global/` to exemptions
+- 2026-03-12: Dashboard rules API proxied from Sidecar (port 9001)
+- 2026-03-11: Trusted Sources Allowlist shipped (364319b) — scoped taint relaxation for github/nvd/pypi
+- 2026-03-10: **v0.1.0 GO LIVE** — tagged, published to PyPI (`unwind-mcp`, `ghostmode`)
+- 2026-03-09: Pre-launch adversarial audit — 5 independent checks, 7 bugs fixed, zero CVEs
+- 2026-03-07: Dashboard humanization — copy overhaul, Rewind/Away tabs, template literal fix
 
 ---
 
@@ -125,7 +130,7 @@ Ghost Mode intercepts writes (returns fake success to agent) and optionally bloc
 
 ## 5. Test Suite
 
-**Current count: 1702 tests, all passing (Pi, 2026-03-01).**
+**Current count: 1859 tests, all passing (Pi, 2026-03-14).**
 
 ```bash
 # Run all tests
@@ -234,17 +239,18 @@ See `tests/canary/canary-mapping.md` for canary-to-test mappings.
 This block lets a rebooted session verify it's reading current continuity, not stale.
 
 ```
-last_known_good_commit: 1823909 (GitHub main)
+last_known_good_commit: c8f832e (GitHub main)
 branch: main
-test_count: 1859
+test_count: 1859 (Pi, verified 2026-03-14)
 openclaw_version: 2026.2.26
-craft_chain: 170 events, verified, 1 anchor, no tamper
+craft_chain: 8369+ events, verified
 cadence_bridge: live (UNWIND_CADENCE_BRIDGE=1)
 sidecar: healthy (watchdog 86400s)
 cron_jobs: 14 (10 spark, 3 full model, 1 delivered daily-brief)
 last_canary_run: 2026-03-02 (included in full green run on Pi)
-last_sync_direction: Mac → GitHub (push 1823909)
-continuity_updated: 2026-03-02
+last_sync_direction: Pi → GitHub (push c8f832e)
+continuity_updated: 2026-03-14
+keel_status: active — checkpoint script, sync runbook, infrastructure wiring
 ```
 
 ---
@@ -311,14 +317,16 @@ Section 0 updated: [yes/no — mandatory, keeps Recent Changes current]
 
 ## 14. Current State (update after each session)
 
-### Completed (last 3 — for full history see CHANGELOG.md)
-- 2026-03-02: Document consolidation — single sources of truth, stale docs archived, DECISIONS_LOG created
-- 2026-03-02: Opus review of alignment doc — 12 patches applied (654f131), README aligned (1823909)
-- 2026-03-02: Six-layer alignment doc created and accepted as ground truth (a9914ec, eb31d43)
+### Completed (last 5 — for full history see CHANGELOG.md)
+- 2026-03-14: KEEL hardening — start-stack.sh, .env secret management, infrastructure wiring doc
+- 2026-03-13: Project KEEL foundation — reboot-safe sync and state fingerprinting
+- 2026-03-11: Trusted Sources Allowlist — scoped taint relaxation (364319b)
+- 2026-03-10: v0.1.0 GO LIVE — PyPI published (unwind-mcp, ghostmode), GitHub org created
+- 2026-03-09: Pre-launch adversarial audit — 5 checks, 7 fixes, zero CVEs
 
 ### In Progress
-- Sentinel step 5: automated stability confirmation cycles (eng-test6h, release-gate, tier-1 sweep)
-- Six-layer alignment doc (Claude draft done, Sentinel filling in independently)
+- KEEL protocol refinement — reboot block, cross-AI context handoff
+- Dashboard polish — Allow/Deny buttons on Away review items, result_summary humanization
 
 ### Queued
 
@@ -357,7 +365,7 @@ Release gate must remain green before tagging/release.
 - [x] **Retention ✅**
   - `EventStore.enforce_retention()` implemented + retention tests (`tests/test_events_retention.py`) green.
 - [x] **Full suite ✅**
-  - Latest Pi run: `1702 passed, 22 subtests passed`.
+  - Latest Pi run: `1859 tests collected, 0 errors (2026-03-14)`.
 
 ---
 
