@@ -1,0 +1,1601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UNWIND — Trust Dashboard</title>
+  <style>
+    :root {
+      --bg: #0a0e1a;
+      --surface: #0f1520;
+      --surface-2: #151c28;
+      --border: #1e2a3a;
+      --text: #e6edf3;
+      --text-dim: #8b949e;
+      --green: #3fb950;
+      --green-bg: rgba(63,185,80,0.12);
+      --amber: #d29922;
+      --amber-bg: rgba(210,153,34,0.12);
+      --red: #f85149;
+      --red-bg: rgba(248,81,73,0.12);
+      --blue: #58a6ff;
+      --purple: #bc8cff;
+      --ghost: #8957e5;
+      --info-bg: rgba(88,166,255,0.08);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding-bottom: 16px;
+    }
+
+    /* ─── Header ───────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 2px;
+    }
+    .header h1 span { color: var(--text-dim); font-weight: 400; font-size: 13px; letter-spacing: 0; margin-left: 12px; }
+    .header-right {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    /* ─── Cadence Card ─────────────────────────── */
+    .cadence-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+    .cadence-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+    .cadence-dot.anomaly { background: var(--amber); }
+
+    /* ─── Integrity Bar ───────────────────────── */
+    .integrity-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 24px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .integrity-pills {
+      display: flex;
+      gap: 8px;
+      flex: 1;
+    }
+    .integrity-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+    .integrity-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .integrity-dot.green { background: var(--green); }
+    .integrity-dot.amber { background: var(--amber); }
+    .integrity-dot.red { background: var(--red); }
+    .integrity-ts {
+      color: var(--text-dim);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+    .integrity-warning {
+      padding: 6px 24px;
+      font-size: 12px;
+      border-bottom: 1px solid var(--border);
+      line-height: 1.4;
+    }
+    .integrity-warning.warn-amber {
+      background: var(--amber-bg);
+      color: var(--amber);
+    }
+    .integrity-warning.warn-red {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
+    /* ─── Ghost Banner ─────────────────────────── */
+    .ghost-banner {
+      background: rgba(137,87,229,0.12);
+      border-bottom: 1px solid rgba(137,87,229,0.3);
+      padding: 8px 24px;
+      font-size: 13px;
+      color: var(--purple);
+      text-align: center;
+    }
+
+    /* ─── Trust Light ──────────────────────────── */
+    .trust-light {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 20px 40px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .trust-orb {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      transition: all 0.6s ease;
+    }
+    .trust-orb.green {
+      background: var(--green);
+      box-shadow: 0 0 20px rgba(63,185,80,0.5), 0 0 60px rgba(63,185,80,0.2);
+    }
+    .trust-orb.amber {
+      background: var(--amber);
+      box-shadow: 0 0 20px rgba(210,153,34,0.5), 0 0 60px rgba(210,153,34,0.2);
+      animation: pulse-amber 2s ease-in-out infinite;
+    }
+    .trust-orb.red {
+      background: var(--red);
+      box-shadow: 0 0 20px rgba(248,81,73,0.5), 0 0 60px rgba(248,81,73,0.2);
+      animation: pulse-red 1s ease-in-out infinite;
+    }
+    @keyframes pulse-amber { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    @keyframes pulse-red { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+    .trust-info h2 { font-size: 20px; font-weight: 600; }
+    .trust-info .subtitle { color: var(--text-dim); font-size: 13px; }
+    .trust-stats {
+      margin-left: auto;
+      display: flex;
+      gap: 24px;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* ─── Explanation Panel ─────────────────────── */
+    .explanation-panel {
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .explanation-panel.severity-critical {
+      background: var(--red-bg);
+      border-left: 4px solid var(--red);
+    }
+    .explanation-panel.severity-warning {
+      background: var(--amber-bg);
+      border-left: 4px solid var(--amber);
+    }
+    .explanation-panel.severity-info {
+      background: var(--info-bg);
+      border-left: 4px solid var(--blue);
+    }
+    .explanation-headline { font-size: 14px; font-weight: 600; }
+    .explanation-detail { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+    .explanation-action { font-size: 12px; color: var(--blue); margin-top: 6px; font-weight: 500; }
+
+    /* ─── Tab Bar ──────────────────────────────── */
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      padding: 0 24px;
+    }
+    .tab {
+      padding: 10px 16px;
+      font-size: 13px;
+      color: var(--text-dim);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--text); border-bottom-color: var(--blue); }
+
+    /* ─── Content ──────────────────────────────── */
+    .content { max-width: 960px; margin: 0 auto; padding: 16px 24px; }
+
+    /* ─── Timeline ─────────────────────────────── */
+    .timeline-event {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 2px;
+      transition: background 0.15s;
+      cursor: pointer;
+    }
+    .timeline-event:hover { background: var(--surface-2); }
+    .timeline-event.ghost { opacity: 0.7; border-left: 3px solid var(--ghost); }
+    .timeline-event.blocked { border-left: 3px solid var(--red); }
+    .timeline-event.tainted { border-left: 3px solid var(--amber); }
+
+    .event-time {
+      font-size: 12px;
+      color: var(--text-dim);
+      min-width: 50px;
+      font-variant-numeric: tabular-nums;
+      padding-top: 2px;
+    }
+    .event-icon { font-size: 16px; min-width: 24px; text-align: center; padding-top: 1px; }
+    .event-body { flex: 1; min-width: 0; }
+    .event-tool { font-size: 13px; font-weight: 600; }
+    .event-target {
+      font-size: 12px;
+      color: var(--text-dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .event-badges { display: flex; gap: 6px; margin-top: 3px; }
+    .badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge.green { background: var(--green-bg); color: var(--green); }
+    .badge.amber { background: var(--amber-bg); color: var(--amber); }
+    .badge.red { background: var(--red-bg); color: var(--red); }
+    .badge.ghost { background: rgba(137,87,229,0.15); color: var(--ghost); }
+
+    .event-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .undo-btn {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .undo-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--blue); }
+
+    .status-icon { font-size: 14px; min-width: 20px; text-align: center; }
+
+    /* ─── Event Detail Expansion ────────────────── */
+    .event-detail-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+      margin: 4px 0 8px 86px;
+      font-size: 13px;
+    }
+    .event-detail-panel .edp-section {
+      margin-bottom: 10px;
+    }
+    .event-detail-panel .edp-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .event-detail-panel .edp-explanation {
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 6px;
+    }
+    .event-detail-panel .edp-explanation.severity-critical {
+      background: var(--red-bg);
+      border-left: 3px solid var(--red);
+    }
+    .event-detail-panel .edp-explanation.severity-warning {
+      background: var(--amber-bg);
+      border-left: 3px solid var(--amber);
+    }
+    .event-detail-panel .edp-explanation.severity-info {
+      background: var(--info-bg);
+      border-left: 3px solid var(--blue);
+    }
+    .event-detail-panel .edp-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    /* ─── Away Mode Panel ──────────────────────── */
+    .away-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .away-panel h3 { margin-bottom: 12px; font-size: 16px; }
+    .away-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .away-stat {
+      background: var(--surface-2);
+      border-radius: 6px;
+      padding: 12px;
+      text-align: center;
+    }
+    .away-stat .val { font-size: 24px; font-weight: 700; }
+    .away-stat .lbl { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .review-item {
+      background: var(--red-bg);
+      border: 1px solid rgba(248,81,73,0.3);
+      border-radius: 6px;
+      padding: 12px;
+      margin: 8px 0;
+      font-size: 13px;
+    }
+    .review-item .ri-tool { font-weight: 600; }
+    .review-item .ri-reason { color: var(--text-dim); margin-top: 4px; }
+
+    /* ─── Chain Verification ───────────────────── */
+    .verify-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      text-align: center;
+    }
+    .verify-result { font-size: 48px; margin: 16px 0; }
+    .verify-text { font-size: 14px; }
+    .verify-breaks {
+      margin-top: 16px;
+      text-align: left;
+    }
+    .verify-break-item {
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin: 4px 0;
+      font-size: 13px;
+    }
+    .verify-break-item.restart {
+      background: var(--amber-bg);
+      border-left: 3px solid var(--amber);
+    }
+    .verify-break-item.suspicious {
+      background: var(--red-bg);
+      border-left: 3px solid var(--red);
+    }
+
+    /* ─── Ask Bar (compact, under header) ─────── */
+    .ask-wrapper {
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .ask-trigger {
+      padding: 8px 24px;
+      font-size: 12px;
+      color: var(--blue);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .ask-trigger:hover { color: var(--text); }
+    .ask-bar {
+      padding: 0 24px 10px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .ask-bar input {
+      flex: 1;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+    }
+    .ask-bar input:focus { border-color: var(--blue); }
+    .ask-bar input::placeholder { color: var(--text-dim); }
+    .ask-bar button {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid var(--blue);
+      background: rgba(88,166,255,0.1);
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .ask-bar button:hover { background: rgba(88,166,255,0.2); }
+    .ask-response {
+      padding: 10px 24px;
+      font-size: 13px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      max-height: 160px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    /* ─── About Cards ─────────────────────────── */
+    .about-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .about-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .about-icon { font-size: 24px; }
+    .about-header h3 { font-size: 18px; font-weight: 600; }
+    .about-tagline {
+      font-size: 14px;
+      color: var(--blue);
+      font-weight: 500;
+      margin-bottom: 12px;
+    }
+    .about-card p {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+      line-height: 1.6;
+    }
+    .about-card code {
+      background: var(--surface-2);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 12px;
+      color: var(--text);
+    }
+    .about-detail {
+      margin-top: 14px;
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+    .about-detail-item {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      line-height: 1.6;
+    }
+    .about-detail-item strong { color: var(--text); }
+
+    /* ─── Ghost Mode Tab ─────────────────────────── */
+    .ghost-tab-wrapper { position: relative; }
+    .ghost-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 48px; font-weight: 800; color: var(--ghost); opacity: 0.06; pointer-events: none; white-space: nowrap; z-index: 1; letter-spacing: 6px; text-transform: uppercase; user-select: none; }
+    .ghost-footer { background: rgba(137,87,229,0.08); border: 1px solid rgba(137,87,229,0.2); border-radius: 6px; padding: 10px 16px; text-align: center; font-size: 12px; color: var(--ghost); margin-top: 24px; }
+    .ghost-status-card { background: var(--surface); border: 2px solid var(--border); border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; position: relative; z-index: 2; }
+    .ghost-status-card.active { border-color: var(--ghost); animation: ghost-pulse-border 3s ease-in-out infinite; }
+    .ghost-status-card.ended { border-color: var(--ghost); }
+    @keyframes ghost-pulse-border { 0%, 100% { border-color: var(--ghost); box-shadow: 0 0 0 0 rgba(137,87,229,0); } 50% { border-color: var(--purple); box-shadow: 0 0 12px rgba(137,87,229,0.15); } }
+    .ghost-lifecycle { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-dim); margin-bottom: 12px; }
+    .ghost-lifecycle .step { padding: 2px 8px; border-radius: 10px; }
+    .ghost-lifecycle .step.current { background: rgba(137,87,229,0.15); color: var(--ghost); font-weight: 600; }
+    .ghost-lifecycle .arrow { color: var(--border); }
+    .ghost-status-label { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .ghost-status-sub { font-size: 13px; color: var(--text-dim); }
+    .ghost-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ghost); margin-right: 6px; animation: ghost-dot-pulse 1.5s ease-in-out infinite; }
+    @keyframes ghost-dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .ghost-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .ghost-btn { padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid; transition: all 0.15s; }
+    .ghost-btn.toggle-on { border-color: var(--ghost); background: rgba(137,87,229,0.12); color: var(--ghost); }
+    .ghost-btn.toggle-on:hover { background: rgba(137,87,229,0.2); }
+    .ghost-btn.toggle-off { border-color: var(--border); background: var(--surface-2); color: var(--text-dim); }
+    .ghost-btn.toggle-off:hover { background: var(--surface); color: var(--text); }
+    .ghost-btn.approve { border-color: var(--green); background: rgba(63,185,80,0.1); color: var(--green); }
+    .ghost-btn.approve:hover { background: rgba(63,185,80,0.2); }
+    .ghost-btn.discard { border-color: var(--red); background: rgba(248,81,73,0.1); color: var(--red); }
+    .ghost-btn.discard:hover { background: rgba(248,81,73,0.2); }
+    .ghost-files-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; position: relative; z-index: 2; }
+    .ghost-files-panel h4 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+    .ghost-file-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .ghost-file-row:last-child { border-bottom: none; }
+    .ghost-file-icon { color: var(--ghost); font-size: 14px; }
+    .ghost-file-path { flex: 1; color: var(--text); font-family: monospace; font-size: 12px; }
+    .ghost-summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 16px; text-align: center; position: relative; z-index: 2; }
+    .ghost-summary-text { font-size: 16px; line-height: 1.7; }
+    .ghost-summary-text strong { color: var(--text); }
+    .ghost-summary-reassurance { font-size: 15px; font-weight: 600; color: var(--green); margin-top: 8px; }
+    .ghost-timeline-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-bottom: 2px; border-radius: 6px; overflow: hidden; position: relative; z-index: 2; }
+    .ghost-timeline-row.intercepted { border-left: 3px solid var(--ghost); }
+    .ghost-timeline-row.passed { border-left: 3px solid var(--green); }
+    .ghost-tl-cell { padding: 10px 14px; font-size: 13px; background: var(--surface); }
+    .ghost-tl-cell.result { background: var(--surface-2); }
+    .ghost-tl-cell .tl-tool { font-weight: 600; font-size: 12px; }
+    .ghost-tl-cell .tl-target { color: var(--text-dim); font-size: 12px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ghost-tl-cell .tl-outcome { color: var(--text-dim); font-size: 12px; }
+    .ghost-tl-header { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-bottom: 4px; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; padding: 0 14px; }
+    .ghost-stage-badge { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 600; margin-left: 6px; }
+    .ghost-stage-badge.safe { background: var(--green-bg); color: var(--green); }
+    .ghost-stage-badge.violation { background: var(--amber-bg); color: var(--amber); }
+    .ghost-egress-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; position: relative; z-index: 2; }
+    .ghost-egress-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+    .ghost-egress-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; color: var(--text-dim); }
+    .tab.active[data-tab="ghost"] { border-bottom-color: var(--ghost); }
+    .ghost-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 200; display: flex; align-items: center; justify-content: center; }
+    .ghost-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; max-width: 480px; width: 90%; }
+    .ghost-modal h3 { font-size: 16px; margin-bottom: 12px; }
+    .ghost-modal p { font-size: 13px; color: var(--text-dim); margin-bottom: 8px; }
+    .ghost-modal .file-list { font-family: monospace; font-size: 12px; background: var(--surface-2); border-radius: 4px; padding: 10px; margin: 10px 0; max-height: 200px; overflow-y: auto; }
+    .ghost-modal .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+    .ghost-session-select { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: 12px; color: var(--text); margin-bottom: 12px; }
+
+    /* ─── Empty State ──────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 48px;
+      color: var(--text-dim);
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+    /* ─── Loading ──────────────────────────────── */
+    .loading { text-align: center; padding: 32px; color: var(--text-dim); }
+
+    /* ─── Utility ──────────────────────────────── */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>UNWIND <span>See Everything. Undo Anything. Test Anything Safely.</span></h1>
+    <div class="header-right">
+      <span id="cadence-pill" class="cadence-pill hidden">
+        <span id="cadence-dot" class="cadence-dot"></span>
+        <span id="cadence-label">Active</span>
+      </span>
+      <span id="chain-badge" class="badge green" style="font-size:11px;cursor:pointer;" onclick="verifyChain()" title="Click to verify">&#x1f512; Chain OK</span>
+      <span id="poll-indicator" style="font-size:10px;color:var(--text-dim);">&#x25cf; Live</span>
+    </div>
+  </div>
+
+  <!-- Ask Bar (collapsible) -->
+  <div class="ask-wrapper">
+    <div class="ask-trigger" onclick="toggleAsk()">
+      <span>&#x1f50d;</span> Ask about your agent's activity...
+    </div>
+    <div id="ask-expanded" class="hidden">
+      <div class="ask-bar">
+        <input type="text" id="ask-input" placeholder="Try: what happened last hour? / how many emails today? / any blocked actions? / security issues since 3pm?" onkeydown="if(event.key==='Enter')askQuestion()">
+        <button onclick="askQuestion()">Ask</button>
+      </div>
+      <div id="ask-response" class="ask-response hidden"></div>
+    </div>
+  </div>
+
+  <!-- Ghost Mode Banner -->
+  <div id="ghost-banner" class="ghost-banner hidden">
+    Ghost Mode Active — writes are simulated, nothing reaches the real world.
+  </div>
+
+  <!-- Trust Light -->
+  <div class="trust-light">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="UNWIND" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
+    <div id="trust-orb" class="trust-orb green"></div>
+    <div class="trust-info">
+      <h2 id="trust-label">All Clear</h2>
+      <div class="subtitle" id="trust-subtitle">Loading...</div>
+    </div>
+    <div class="trust-stats">
+      <div class="stat">
+        <div class="stat-value" id="stat-total">&mdash;</div>
+        <div class="stat-label" title="Total tool calls processed in the last hour">Total</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="stat-blocked">&mdash;</div>
+        <div class="stat-label">Blocked</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="stat-ghost">&mdash;</div>
+        <div class="stat-label" title="Actions intercepted by Ghost Mode — simulated, not real">Simulated</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="stat-tainted">&mdash;</div>
+        <div class="stat-label" title="Actions from sessions that ingested external content">Cautious</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- System Integrity Bar -->
+  <div id="integrity-bar" class="integrity-bar">
+    <div class="integrity-pills">
+      <span class="integrity-pill" id="pill-sidecar">
+        <span class="integrity-dot" id="dot-sidecar"></span>
+        <span id="label-sidecar">Sidecar: Checking...</span>
+      </span>
+      <span class="integrity-pill" id="pill-pipeline">
+        <span class="integrity-dot" id="dot-pipeline"></span>
+        <span id="label-pipeline">Pipeline: Checking...</span>
+      </span>
+      <span class="integrity-pill" id="pill-chain">
+        <span class="integrity-dot" id="dot-chain"></span>
+        <span id="label-chain">Chain: Checking...</span>
+      </span>
+    </div>
+    <span class="integrity-ts" id="integrity-ts"></span>
+  </div>
+  <div id="integrity-warning" class="integrity-warning hidden"></div>
+
+  <!-- Contextual Explanation Panel -->
+  <div id="explanation-panel" class="explanation-panel hidden">
+    <div>
+      <div class="explanation-headline" id="expl-headline"></div>
+      <div class="explanation-detail" id="expl-detail"></div>
+      <div class="explanation-action" id="expl-action"></div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <div class="tab active" data-tab="timeline" onclick="switchTab('timeline')">Timeline</div>
+    <div class="tab" data-tab="ghost" onclick="switchTab('ghost')">Ghost Mode</div>
+    <div class="tab" data-tab="away" onclick="switchTab('away')">Away Mode</div>
+    <div class="tab" data-tab="verify" onclick="switchTab('verify')">Chain Verify</div>
+    <div class="tab" data-tab="about" onclick="switchTab('about')">What Is This?</div>
+  </div>
+
+  <!-- Content Panels -->
+  <div class="content">
+    <!-- Timeline -->
+    <div id="panel-timeline">
+      <div id="timeline-container" class="loading">Loading events...</div>
+    </div>
+
+    <!-- Ghost Mode -->
+    <div id="panel-ghost" class="hidden">
+      <div class="ghost-tab-wrapper">
+        <div class="ghost-watermark">SIMULATED &mdash; NO CHANGES MADE</div>
+        <div id="ghost-session-selector" class="hidden">
+          <select id="ghost-session-select" class="ghost-session-select" onchange="ghostSelectSession(this.value)"></select>
+        </div>
+        <div id="ghost-status-card" class="ghost-status-card">
+          <div class="ghost-lifecycle" id="ghost-lifecycle">
+            <span class="step current" id="gl-off">OFF</span><span class="arrow">&rarr;</span>
+            <span class="step" id="gl-running">RUNNING</span><span class="arrow">&rarr;</span>
+            <span class="step" id="gl-ended">ENDED</span><span class="arrow">&rarr;</span>
+            <span class="step" id="gl-reviewed">REVIEWED</span>
+          </div>
+          <div class="ghost-status-label" id="ghost-status-label">Ghost Mode is off. Your agent's actions are live.</div>
+          <div class="ghost-status-sub" id="ghost-status-sub"></div>
+          <div class="ghost-actions" id="ghost-actions">
+            <button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>
+          </div>
+        </div>
+        <div id="ghost-files-panel" class="ghost-files-panel hidden">
+          <h4>Files your agent wrote to the sandbox</h4>
+          <div id="ghost-files-list"><div style="color:var(--text-dim);font-size:13px;">No files buffered yet. Your agent's writes will appear here.</div></div>
+        </div>
+        <div id="ghost-summary-card" class="ghost-summary-card hidden">
+          <div class="ghost-summary-text" id="ghost-summary-text"></div>
+          <div class="ghost-summary-reassurance" id="ghost-summary-reassurance"></div>
+        </div>
+        <div id="ghost-timeline-section" class="hidden" style="position:relative;z-index:2;">
+          <div class="ghost-tl-header"><div>What the agent tried to do</div><div>What actually happened</div></div>
+          <div id="ghost-timeline-rows"></div>
+        </div>
+        <div id="ghost-egress-card" class="ghost-egress-card hidden">
+          <h4>Network Activity</h4>
+          <div id="ghost-egress-sub"></div>
+          <div id="ghost-egress-list"></div>
+        </div>
+        <div class="ghost-footer">This is a Ghost Mode view. Zero changes were made to your system.</div>
+      </div>
+    </div>
+
+    <!-- Away Mode -->
+    <div id="panel-away" class="hidden">
+      <div id="away-container" class="loading">Generating summary...</div>
+    </div>
+
+    <!-- Chain Verify -->
+    <div id="panel-verify" class="hidden">
+      <div class="verify-panel">
+        <div class="verify-result" id="verify-icon">&#x1f512;</div>
+        <div class="verify-text" id="verify-text">Click to verify CR-AFT hash chain integrity</div>
+        <div id="verify-breaks" class="verify-breaks hidden"></div>
+        <button class="undo-btn" style="margin-top:16px;padding:8px 20px;font-size:13px;" onclick="verifyChain()">Verify Now</button>
+      </div>
+    </div>
+
+    <!-- About -->
+    <div id="panel-about" class="hidden">
+
+      <div class="about-card">
+        <div class="about-header">
+          <span class="about-icon">&#x1f6e1;&#xfe0f;</span>
+          <h3>UNWIND</h3>
+        </div>
+        <div class="about-tagline">See Everything. Undo Anything. Test Anything Safely.</div>
+        <p>UNWIND is a security layer that sits between your AI agent and the tools it uses. Every tool call &mdash; reading a file, sending an email, running a command &mdash; passes through a 15-stage enforcement pipeline before it reaches the real world.</p>
+        <p>If something looks wrong, UNWIND blocks it. If something goes through and you change your mind, UNWIND can undo it. If you want to test something risky, UNWIND can simulate it without consequences.</p>
+        <p>No AI in the security path. Every check is deterministic. The agent doesn't know UNWIND exists.</p>
+        <div class="about-detail">
+          <div class="about-detail-item"><strong>Trust Light</strong> &mdash; the coloured orb at the top. Green means all clear. Amber means the session has ingested external content and high-risk actions need your approval. Red means something was blocked or a security rule was triggered.</div>
+          <div class="about-detail-item"><strong>Flight Recorder</strong> &mdash; every tool call is logged to a tamper-evident database with cryptographic hash chaining. The timeline below shows what happened, when, and whether it was allowed.</div>
+          <div class="about-detail-item"><strong>Undo Button</strong> &mdash; before every file write, UNWIND takes a snapshot. You can undo any action, or undo everything since a point in time.</div>
+        </div>
+      </div>
+
+      <div class="about-card">
+        <div class="about-header">
+          <span class="about-icon">&#x1f47b;</span>
+          <h3>Ghost Mode</h3>
+        </div>
+        <div class="about-tagline">See what your agent would do &mdash; without it actually doing anything.</div>
+        <p>Ghost Mode is a dry-run sandbox. When active, all state-modifying actions (file writes, emails, commands) are intercepted and simulated. The agent receives a fake success response and continues working normally, but nothing real changes.</p>
+        <p>A shadow filesystem serves back "written" content on subsequent reads, so the agent stays internally consistent. An egress guard scans outbound requests for leaked secrets before they leave your device.</p>
+        <p>Use it to test untrusted tools, risky prompts, or new agent configurations. When the purple banner appears at the top of this dashboard, Ghost Mode is active.</p>
+      </div>
+
+      <div class="about-card">
+        <div class="about-header">
+          <span class="about-icon">&#x1f517;</span>
+          <h3>CRAFT Protocol</h3>
+        </div>
+        <div class="about-tagline">Cryptographic proof that every command is genuine, in sequence, and untampered.</div>
+        <p>CRAFT (Cryptographic Relay Authentication for Faithful Transmission) authenticates every command before it reaches the enforcement pipeline. It provides proof of who sent a command, that it hasn't been modified in transit, and that it arrived in the correct order.</p>
+        <p>Every event in the timeline is linked to the previous one by a cryptographic hash &mdash; forming an unbreakable chain of evidence. If anyone alters or deletes a record, the chain breaks and the dashboard will show you exactly where.</p>
+        <p>The "Chain Verify" tab lets you check this at any time. CRAFT has zero external dependencies and can be used independently as a standalone audit library.</p>
+      </div>
+
+      <div class="about-card">
+        <div class="about-header">
+          <span class="about-icon">&#x23f1;&#xfe0f;</span>
+          <h3>Cadence</h3>
+        </div>
+        <div class="about-tagline">Your agent learns your rhythm &mdash; and uses it to keep you safe.</div>
+        <p>Cadence watches timing patterns (never content) to understand when you're actively working, reading, in deep focus, or away from your device. It feeds these signals into the enforcement pipeline.</p>
+        <p>If tool calls arrive at machine speed while you appear to be away, Cadence raises the alert level. If the timing between actions is suspiciously regular (like a bot, not a human), it flags it. The small pill in the header shows your current detected state.</p>
+        <p>All timing data stays on your device, auto-deletes after 7 days, and UNWIND works perfectly without it. Cadence is opt-in &mdash; enable it with <code>UNWIND_CADENCE_BRIDGE=1</code>, disable it any time with no side effects.</p>
+      </div>
+
+    </div>
+  </div>
+
+
+<script>
+  // ─── State ────────────────────────────────────
+  let pollTimer = null;
+  let awayAutoShown = false;
+  let expandedEventId = null;
+  let expandedDetailHtml = null; // cached detail panel content
+  const POLL_INTERVAL = 3000; // 3 seconds
+
+  // ─── Tool icons ───────────────────────────────
+  const TOOL_ICONS = {
+    send_email: '&#x1f4e7;', read_email: '&#x1f4e8;',
+    post_message: '&#x1f4ac;', read_slack: '&#x1f4ac;',
+    fs_write: '&#x1f4dd;', fs_read: '&#x1f4c4;', fs_delete: '&#x1f5d1;&#xfe0f;',
+    fs_rename: '&#x1f4c1;', fs_mkdir: '&#x1f4c1;',
+    fetch_web: '&#x1f310;', search_web: '&#x1f50d;', http_post: '&#x1f310;',
+    bash_exec: '&#x1f4bb;',
+    create_calendar_event: '&#x1f4c5;', modify_calendar_event: '&#x1f4c5;',
+    upload_file: '&#x2b06;&#xfe0f;', api_call: '&#x26a1;',
+    disable_security_audit: '&#x1f6a8;', extract_system_keys: '&#x1f6a8;',
+    grant_admin_access: '&#x1f6a8;', override_safety_limits: '&#x1f6a8;',
+  };
+
+  const STATUS_ICONS = {
+    success: '&#x2705;',
+    blocked: '&#x1f6d1;',
+    ghost_success: '&#x1f47b;',
+    pending: '&#x23f3;',
+    error: '&#x274c;',
+    red_alert: '&#x1f6a8;',
+  };
+
+  const TRUST_LABELS = {
+    green: 'All Clear',
+    amber: 'Attention Required',
+    red: 'Alert',
+  };
+
+  // ─── API Helpers ──────────────────────────────
+  async function api(path) {
+    const res = await fetch(path);
+    return res.json();
+  }
+
+  async function apiPost(path, body = {}) {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  }
+
+  // ─── Trust State ──────────────────────────────
+  async function refreshTrustState() {
+    try {
+      const data = await api('/api/trust-state');
+      const orb = document.getElementById('trust-orb');
+      const label = document.getElementById('trust-label');
+      const subtitle = document.getElementById('trust-subtitle');
+
+      orb.className = 'trust-orb ' + (data.orb_state || data.trust_state);
+      label.textContent = TRUST_LABELS[data.orb_state || data.trust_state] || (data.orb_state || data.trust_state);
+
+      const h = data.last_hour;
+      let subtitleText =
+        `${h.total} actions in the last hour` +
+        (h.blocked > 0 ? ` \u2022 ${h.blocked} blocked` : '') +
+        (h.tainted > 0 ? ` \u2022 ${h.tainted} tainted` : '');
+      if (data.taint_level) {
+        subtitleText += ` \u2022 Taint: ${data.taint_level}`;
+      }
+      subtitle.textContent = subtitleText;
+
+      document.getElementById('stat-total').textContent = h.total;
+      document.getElementById('stat-blocked').textContent = h.blocked;
+      document.getElementById('stat-ghost').textContent = h.ghost;
+      document.getElementById('stat-tainted').textContent = h.tainted;
+
+      // Ghost Mode Banner
+      const ghostBanner = document.getElementById('ghost-banner');
+      ghostBanner.classList.toggle('hidden', !data.ghost_active);
+
+      // Explanation Panel
+      const explPanel = document.getElementById('explanation-panel');
+      if (data.explanation && data.trust_state !== 'green') {
+        const ex = data.explanation;
+        explPanel.className = 'explanation-panel severity-' + ex.severity;
+        document.getElementById('expl-headline').textContent = ex.headline;
+        document.getElementById('expl-detail').textContent = ex.detail;
+        document.getElementById('expl-action').textContent = ex.action;
+        explPanel.classList.remove('hidden');
+      } else {
+        explPanel.classList.add('hidden');
+      }
+
+      // Away Mode auto-switch
+      if (!awayAutoShown && h.total === 0) {
+        awayAutoShown = true;
+        switchTab('away');
+      }
+    } catch (e) {
+      console.error('Trust state fetch failed:', e);
+    }
+  }
+
+  // ─── Cadence State ────────────────────────────
+  async function refreshCadence() {
+    try {
+      const res = await fetch('/api/cadence-state');
+      const pill = document.getElementById('cadence-pill');
+      if (res.status === 404) {
+        pill.classList.add('hidden');
+        return;
+      }
+      const data = await res.json();
+      pill.classList.remove('hidden');
+      document.getElementById('cadence-label').textContent = data.user_state_label;
+      const dot = document.getElementById('cadence-dot');
+      dot.classList.toggle('anomaly', data.anomaly_score > 0.5);
+    } catch (e) {
+      document.getElementById('cadence-pill').classList.add('hidden');
+    }
+  }
+
+  // ─── System Integrity Bar ────────────────────
+  function setIntegrityPill(id, color, label) {
+    const dot = document.getElementById('dot-' + id);
+    const lbl = document.getElementById('label-' + id);
+    dot.className = 'integrity-dot ' + color;
+    lbl.textContent = label;
+  }
+
+  function formatAge(seconds) {
+    if (seconds == null) return 'n/a';
+    if (seconds < 60) return Math.round(seconds) + 's';
+    if (seconds < 3600) return Math.round(seconds / 60) + 'm';
+    return Math.round(seconds / 3600) + 'h';
+  }
+
+  async function refreshIntegrity() {
+    const warningDiv = document.getElementById('integrity-warning');
+    const tsSpan = document.getElementById('integrity-ts');
+
+    try {
+      const res = await fetch('/api/system-health');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+
+      // --- Sidecar pill ---
+      const sc = data.sidecar;
+      if (!sc.connected) {
+        setIntegrityPill('sidecar', 'red', 'Sidecar: Unreachable');
+      } else if (sc.watchdog_stale) {
+        setIntegrityPill('sidecar', 'amber', 'Sidecar: Watchdog Stale');
+      } else if (sc.status === 'degraded') {
+        setIntegrityPill('sidecar', 'amber', 'Sidecar: Degraded');
+      } else {
+        setIntegrityPill('sidecar', 'green', 'Sidecar: Connected');
+      }
+
+      // --- Pipeline pill ---
+      const es = data.event_store;
+      if (!es.connected) {
+        setIntegrityPill('pipeline', 'red', 'Pipeline: DB Error');
+      } else if (es.stale) {
+        setIntegrityPill('pipeline', 'amber', 'Pipeline: No events for ' + formatAge(es.last_event_age));
+      } else {
+        const calls = sc.tool_calls_processed != null ? sc.tool_calls_processed : es.total_events;
+        setIntegrityPill('pipeline', 'green', 'Pipeline: ' + calls + ' calls');
+      }
+
+      // --- Chain pill ---
+      const ch = data.craft_chain;
+      if (ch.verified) {
+        setIntegrityPill('chain', 'green', 'Chain: Verified');
+      } else {
+        setIntegrityPill('chain', 'red', 'Chain: Tamper Detected');
+      }
+
+      // --- Warning text ---
+      const warnings = [];
+      if (!sc.connected) {
+        warnings.push('Dashboard cannot reach the sidecar. Agent actions are not being monitored. Events shown may be stale.');
+      }
+      if (sc.watchdog_stale) {
+        warnings.push('Sidecar watchdog is stale. The adapter may have stopped sending policy checks.');
+      }
+      if (es.stale) {
+        warnings.push('The sidecar has active sessions but no events are being recorded. Check the gateway connection.');
+      }
+      if (!ch.verified && ch.error) {
+        warnings.push('CRAFT chain integrity check failed: ' + ch.error + '. Investigate immediately.');
+      }
+
+      if (warnings.length > 0) {
+        warningDiv.textContent = warnings.join(' ');
+        warningDiv.className = 'integrity-warning ' + (data.overall === 'disconnected' ? 'warn-red' : 'warn-amber');
+        warningDiv.classList.remove('hidden');
+      } else {
+        warningDiv.classList.add('hidden');
+      }
+
+      // --- Timestamp ---
+      tsSpan.textContent = 'Checked: just now';
+
+    } catch (e) {
+      // Dashboard can't reach its own backend
+      setIntegrityPill('sidecar', 'red', 'Sidecar: Unknown');
+      setIntegrityPill('pipeline', 'red', 'Pipeline: Unknown');
+      setIntegrityPill('chain', 'red', 'Chain: Unknown');
+      warningDiv.textContent = 'Dashboard polling failed. Connection to backend lost.';
+      warningDiv.className = 'integrity-warning warn-red';
+      warningDiv.classList.remove('hidden');
+      tsSpan.textContent = 'Check failed';
+    }
+  }
+
+  // ─── Timeline ─────────────────────────────────
+  function formatTime(ts) {
+    const d = new Date(ts * 1000);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function truncTarget(target, max = 60) {
+    if (!target) return '';
+    return target.length > max ? '...' + target.slice(-max + 3) : target;
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function renderEvent(event) {
+    const icon = TOOL_ICONS[event.tool] || '&#x2022;';
+    const statusIcon = STATUS_ICONS[event.status] || '';
+    const classes = ['timeline-event'];
+    if (event.ghost_mode) classes.push('ghost');
+    if (event.status === 'blocked' || event.trust_state === 'red') classes.push('blocked');
+    if (event.session_tainted) classes.push('tainted');
+
+    const badges = [];
+    if (event.trust_state === 'amber') badges.push('<span class="badge amber">amber</span>');
+    if (event.trust_state === 'red') badges.push('<span class="badge red">red</span>');
+    if (event.ghost_mode) badges.push('<span class="badge ghost">ghost</span>');
+    if (event.status === 'blocked') badges.push('<span class="badge red">blocked</span>');
+
+    const SNAPSHOT_TOOLS = new Set([
+      'fs_write','fs_delete','fs_rename','fs_mkdir','fs_move','fs_copy',
+      'write_file','delete_file','rename_file','move_file','create_directory',
+      'write','edit','apply_patch'
+    ]);
+    const hasSnapshot = SNAPSHOT_TOOLS.has(event.tool) && event.status === 'success';
+    const eid = escapeHtml(event.event_id);
+
+    return `
+      <div class="${classes.join(' ')}" onclick="toggleEventDetail('${eid}', event)">
+        <div class="event-time">${formatTime(event.timestamp)}</div>
+        <div class="event-icon">${icon}</div>
+        <div class="event-body">
+          <div class="event-tool">${escapeHtml(event.tool)}</div>
+          <div class="event-target" title="${escapeHtml(event.target)}">${escapeHtml(truncTarget(event.target))}</div>
+          ${event.result_summary ? `<div class="event-target">${escapeHtml(truncTarget(event.result_summary, 80))}</div>` : ''}
+          <div class="event-badges">${badges.join('')}</div>
+        </div>
+        <div class="event-actions">
+          ${hasSnapshot ? `<button class="undo-btn" onclick="event.stopPropagation();undoEvent('${eid}')">&#x21a9;&#xfe0f; Undo</button>` : ''}
+        </div>
+        <div class="status-icon">${statusIcon}</div>
+      </div>
+      <div id="detail-${eid}" class="event-detail-panel hidden"></div>
+    `;
+  }
+
+  async function toggleEventDetail(eventId, clickEvent) {
+    if (clickEvent && clickEvent.target.closest('.undo-btn')) return;
+    const panel = document.getElementById('detail-' + eventId);
+    if (!panel) return;
+
+    if (expandedEventId === eventId) {
+      panel.classList.add('hidden');
+      expandedEventId = null;
+      expandedDetailHtml = null;
+      return;
+    }
+
+    // Close previous
+    if (expandedEventId) {
+      const prev = document.getElementById('detail-' + expandedEventId);
+      if (prev) prev.classList.add('hidden');
+    }
+    expandedEventId = eventId;
+
+    panel.innerHTML = '<div style="color:var(--text-dim);padding:8px;">Loading...</div>';
+    panel.classList.remove('hidden');
+
+    try {
+      const data = await api(`/api/events/${eventId}`);
+      const ev = data.event;
+      const ex = data.explanation;
+
+      let explanationHtml = '';
+      if (ex) {
+        explanationHtml = `
+          <div class="edp-section">
+            <div class="edp-label">Why this happened</div>
+            <div class="edp-explanation severity-${ex.severity}">
+              <div style="font-weight:600;">${escapeHtml(ex.headline)}</div>
+              <div style="margin-top:4px;color:var(--text-dim);">${escapeHtml(ex.detail)}</div>
+              <div style="margin-top:6px;color:var(--blue);font-size:12px;">${escapeHtml(ex.action)}</div>
+            </div>
+          </div>`;
+      }
+
+      panel.innerHTML = `
+        ${ev.result_summary ? `
+          <div class="edp-section">
+            <div class="edp-label">What happened</div>
+            <div>${escapeHtml(ev.result_summary)}</div>
+          </div>` : ''}
+        ${explanationHtml}
+        <div class="edp-section">
+          <div class="edp-label">Metadata</div>
+          <div class="edp-meta">
+            <div>Session: ${escapeHtml((ev.session_id || '').substring(0, 12))}...</div>
+            <div>Tool class: ${escapeHtml(ev.tool_class)}</div>
+            <div>Duration: ${ev.duration_ms != null ? ev.duration_ms.toFixed(0) + 'ms' : 'n/a'}</div>
+            <div>Chain: ${escapeHtml((ev.chain_hash || '').substring(0, 16))}...</div>
+          </div>
+        </div>
+      `;
+      expandedDetailHtml = panel.innerHTML;
+    } catch (e) {
+      panel.innerHTML = '<div style="color:var(--red);padding:8px;">Failed to load details</div>';
+      expandedDetailHtml = null;
+    }
+  }
+
+  async function refreshTimeline() {
+    try {
+      const data = await api('/api/events?limit=100');
+      const container = document.getElementById('timeline-container');
+
+      container.classList.remove('loading');
+      if (data.events.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon">&#x1f6e1;&#xfe0f;</div>
+            <div>No events recorded yet.</div>
+            <div style="margin-top:8px;font-size:13px;">Events will appear here when the agent starts working.</div>
+          </div>`;
+        return;
+      }
+
+      container.classList.remove('loading');
+      const prevExpanded = expandedEventId;
+      const prevHtml = expandedDetailHtml;
+      container.innerHTML = data.events.map(renderEvent).join('');
+      // Restore expanded panel from cache (no re-fetch)
+      if (prevExpanded && prevHtml) {
+        const panel = document.getElementById('detail-' + prevExpanded);
+        if (panel) {
+          panel.innerHTML = prevHtml;
+          panel.classList.remove('hidden');
+          expandedEventId = prevExpanded;
+          expandedDetailHtml = prevHtml;
+        } else {
+          expandedEventId = null;
+          expandedDetailHtml = null;
+        }
+      }
+    } catch (e) {
+      console.error('Timeline fetch failed:', e);
+    }
+  }
+
+  // ─── Away Mode ────────────────────────────────
+  async function refreshAway() {
+    try {
+      const data = await api('/api/away-summary');
+      const container = document.getElementById('away-container');
+
+      container.classList.remove('loading');
+      const trustColors = { green: 'var(--green)', amber: 'var(--amber)', red: 'var(--red)' };
+
+      let reviewHtml = '';
+      if (data.review_items && data.review_items.length > 0) {
+        reviewHtml = `
+          <h4 style="margin-top:16px;color:var(--amber);">&#x26a0;&#xfe0f; ${data.review_items.length} item(s) for your review:</h4>
+          ${data.review_items.map(item => `
+            <div class="review-item">
+              <div class="ri-tool">${TOOL_ICONS[item.tool] || ''} ${escapeHtml(item.tool)} &rarr; ${escapeHtml(truncTarget(item.target, 50))}</div>
+              <div class="ri-reason">${escapeHtml(item.reason)}</div>
+            </div>
+          `).join('')}
+        `;
+      }
+
+      container.innerHTML = `
+        <div class="away-panel">
+          <h3>Welcome back! While you were away (${escapeHtml(data.duration_human)}):</h3>
+          <div style="margin:12px 0;">
+            <span style="font-size:20px;color:${trustColors[data.trust_state] || trustColors.green};">&#x25cf;</span>
+            <strong>Trust State: ${TRUST_LABELS[data.trust_state] || escapeHtml(data.trust_state)}</strong>
+          </div>
+          <div class="away-grid">
+            <div class="away-stat"><div class="val">${data.total_actions}</div><div class="lbl">Total Actions</div></div>
+            <div class="away-stat"><div class="val">${data.emails_sent}</div><div class="lbl">Emails Sent</div></div>
+            <div class="away-stat"><div class="val">${data.messages_sent}</div><div class="lbl">Messages</div></div>
+            <div class="away-stat"><div class="val">${data.files_modified + data.files_created}</div><div class="lbl">Files Changed</div></div>
+            <div class="away-stat"><div class="val">${data.calendar_events}</div><div class="lbl">Calendar</div></div>
+            <div class="away-stat"><div class="val">${data.web_searches}</div><div class="lbl">Searches</div></div>
+            <div class="away-stat"><div class="val" style="color:var(--red);">${data.blocked_actions}</div><div class="lbl">Blocked</div></div>
+            <div class="away-stat"><div class="val">${data.undoable_count}</div><div class="lbl">Undoable</div></div>
+          </div>
+          ${reviewHtml}
+          ${data.high_risk_events && data.high_risk_events.length > 0 ? `
+            <div style="margin-top:12px;font-size:13px;color:var(--text-dim);">
+              ${data.high_risk_events.length} high-risk event(s) logged.
+              <a href="#" onclick="switchTab('timeline');return false;" style="color:var(--blue);">View Full Timeline</a>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    } catch (e) {
+      console.error('Away summary fetch failed:', e);
+    }
+  }
+
+  // ─── Chain Verify ─────────────────────────────
+  async function verifyChain() {
+    const icon = document.getElementById('verify-icon');
+    const text = document.getElementById('verify-text');
+    const badge = document.getElementById('chain-badge');
+    const breaksDiv = document.getElementById('verify-breaks');
+
+    icon.innerHTML = '&#x23f3;';
+    text.textContent = 'Verifying...';
+    breaksDiv.classList.add('hidden');
+    breaksDiv.innerHTML = '';
+
+    try {
+      const data = await api('/api/verify?detailed=1');
+
+      if (data.classification === 'intact') {
+        icon.innerHTML = '&#x2705;';
+        text.textContent = data.human_message;
+        badge.className = 'badge green';
+        badge.innerHTML = '&#x1f512; Chain OK';
+      } else if (data.classification === 'restart_gaps_only') {
+        icon.innerHTML = '&#x2705;';
+        text.textContent = data.human_message;
+        badge.className = 'badge green';
+        badge.innerHTML = '&#x1f512; Chain OK';
+
+        // Show gap list
+        if (data.breaks && data.breaks.length > 0) {
+          breaksDiv.innerHTML = data.breaks.map(b =>
+            `<div class="verify-break-item restart">Event #${b.position}: ${escapeHtml(b.event_id)} — service restart gap</div>`
+          ).join('');
+          breaksDiv.classList.remove('hidden');
+        }
+      } else {
+        icon.innerHTML = '&#x274c;';
+        text.textContent = data.human_message;
+        badge.className = 'badge red';
+        badge.innerHTML = '&#x1f513; Chain Broken';
+
+        if (data.breaks && data.breaks.length > 0) {
+          breaksDiv.innerHTML = data.breaks.map(b =>
+            `<div class="verify-break-item ${b.classification === 'restart' ? 'restart' : 'suspicious'}">Event #${b.position}: ${escapeHtml(b.event_id)} — ${b.classification === 'restart' ? 'service restart gap' : 'UNEXPLAINED BREAK'}</div>`
+          ).join('');
+          breaksDiv.classList.remove('hidden');
+        }
+      }
+    } catch (e) {
+      // Fallback to simple verify
+      try {
+        const data = await api('/api/verify');
+        if (data.valid) {
+          icon.innerHTML = '&#x2705;';
+          text.textContent = 'CR-AFT hash chain is intact. No tampering detected.';
+          badge.className = 'badge green';
+          badge.innerHTML = '&#x1f512; Chain OK';
+        } else {
+          icon.innerHTML = '&#x274c;';
+          text.textContent = 'Chain integrity violation: ' + (data.error || 'Unknown error');
+          badge.className = 'badge red';
+          badge.innerHTML = '&#x1f513; Chain Broken';
+        }
+      } catch (e2) {
+        icon.innerHTML = '&#x274c;';
+        text.textContent = 'Verification failed: ' + e2.message;
+      }
+    }
+  }
+
+  // ─── Ask Bar ──────────────────────────────────
+  function toggleAsk() {
+    const expanded = document.getElementById('ask-expanded');
+    const isHidden = expanded.classList.toggle('hidden');
+    if (!isHidden) {
+      document.getElementById('ask-input').focus();
+    } else {
+      document.getElementById('ask-response').classList.add('hidden');
+    }
+  }
+
+  async function askQuestion() {
+    const input = document.getElementById('ask-input');
+    const responseDiv = document.getElementById('ask-response');
+    const q = input.value.trim();
+    if (!q) return;
+
+    responseDiv.textContent = 'Thinking...';
+    responseDiv.classList.remove('hidden');
+
+    try {
+      const data = await api('/api/ask?q=' + encodeURIComponent(q));
+      responseDiv.textContent = data.response || data.error || 'No response';
+    } catch (e) {
+      responseDiv.textContent = 'Error: ' + e.message;
+    }
+    input.value = '';
+  }
+
+  // ─── Undo ─────────────────────────────────────
+  async function undoEvent(eventId) {
+    if (!confirm(`Undo event ${eventId}?`)) return;
+    try {
+      const result = await apiPost(`/api/undo/${eventId}`);
+      if (result.status === 'success') {
+        alert(`Restored: ${result.message}`);
+        refreshTimeline();
+      } else {
+        alert(`Undo failed: ${result.message}`);
+      }
+    } catch (e) {
+      alert('Undo error: ' + e.message);
+    }
+  }
+
+  // ─── Ghost Mode ─────────────────────────────
+  let ghostState = { active: false, filesBuffered: 0, paths: [], totalSize: 0, lifecycle: 'off' };
+  let ghostSelectedSession = '';
+  let ghostPollTimer = null;
+  let ghostEventsPollTimer = null;
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  function updateGhostLifecycle(stage) {
+    ['off', 'running', 'ended', 'reviewed'].forEach(s => {
+      document.getElementById('gl-' + s).classList.toggle('current', s === stage);
+    });
+  }
+
+  async function refreshGhostStatus() {
+    try {
+      const url = ghostSelectedSession ? `/api/ghost/status?session=${encodeURIComponent(ghostSelectedSession)}` : '/api/ghost/status';
+      const data = await api(url);
+      const card = document.getElementById('ghost-status-card');
+      const label = document.getElementById('ghost-status-label');
+      const sub = document.getElementById('ghost-status-sub');
+      const actions = document.getElementById('ghost-actions');
+      const filesPanel = document.getElementById('ghost-files-panel');
+
+      if (data.error && !data.ghost_mode) {
+        card.className = 'ghost-status-card';
+        ghostState.active = false;
+        ghostState.lifecycle = 'off';
+        updateGhostLifecycle('off');
+        label.textContent = 'Ghost Mode is off. Your agent\'s actions are live.';
+        sub.textContent = data.error === 'Sidecar unavailable' ? 'Sidecar is not running.' : '';
+        actions.innerHTML = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+        filesPanel.classList.add('hidden');
+        return;
+      }
+
+      const ghostMode = data.ghostMode !== undefined ? data.ghostMode : data.ghost_mode;
+      const buffered = data.filesBuffered !== undefined ? data.filesBuffered : (data.files_buffered || 0);
+      const paths = data.paths || [];
+      const totalSize = data.totalSizeBytes !== undefined ? data.totalSizeBytes : (data.total_size_bytes || 0);
+      ghostState.active = ghostMode;
+      ghostState.filesBuffered = buffered;
+      ghostState.paths = paths;
+      ghostState.totalSize = totalSize;
+
+      if (ghostMode) {
+        card.className = 'ghost-status-card active';
+        ghostState.lifecycle = 'running';
+        updateGhostLifecycle('running');
+        label.innerHTML = '<span class="ghost-dot"></span>Ghost Mode Active' + (buffered > 0 ? ` &mdash; ${buffered} file${buffered !== 1 ? 's' : ''} buffered (${formatBytes(totalSize)})` : '');
+        sub.textContent = 'All writes are being intercepted and simulated.';
+        actions.innerHTML = '<button class="ghost-btn toggle-off" onclick="ghostToggle()">Disable Ghost Mode</button>';
+        filesPanel.classList.remove('hidden');
+        document.getElementById('ghost-files-list').innerHTML = buffered > 0
+          ? paths.map(p => `<div class="ghost-file-row"><span class="ghost-file-icon">&#x1f4c4;</span><span class="ghost-file-path">${escapeHtml(p)}</span></div>`).join('')
+          : '<div style="color:var(--text-dim);font-size:13px;">No files buffered yet. Your agent\'s writes will appear here.</div>';
+      } else if (ghostState.lifecycle === 'running' || buffered > 0) {
+        card.className = 'ghost-status-card ended';
+        ghostState.lifecycle = 'ended';
+        updateGhostLifecycle('ended');
+        label.textContent = 'Ghost Mode session ended. Review what happened below.';
+        sub.textContent = '';
+        let btns = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+        if (buffered > 0) {
+          btns += ' <button class="ghost-btn approve" onclick="ghostApprove()">Approve All</button>';
+          btns += ' <button class="ghost-btn discard" onclick="ghostDiscard()">Discard All</button>';
+          filesPanel.classList.remove('hidden');
+          document.getElementById('ghost-files-list').innerHTML = paths.map(p => `<div class="ghost-file-row"><span class="ghost-file-icon">&#x1f4c4;</span><span class="ghost-file-path">${escapeHtml(p)}</span></div>`).join('');
+        } else { filesPanel.classList.add('hidden'); }
+        actions.innerHTML = btns;
+      } else {
+        card.className = 'ghost-status-card';
+        ghostState.lifecycle = 'off';
+        updateGhostLifecycle('off');
+        label.textContent = 'Ghost Mode is off. Your agent\'s actions are live.';
+        sub.textContent = '';
+        actions.innerHTML = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+        filesPanel.classList.add('hidden');
+      }
+    } catch (e) { console.error('Ghost status fetch failed:', e); }
+  }
+
+  async function refreshGhostEvents() {
+    try {
+      const data = await api('/api/ghost/events?limit=200');
+      const events = data.events || [];
+      const summaryCard = document.getElementById('ghost-summary-card');
+      if (events.length > 0 && data.summary) {
+        summaryCard.classList.remove('hidden');
+        const summaryHtml = escapeHtml(data.summary).replace(/(\d+ \w+)/g, '<strong>$1</strong>');
+        const reassurance = document.getElementById('ghost-summary-reassurance');
+        if (data.summary.indexOf('None of these happened') >= 0) {
+          document.getElementById('ghost-summary-text').innerHTML = summaryHtml.substring(0, summaryHtml.indexOf('None of these happened'));
+          reassurance.textContent = 'None of these happened. Your system is unchanged.';
+        } else {
+          document.getElementById('ghost-summary-text').innerHTML = summaryHtml;
+          reassurance.textContent = '';
+        }
+      } else { summaryCard.classList.add('hidden'); }
+
+      const timelineSection = document.getElementById('ghost-timeline-section');
+      const timelineRows = document.getElementById('ghost-timeline-rows');
+      if (events.length > 0) {
+        timelineSection.classList.remove('hidden');
+        timelineRows.innerHTML = events.map(ev => {
+          const tool = ev.tool || 'unknown';
+          const target = truncTarget(ev.target || '', 40);
+          const icon = TOOL_ICONS[tool] || '&#x2022;';
+          const stageLabel = ev.interception_label || '';
+          let rowClass = 'intercepted', outcomeText = '', badgeHtml = '';
+          if (ev.status === 'ghost_success' || (ev.result_summary || '').toUpperCase().startsWith('GHOST')) {
+            outcomeText = 'Intercepted &mdash; written to sandbox only';
+            badgeHtml = `<span class="ghost-stage-badge safe">${escapeHtml(stageLabel)}</span>`;
+          } else if (ev.status === 'blocked') {
+            outcomeText = 'Blocked &mdash; ' + escapeHtml(truncTarget(ev.result_summary || '', 50));
+            badgeHtml = `<span class="ghost-stage-badge violation">${escapeHtml(stageLabel)}</span>`;
+          } else if (ev.status === 'success' && (tool.includes('read') || tool === 'fs_read')) {
+            rowClass = 'passed';
+            outcomeText = 'Allowed (read-only)';
+          } else {
+            outcomeText = 'Simulated &mdash; nothing changed';
+            badgeHtml = stageLabel ? `<span class="ghost-stage-badge safe">${escapeHtml(stageLabel)}</span>` : '';
+          }
+          let triedText = `${icon} <span class="tl-tool">${escapeHtml(tool)}</span>`;
+          if (target) triedText += `<div class="tl-target">${escapeHtml(target)}</div>`;
+          return `<div class="ghost-timeline-row ${rowClass}"><div class="ghost-tl-cell tried">${triedText}</div><div class="ghost-tl-cell result"><span class="tl-outcome">${outcomeText}</span>${badgeHtml}</div></div>`;
+        }).join('');
+      } else { timelineSection.classList.add('hidden'); }
+
+      const egressCard = document.getElementById('ghost-egress-card');
+      const networkEvents = events.filter(ev => (ev.tool || '').match(/fetch_web|search_web|http_post|api_call/) || (ev.result_summary || '').includes('GHOST_MODE_NETWORK_BLOCKED'));
+      if (networkEvents.length > 0) {
+        egressCard.classList.remove('hidden');
+        document.getElementById('ghost-egress-sub').innerHTML = `Your agent attempted to contact <strong>${networkEvents.length} external URL${networkEvents.length !== 1 ? 's' : ''}</strong> during this session:`;
+        document.getElementById('ghost-egress-list').innerHTML = networkEvents.map(ev =>
+          `<div class="ghost-egress-row"><span>${TOOL_ICONS[ev.tool] || '&#x1f310;'}</span><span>${escapeHtml(ev.tool)}</span><span>&rarr;</span><span style="color:var(--text);">${escapeHtml(truncTarget(ev.target || '', 50))}</span><span class="badge ${ev.status === 'blocked' ? 'red' : 'ghost'}" style="margin-left:auto;">${ev.status === 'blocked' ? 'blocked' : 'simulated'}</span></div>`
+        ).join('');
+      } else { egressCard.classList.add('hidden'); }
+    } catch (e) { console.error('Ghost events fetch failed:', e); }
+  }
+
+  function ghostSelectSession(val) { ghostSelectedSession = val; refreshGhostStatus(); refreshGhostEvents(); }
+
+  async function ghostToggle() {
+    try {
+      const body = { enabled: !ghostState.active };
+      if (ghostSelectedSession) body.session = ghostSelectedSession;
+      const result = await apiPost('/api/ghost/toggle', body);
+      if (result.error) {
+        alert('Ghost toggle failed: ' + (result.error.message || result.error));
+        return;
+      }
+      if (result.sessions_toggled === 0) {
+        alert('No active agent sessions found. Ghost Mode needs an agent session — start or connect an agent first.');
+        return;
+      }
+      if (!ghostState.active) ghostState.lifecycle = 'running';
+      refreshGhostStatus();
+    } catch (e) { alert('Ghost toggle failed: ' + e.message); }
+  }
+
+  function showGhostModal(title, message, fileList, confirmLabel, confirmClass, onConfirm) {
+    const overlay = document.createElement('div');
+    overlay.className = 'ghost-modal-overlay';
+    overlay.innerHTML = `<div class="ghost-modal"><h3>${escapeHtml(title)}</h3><p>${escapeHtml(message)}</p>${fileList ? `<div class="file-list">${fileList.map(f => escapeHtml(f)).join('<br>')}</div>` : ''}<p style="font-size:12px;color:var(--amber);">This cannot be undone.</p><div class="modal-actions"><button class="ghost-btn toggle-off" onclick="this.closest('.ghost-modal-overlay').remove()">Cancel</button><button class="ghost-btn ${confirmClass}" id="ghost-modal-confirm">${escapeHtml(confirmLabel)}</button></div></div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('ghost-modal-confirm').onclick = async () => { overlay.remove(); await onConfirm(); };
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  }
+
+  async function ghostApprove() {
+    showGhostModal('Approve Ghost Writes', `This will write ${ghostState.filesBuffered} file${ghostState.filesBuffered !== 1 ? 's' : ''} to the real filesystem:`, ghostState.paths, 'Approve', 'approve', async () => {
+      try {
+        const result = await apiPost('/api/ghost/approve', { session: ghostSelectedSession });
+        if (result.error) { alert('Approve failed: ' + (result.error.message || result.error)); }
+        else {
+          const count = result.filesCount || result.files_count || 0;
+          ghostState.lifecycle = 'reviewed';
+          updateGhostLifecycle('reviewed');
+          document.getElementById('ghost-status-label').textContent = count + ' file' + (count !== 1 ? 's' : '') + ' written successfully. Ghost Mode session approved.';
+          document.getElementById('ghost-status-sub').textContent = 'Approve writes the files your agent created. Commands and emails that were intercepted cannot be replayed.';
+          document.getElementById('ghost-actions').innerHTML = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+          document.getElementById('ghost-files-panel').classList.add('hidden');
+        }
+        refreshGhostStatus();
+      } catch (e) { alert('Approve error: ' + e.message); }
+    });
+  }
+
+  async function ghostDiscard() {
+    showGhostModal('Discard Ghost Writes', 'This will permanently discard all buffered writes. Nothing will be saved.', null, 'Discard All', 'discard', async () => {
+      try {
+        const result = await apiPost('/api/ghost/discard', { session: ghostSelectedSession });
+        if (result.error) { alert('Discard failed: ' + (result.error.message || result.error)); }
+        else {
+          ghostState.lifecycle = 'reviewed';
+          updateGhostLifecycle('reviewed');
+          document.getElementById('ghost-status-label').textContent = 'All buffered writes discarded. Your system remains unchanged.';
+          document.getElementById('ghost-status-sub').textContent = '';
+          document.getElementById('ghost-actions').innerHTML = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+          document.getElementById('ghost-files-panel').classList.add('hidden');
+        }
+        refreshGhostStatus();
+      } catch (e) { alert('Discard error: ' + e.message); }
+    });
+  }
+
+  function startGhostPolling() { refreshGhostStatus(); refreshGhostEvents(); ghostPollTimer = setInterval(refreshGhostStatus, 3000); ghostEventsPollTimer = setInterval(refreshGhostEvents, 5000); }
+  function stopGhostPolling() { if (ghostPollTimer) { clearInterval(ghostPollTimer); ghostPollTimer = null; } if (ghostEventsPollTimer) { clearInterval(ghostEventsPollTimer); ghostEventsPollTimer = null; } }
+
+  // ─── Tab Switching ────────────────────────────
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    document.getElementById('panel-timeline').classList.toggle('hidden', tab !== 'timeline');
+    document.getElementById('panel-ghost').classList.toggle('hidden', tab !== 'ghost');
+    document.getElementById('panel-away').classList.toggle('hidden', tab !== 'away');
+    document.getElementById('panel-verify').classList.toggle('hidden', tab !== 'verify');
+    document.getElementById('panel-about').classList.toggle('hidden', tab !== 'about');
+
+    if (tab === 'ghost') { startGhostPolling(); } else { stopGhostPolling(); }
+    if (tab === 'away') refreshAway();
+    if (tab === 'verify') verifyChain();
+  }
+
+  // ─── Polling ──────────────────────────────────
+  function startPolling() {
+    refreshTrustState();
+    refreshTimeline();
+    refreshCadence();
+    refreshIntegrity();
+    pollTimer = setInterval(() => {
+      refreshTrustState();
+      refreshTimeline();
+      refreshCadence();
+      refreshIntegrity();
+    }, POLL_INTERVAL);
+  }
+
+  // ─── Init ─────────────────────────────────────
+  startPolling();
+</script>
+</body>
+</html>

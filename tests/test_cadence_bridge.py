@@ -481,15 +481,17 @@ class TestTaintClear:
 class TestFeatureFlag:
     """Tests for feature flag behaviour."""
 
-    def test_disabled_pipeline_has_no_bridge(self):
+    def test_disabled_pipeline_has_no_bridge(self, monkeypatch):
         """When cadence_bridge_enabled=False, pipeline.cadence_bridge is None."""
+        monkeypatch.delenv("UNWIND_CADENCE_BRIDGE", raising=False)
         config = UnwindConfig()
         assert config.cadence_bridge_enabled is False
         pipeline = EnforcementPipeline(config)
         assert pipeline.cadence_bridge is None
 
-    def test_disabled_returns_no_signals(self, state_env_path):
+    def test_disabled_returns_no_signals(self, state_env_path, monkeypatch):
         """Bridge disabled → stage 7a is a None check, returns ALLOW."""
+        monkeypatch.delenv("UNWIND_CADENCE_BRIDGE", raising=False)
         config = UnwindConfig()
         pipeline = EnforcementPipeline(config)
         session = Session(session_id="s1", config=config)

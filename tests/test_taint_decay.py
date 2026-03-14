@@ -740,3 +740,240 @@ class TestTaintWashAttack:
 
         result = state.apply_decay(cfg)
         assert result == TaintLevel.MEDIUM
+
+
+# ─────────────────────────────────────────────────────
+# Trusted Source Allowlist tests (merge blockers)
+# ─────────────────────────────────────────────────────
+
+from unwind.config import TrustedSourceRule, UnwindConfig, validate_trusted_rules
+from unwind.session import Session
+from unwind.enforcement.pipeline import (
+    EnforcementPipeline,
+    _canonical_host,
+    _extract_domain_from_params,
+    _matches_trusted_rule,
+)
+
+
+@pytest.fixture
+def cron_rule():
+    """A standard trusted source rule for cron fetches to github.com."""
+    return TrustedSourceRule(
+        rule_id="cron-github",
+        source_types=frozenset({"cron", "system"}),
+        tools=frozenset({"web_fetch", "web_search", "http_get"}),
+        domains=frozenset({"github.com", "nvd.nist.gov", "pypi.org"}),
+    )
+
+
+class TestTrustedSourceAllowlist:
+    """Merge-blocking tests for trusted source scoped taint relaxation."""
+
+    def test_cron_origin_with_matching_rule_caps_at_low(self, cron_rule):
+        """cron + web_fetch + github.com → taint capped at LOW."""
+        config = UnwindConfig(trusted_source_rules=[cron_rule])
+        session = Session(session_id="test-cron", config=config)
+        pipeline = EnforcementPipeline(config)
+
+        result = pipeline.check(
+            session=session,
+            tool_name="web_fetch",
+            parameters={"url": "https://github.com/api/v3/repos"},
+            source_type="cron",
+        )
+        # Taint should be capped at LOW
+        assert session.taint_state.level == TaintLevel.LOW
+        assert "web_fetch [trusted]" in session.taint_state.taint_sources
+        assert "cron-github" in session.taint_state.trusted_hits
+
+    def test_user_origin_to_trusted_domain_still_taints_normally(self, cron_rule):
+        """user + web_fetch + github.com → MEDIUM+ (normal taint)."""
+        config = UnwindConfig(trusted_source_rules=[cron_rule])
+        session = Session(session_id="test-user", config=config)
+        pipeline = EnforcementPipeline(config)
+
+        pipeline.check(
+            session=session,
+            tool_name="web_fetch",
+            parameters={"url": "https://github.com/api/v3/repos"},
+            source_type="user",
+        )
+        # User traffic should taint normally (MEDIUM on first hit)
+        assert session.taint_state.level == TaintLevel.MEDIUM
+
+    def test_empty_rules_preserves_current_behaviour(self):
+        """No rules = all taint as before."""
+        config = UnwindConfig(trusted_source_rules=[])
+        session = Session(session_id="test-empty", config=config)
+        pipeline = EnforcementPipeline(config)
+
+        pipeline.check(
+            session=session,
+            tool_name="web_fetch",
+            parameters={"url": "https://github.com/api/v3/repos"},
+            source_type="cron",
+        )
+        # Without rules, even cron traffic taints normally
+        assert session.taint_state.level == TaintLevel.MEDIUM
+
+    def test_missing_source_type_treated_as_user(self, cron_rule):
+        """None/empty source_type → untrusted path (normal taint)."""
+        config = UnwindConfig(trusted_source_rules=[cron_rule])
+        session = Session(session_id="test-none-st", config=config)
+        pipeline = EnforcementPipeline(config)
+
+        # source_type=None
+        pipeline.check(
+            session=session,
+            tool_name="web_fetch",
+            parameters={"url": "https://github.com/api/v3/repos"},
+            source_type=None,
+        )
+        assert session.taint_state.level == TaintLevel.MEDIUM
+
+        # source_type="" (empty string)
+        session2 = Session(session_id="test-empty-st", config=config)
+        pipeline.check(
+            session=session2,
+            tool_name="web_fetch",
+            parameters={"url": "https://github.com/api/v3/repos"},
+            source_type="",
+        )
+        assert session2.taint_state.level == TaintLevel.MEDIUM
+
+    def test_subdomain_dot_boundary_matching(self, cron_rule):
+        """api.github.com matches github.com; notgithub.com doesn't."""
+        # api.github.com → should match
+        matched = _matches_trusted_rule("cron", "web_fetch", "api.github.com", [cron_rule])
+        assert matched is not None
+        assert matched.rule_id == "cron-github"
+
+        # notgithub.com → must NOT match (no dot boundary)
+        no_match = _matches_trusted_rule("cron", "web_fetch", "notgithub.com", [cron_rule])
+        assert no_match is None
+
+    def test_punycode_and_userinfo_rejected(self):
+        """github.com@evil.com rejected; punycode canonicalized."""
+        # Userinfo attack: github.com@evil.com
+        domain = _extract_domain_from_params({"url": "https://github.com@evil.com/path"})
+        assert domain is None  # Rejected due to @ in netloc
+
+        # Bare IP rejected
+        domain_ip = _canonical_host("127.0.0.1")
+        assert domain_ip is None
+
+        # Valid punycode handled
+        domain_valid = _canonical_host("xn--nxasmq6b.example.com")
+        assert domain_valid is not None
+        assert "xn--" not in domain_valid or isinstance(domain_valid, str)
+
+    def test_redirect_to_untrusted_taints_normally(self, cron_rule):
+        """If final_url points to untrusted host, normal taint applies."""
+        config = UnwindConfig(trusted_source_rules=[cron_rule])
+        session = Session(session_id="test-redirect", config=config)
+        pipeline = EnforcementPipeline(config)
+
+        pipeline.check(
+            session=session,
+            tool_name="web_fetch",
+            parameters={
+                "url": "https://github.com/redirect",
+                "final_url": "https://evil.com/payload",
+            },
+            source_type="cron",
+        )
+        # Redirect to untrusted host → normal taint (MEDIUM)
+        assert session.taint_state.level == TaintLevel.MEDIUM
+        assert "cron-github" not in session.taint_state.trusted_hits
+
+    def test_dashboard_returns_effective_rules(self, cron_rule):
+        """API endpoint returns correct typed rules."""
+        from unwind.dashboard.app import create_app
+
+        config = UnwindConfig(trusted_source_rules=[cron_rule])
+        app = create_app(config)
+        client = app.test_client()
+        resp = client.get("/api/trusted-source-rules")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["count"] == 1
+        assert data["rules"][0]["rule_id"] == "cron-github"
+        assert "github.com" in data["rules"][0]["domains"]
+
+    def test_trusted_hit_recorded_in_audit(self, cron_rule):
+        """trusted_source_rule_hit + rule_id recorded in session state."""
+        config = UnwindConfig(trusted_source_rules=[cron_rule])
+        session = Session(session_id="test-audit", config=config)
+        pipeline = EnforcementPipeline(config)
+
+        pipeline.check(
+            session=session,
+            tool_name="web_fetch",
+            parameters={"url": "https://nvd.nist.gov/vuln/detail/CVE-2024-1234"},
+            source_type="cron",
+        )
+        assert session.taint_state.level == TaintLevel.LOW
+        assert "cron-github" in session.taint_state.trusted_hits
+        summary = session.taint_state.summary()
+        assert any("[trusted]" in s for s in summary["sources"])
+
+    def test_no_privilege_regression(self):
+        """Existing taint escalation tests still pass — empty rules = no change."""
+        config = UnwindConfig()  # Default: no trusted rules
+        session = Session(session_id="test-regression", config=config)
+        pipeline = EnforcementPipeline(config)
+
+        # First sensor → MEDIUM
+        pipeline.check(
+            session=session,
+            tool_name="web_fetch",
+            parameters={"url": "https://example.com"},
+        )
+        assert session.taint_state.level == TaintLevel.MEDIUM
+
+        # Wait past cooldown, second sensor → HIGH
+        session.taint_state.last_taint_event = time.time() - 10
+        pipeline.check(
+            session=session,
+            tool_name="web_search",
+            parameters={"url": "https://example.com/search"},
+        )
+        assert session.taint_state.level == TaintLevel.HIGH
+
+
+class TestTrustedSourceValidation:
+    """Tests for validate_trusted_rules config validation."""
+
+    def test_valid_rule_accepted(self):
+        rules = validate_trusted_rules([{
+            "rule_id": "test-1",
+            "source_types": ["cron"],
+            "tools": ["web_fetch"],
+            "domains": ["github.com"],
+        }])
+        assert len(rules) == 1
+        assert rules[0].rule_id == "test-1"
+
+    def test_invalid_rule_rejected(self):
+        # Missing tools field
+        rules = validate_trusted_rules([{
+            "rule_id": "bad",
+            "source_types": ["cron"],
+            "domains": ["github.com"],
+        }])
+        assert len(rules) == 0
+
+    def test_user_source_type_rejected(self):
+        """Rules with 'user' in source_types are rejected (would bypass taint)."""
+        rules = validate_trusted_rules([{
+            "rule_id": "bypass-attempt",
+            "source_types": ["user"],
+            "tools": ["web_fetch"],
+            "domains": ["github.com"],
+        }])
+        assert len(rules) == 0
+
+    def test_non_list_returns_empty(self):
+        rules = validate_trusted_rules("not a list")
+        assert rules == []

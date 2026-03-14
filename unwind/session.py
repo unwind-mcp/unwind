@@ -71,6 +71,30 @@ class Session:
         """
         self.taint_state.apply_taint(source_tool, self.taint_config)
 
+    def taint_trusted(self, source_tool: str, rule_id: str) -> None:
+        """Apply taint capped at LOW for trusted-source rule matches.
+
+        Cannot escalate above LOW, but must not downgrade existing level.
+        If current level > LOW (e.g. HIGH from earlier untrusted events),
+        the level is left unchanged.
+        """
+        from .enforcement.taint_decay import TaintLevel
+
+        if self.taint_state.level <= TaintLevel.LOW:
+            self.taint_state.level = TaintLevel.LOW
+            self.taint_state.last_taint_event = __import__("time").time()
+            if self.taint_state.last_level_change is None:
+                self.taint_state.last_level_change = self.taint_state.last_taint_event
+
+        # Record source with [trusted] suffix for audit trail
+        trusted_source = f"{source_tool} [trusted]"
+        if trusted_source not in self.taint_state.taint_sources:
+            self.taint_state.taint_sources.append(trusted_source)
+
+        # Record rule_id hit
+        if rule_id not in self.taint_state.trusted_hits:
+            self.taint_state.trusted_hits.append(rule_id)
+
     def check_taint_decay(self) -> None:
         """Apply time-based taint decay. Called on each pipeline check."""
         self.taint_state.apply_decay(self.taint_config)

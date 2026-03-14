@@ -26,6 +26,9 @@ class PolicyCheckRequest:
     session_key: str
     request_id: Optional[str] = None
     timestamp: Optional[str] = None
+    # Server-derived provenance — set by sidecar from session metadata,
+    # NEVER from caller-supplied body field. See SIDECAR_SESSION_PRINCIPAL_DESIGN.
+    source_type: Optional[str] = None
 
 
 class PolicyDecision(str, Enum):

@@ -23,11 +23,14 @@ Pipeline order:
 9.  Ghost Mode gate (intercept + shadow VFS)
 """
 
+import ipaddress
+import re
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Optional
+from urllib.parse import urlparse
 
-from ..config import UnwindConfig
+from ..config import UnwindConfig, TrustedSourceRule
 from ..session import Session, TrustState
 from .self_protection import SelfProtectionCheck
 from .path_jail import PathJailCheck
@@ -52,6 +55,119 @@ from .supply_chain import SupplyChainVerifier, TrustVerdict
 from .cadence_bridge import CadenceBridge, CadenceBridgeConfig
 from .taint_decay import TaintLevel
 from .telemetry import EnforcementTelemetry, EventType
+
+
+# ---------------------------------------------------------------------------
+# Trusted-source hostname helpers
+# ---------------------------------------------------------------------------
+
+def _canonical_host(hostname: str) -> str | None:
+    """Canonicalize a hostname: lowercase, strip trailing dot, IDNA decode.
+
+    Returns None if the hostname is invalid or is a bare IP address.
+    """
+    if not hostname:
+        return None
+
+    hostname = hostname.lower().rstrip(".")
+
+    # Reject bare IP addresses (no domain allowlisting for IPs)
+    try:
+        ipaddress.ip_address(hostname)
+        return None  # It's an IP — reject
+    except ValueError:
+        pass  # Not an IP — good
+
+    # IDNA decode: convert punycode to unicode for comparison
+    try:
+        # Try to decode each label via IDNA
+        parts = hostname.split(".")
+        decoded_parts = []
+        for part in parts:
+            if part.startswith("xn--"):
+                try:
+                    decoded_parts.append(part.encode("ascii").decode("idna"))
+                except (UnicodeError, UnicodeDecodeError):
+                    decoded_parts.append(part)
+            else:
+                decoded_parts.append(part)
+        hostname = ".".join(decoded_parts)
+    except Exception:
+        pass  # If IDNA decode fails, use as-is
+
+    return hostname
+
+
+def _extract_domain_from_params(parameters: dict | None) -> str | None:
+    """Extract and canonicalize the hostname from tool call parameters.
+
+    Checks common URL parameter names. Rejects URLs with userinfo (@).
+    Returns lowercase canonical hostname or None.
+    """
+    if not parameters:
+        return None
+
+    url_str = None
+    for key in ("url", "uri", "target", "targetUrl", "href", "endpoint"):
+        val = parameters.get(key)
+        if isinstance(val, str) and val:
+            url_str = val
+            break
+
+    if not url_str:
+        return None
+
+    try:
+        parsed = urlparse(url_str)
+    except Exception:
+        return None
+
+    # Reject URLs with userinfo (@ in authority) — github.com@evil.com attack
+    if "@" in (parsed.netloc or ""):
+        return None
+
+    hostname = parsed.hostname
+    if not hostname:
+        return None
+
+    return _canonical_host(hostname)
+
+
+def _matches_trusted_rule(
+    source_type: str | None,
+    tool_name: str,
+    domain: str | None,
+    rules: list,
+) -> TrustedSourceRule | None:
+    """Check if the call matches any trusted source rule.
+
+    All three dimensions must match: source_type, tool_name, domain.
+    Returns the matched rule or None.
+    """
+    # Fail-safe: no source_type or "user" → never match
+    if not source_type or source_type.lower() == "user":
+        return None
+
+    if not domain or not rules:
+        return None
+
+    source_lower = source_type.lower()
+
+    for rule in rules:
+        if source_lower not in rule.source_types:
+            continue
+        if tool_name not in rule.tools:
+            continue
+        # Domain matching: exact or dot-boundary subdomain
+        matched_domain = False
+        for rule_domain in rule.domains:
+            if domain == rule_domain or domain.endswith("." + rule_domain):
+                matched_domain = True
+                break
+        if matched_domain:
+            return rule
+
+    return None
 
 
 class CheckResult(Enum):
@@ -193,6 +309,7 @@ class EnforcementPipeline:
         target: Optional[str] = None,
         parameters: Optional[dict] = None,
         payload: Optional[str] = None,
+        source_type: Optional[str] = None,
     ) -> PipelineResult:
         """Run the full enforcement pipeline.
 
@@ -202,6 +319,8 @@ class EnforcementPipeline:
             target: File path or URL target
             parameters: Tool call parameters
             payload: Outbound payload for egress tools (DLP scan)
+            source_type: Server-derived call provenance (e.g. "cron", "system").
+                         None/"user" = untrusted (fail-safe).
 
         Returns:
             PipelineResult with action to take
@@ -606,6 +725,29 @@ class EnforcementPipeline:
                     block_reason=jail_error,
                 )
 
+        # --- 3b. Path jail for secondary path parameters ---
+        # Tools like fs_copy, fs_move, fs_rename have multiple path args.
+        # Check ALL of them, not just the primary target.
+        if tool_name in self.config.filesystem_tools and parameters:
+            _secondary_path_keys = (
+                "destination", "new_path", "old_path", "source",
+                "output", "dest", "target_path", "to", "from",
+            )
+            for key in _secondary_path_keys:
+                if key in parameters and isinstance(parameters[key], str):
+                    secondary = parameters[key]
+                    # Skip if it's the same as the primary target
+                    if secondary == target:
+                        continue
+                    jail_error, canonical = self.path_jail.check(secondary)
+                    if jail_error:
+                        return PipelineResult(
+                            action=CheckResult.BLOCK,
+                            canonical_target=canonical,
+                            tool_class=tool_class,
+                            block_reason=f"Secondary path ({key}): {jail_error}",
+                        )
+
         # --- 3a. apply_patch path extraction (paths embedded in patch body) ---
         if tool_name == "apply_patch" and parameters:
             patch_text = parameters.get("patch", parameters.get("input", ""))
@@ -699,8 +841,39 @@ class EnforcementPipeline:
         session.check_taint_decay()
 
         # If this is a sensor, taint the session (with source tracking)
+        # Trusted source scoped relaxation: cap at LOW if all 3 dimensions match
         if tool_class == "sensor":
-            session.taint(source_tool=tool_name)
+            _trusted_rule = None
+            if self.config.trusted_source_rules and source_type:
+                _request_domain = _extract_domain_from_params(parameters)
+                # Redirect-safe: also check final_url if available
+                _final_domain = None
+                if parameters:
+                    for _fk in ("final_url", "resolved_url"):
+                        _fv = parameters.get(_fk)
+                        if isinstance(_fv, str) and _fv:
+                            _final_domain = _extract_domain_from_params({"url": _fv})
+                            break
+
+                _trusted_rule = _matches_trusted_rule(
+                    source_type, tool_name, _request_domain,
+                    self.config.trusted_source_rules,
+                )
+
+                # Redirect-safe: if final host differs and is untrusted, revoke
+                if _trusted_rule and _final_domain is not None:
+                    if _final_domain != _request_domain:
+                        _final_rule = _matches_trusted_rule(
+                            source_type, tool_name, _final_domain,
+                            self.config.trusted_source_rules,
+                        )
+                        if _final_rule is None:
+                            _trusted_rule = None  # Redirected to untrusted — normal taint
+
+            if _trusted_rule is not None:
+                session.taint_trusted(source_tool=tool_name, rule_id=_trusted_rule.rule_id)
+            else:
+                session.taint(source_tool=tool_name)
         else:
             # Non-sensor ops contribute to operation-based decay
             session.record_clean_op()

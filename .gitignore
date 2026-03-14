@@ -52,3 +52,22 @@ unwind_export_*
 # Node deps (adapter tests)
 node_modules/
 openclaw-adapter/node_modules/
+
+# Sensitive directories — never track
+memory/
+evidence/
+archive/
+sentinel/openclaw/SOUL.md
+sentinel/openclaw/IDENTITY.md
+sentinel/openclaw/USER.md
+sentinel/openclaw/openclaw/
+*.pages
+*.docx
+evidence_pack_*.txt
+
+# Temp patch/audit scripts
+patch_*.py
+dash_audit*.py
+dash_fix_*.py
+purge_sensitive_files.py
+*.bak*

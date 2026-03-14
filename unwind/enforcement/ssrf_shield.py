@@ -48,6 +48,25 @@ class SSRFShieldCheck:
         self._dns_pins: dict[str, tuple[frozenset[str], float]] = {}
         self._dns_pin_ttl: float = 300.0  # 5 minutes
 
+
+    def check_redirect(self, original_url: str, redirect_url: str) -> Optional[str]:
+        """Re-validate a redirect target against SSRF rules.
+
+        Call this when an HTTP client receives a 3xx redirect. The redirect
+        target must pass the same checks as the original URL: scheme
+        whitelist, hostname resolution, IP blocklist, and DNS pinning.
+
+        Returns error message if blocked, None if allowed.
+        """
+        # Validate the redirect target through the full check pipeline
+        redirect_error = self.check(redirect_url)
+        if redirect_error:
+            return (
+                f"SSRF Shield: Redirect blocked — {original_url} redirected to "
+                f"{redirect_url} which failed validation: {redirect_error}"
+            )
+        return None
+
     def _is_ip_blocked(self, ip_str: str) -> bool:
         """Check if an IP address falls within any blocked range."""
         try:
