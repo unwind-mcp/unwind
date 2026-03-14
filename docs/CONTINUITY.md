@@ -44,7 +44,7 @@ UNWIND is a security middleware (sidecar proxy) for AI agents. It sits between a
 |------|------|-------|
 | Mac workspace | `~/Downloads/UNWIND/` | David's MacBook Pro |
 | Pi workspace | `/home/<pi-user>/.openclaw/workspace/UNWIND/` | Raspberry Pi 5 |
-| GitHub | `github.com/brugai/unwind` (private) | Account: `brugai` |
+| GitHub | `github.com/unwind-mcp/unwind` | Org: `unwind-mcp` |
 | Pi IP | `<pi-ip>` | Local network |
 | Pi SSH | `ssh <pi-user>@<pi-ip>` | |
 | OpenClaw config | `~/.openclaw/openclaw.json` | On the Pi |
@@ -236,7 +236,7 @@ This block lets a rebooted session verify it's reading current continuity, not s
 ```
 last_known_good_commit: 1823909 (GitHub main)
 branch: main
-test_count: 1702
+test_count: 1859
 openclaw_version: 2026.2.26
 craft_chain: 170 events, verified, 1 anchor, no tamper
 cadence_bridge: live (UNWIND_CADENCE_BRIDGE=1)

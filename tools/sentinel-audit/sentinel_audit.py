@@ -60,27 +60,29 @@ STATE_FILE = AUDIT_STATE_DIR / "last_check.json"
 AUTHORISED_COMMANDS = {
     # OpenClaw / Codex operations
     "openclaw", "claw",
+    # UNWIND / SENTINEL maintenance
+    "sentinel", "eng-ops.sh", "pytest", "pip-audit", "coverage",
     # File operations within workspace
     "cat", "ls", "head", "tail", "wc", "grep", "find", "mkdir", "cp", "mv",
-    "touch", "chmod",
+    "touch", "chmod", "rm",
     # Text processing
     "sed", "awk", "sort", "uniq", "tr", "cut", "diff",
-    # Python
-    "python3", "python", "pip3", "pip",
+    # Python / Environment
+    "python3", "python", "pip3", "pip", "venv", "source",
     # Node
     "node", "npm", "npx",
     # Git (within workspace)
     "git",
     # System info (read-only)
     "uname", "whoami", "date", "uptime", "free", "df", "which", "env",
-    "printenv", "echo",
+    "printenv", "echo", "hostname",
     # Editors (for config)
     "nano", "vim", "vi",
 }
 
 # Commands that trigger immediate Red Light
 DANGEROUS_COMMANDS = {
-    # Network exfiltration
+    # Network exfiltration (non-DLP scoped)
     "curl", "wget", "nc", "ncat", "netcat", "socat",
     # Remote access
     "ssh", "scp", "rsync", "sftp", "telnet",
@@ -103,6 +105,11 @@ DANGEROUS_COMMANDS = {
 # Network hosts SENTINEL should be connecting to
 AUTHORISED_HOSTS = {
     "api.openai.com",
+    "nvd.nist.gov",
+    "github.com",
+    "raw.githubusercontent.com",
+    "pypi.org",
+    "files.pythonhosted.org",
     "127.0.0.1",
     "localhost",
     # Add your Mac's IP when using key proxy:
