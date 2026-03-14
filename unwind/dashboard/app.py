@@ -810,9 +810,30 @@ def create_app(config: UnwindConfig = None) -> Flask:
 
     @app.route("/api/trusted-source-rules")
     def api_trusted_source_rules():
-        """Return the active trusted source rules from config."""
+        """Return the active trusted source rules.
+        
+        Tries to proxy from the sidecar first (live truth), but falls back
+        to the local config (base truth) if the sidecar is unreachable or
+        returns no rules.
+        """
+        rules = []
         status_code, body = _proxy_sidecar("GET", "/v1/policy/rules")
-        rules = body.get("rules", []) if status_code == 200 else []
+        
+        if status_code == 200:
+            rules = body.get("rules", [])
+            
+        # Fallback to local config if proxy failed or returned nothing
+        if not rules:
+            local_rules = getattr(config, "trusted_source_rules", [])
+            # Convert dataclasses to dicts for consistent JSON output
+            for r in local_rules:
+                rules.append({
+                    "rule_id": r.rule_id,
+                    "source_types": list(r.source_types),
+                    "tools": list(r.tools),
+                    "domains": list(r.domains),
+                })
+
         return jsonify({
             "rules": [
                 {
