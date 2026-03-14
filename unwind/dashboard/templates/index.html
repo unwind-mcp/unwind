@@ -702,7 +702,64 @@
   .rule-item { font-size: 0.85rem; line-height: 1.4; margin-bottom: 8px; }
   .rule-id { font-weight: bold; color: var(--text-bright); }
 
-</style>
+
+    /* ─── Mobile Responsive ────────────────────── */
+    @media (max-width: 768px) {
+      body { padding: 8px; }
+      .header { flex-direction: column; gap: 8px; padding: 12px; text-align: center; }
+      .header h1 span { display: block; margin-left: 0; margin-top: 4px; }
+      .header-right { justify-content: center; }
+
+      .trust-light {
+        flex-direction: column;
+        text-align: center;
+        gap: 12px;
+        padding: 16px;
+      }
+      .trust-light img { width: 64px !important; height: 64px !important; }
+      .trust-orb { width: 36px; height: 36px; }
+      .trust-info h2 { font-size: 16px; }
+      .trust-stats { margin-left: 0; justify-content: center; gap: 16px; flex-wrap: wrap; }
+      .stat-value { font-size: 18px; }
+
+      .explanation-panel { flex-direction: column; padding: 12px; }
+
+      .tab-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+      .tab { padding: 10px 14px; font-size: 12px; flex-shrink: 0; }
+
+      .timeline-event { padding: 10px; gap: 8px; }
+      .event-time { font-size: 11px; min-width: 40px; }
+      .event-tool { font-size: 12px; }
+      .event-target { font-size: 11px; }
+      .event-actions { flex-direction: column; gap: 4px; }
+      .amber-btn { font-size: 11px; padding: 4px 10px; }
+      .undo-btn { font-size: 11px; padding: 4px 10px; }
+
+      .event-detail-panel { padding: 12px; }
+
+      .status-bar { flex-wrap: wrap; gap: 8px; padding: 8px 12px; font-size: 11px; }
+
+      #panel-undo .undo-btn { padding: 6px 14px; }
+
+      .ghost-tab-wrapper { padding: 12px; }
+      .ghost-summary-card { padding: 16px; }
+
+      .cadence-pill { font-size: 11px; padding: 4px 10px; }
+
+      .rule-item { font-size: 0.75rem; }
+    }
+
+    @media (max-width: 480px) {
+      .header h1 { font-size: 14px; }
+      .trust-light img { width: 48px !important; height: 48px !important; }
+      .trust-orb { width: 28px; height: 28px; }
+      .trust-stats { gap: 12px; }
+      .stat-value { font-size: 16px; }
+      .stat-label { font-size: 10px; }
+      .tab { padding: 8px 10px; font-size: 11px; }
+      .event-time { display: none; }
+    }
+  </style>
 </head>
 <body>
 
@@ -803,6 +860,7 @@
     <div class="tab" data-tab="verify" onclick="switchTab('verify')">Verify History</div>
     <div class="tab" data-tab="undo" onclick="switchTab('undo')">Rewind</div>
     <div class="tab" data-tab="about" onclick="switchTab('about')">How It Works</div>
+    <div class="tab" data-tab="rules" onclick="switchTab('rules')">Rules</div>
   </div>
 
   <!-- Content Panels -->
@@ -1270,6 +1328,10 @@
             const s = event.result_summary || '';
             const m = s.match(/\|challenge_id=([\w_]+)/);
             if (m && event.trust_state === 'amber' && event.status === 'blocked') {
+              const ageSec = (Date.now() / 1000) - (event.timestamp || 0);
+              if (ageSec > 95) {
+                return '<span class="badge" style="color:var(--text-dim);font-size:11px;">Challenge expired</span>';
+              }
               return '<button class="amber-btn allow" onclick="event.stopPropagation();resolveAmber(\'' + m[1] + '\',\'allow\')" title="Allow this action">Allow</button>' +
                      '<button class="amber-btn deny" onclick="event.stopPropagation();resolveAmber(\'' + m[1] + '\',\'deny\')" title="Deny this action">Deny</button>';
             }
@@ -1822,6 +1884,7 @@ Continue?`;
     } catch (e) {
       alert('Failed to resolve: ' + e.message);
     }
+    refreshTimeline();
   }
 
   async function undoEvent(eventId, options = {}) {
@@ -2092,11 +2155,13 @@ Continue?`;
     document.getElementById('panel-verify').classList.toggle('hidden', tab !== 'verify');
     document.getElementById('panel-undo').classList.toggle('hidden', tab !== 'undo');
     document.getElementById('panel-about').classList.toggle('hidden', tab !== 'about');
+    document.getElementById('panel-rules').classList.toggle('hidden', tab !== 'rules');
 
     if (tab === 'ghost') { startGhostPolling(); } else { stopGhostPolling(); }
     if (tab === 'away') refreshAway();
     if (tab === 'verify') verifyChain();
     if (tab === 'undo') refreshUndoSnapshots();
+    if (tab === 'rules') loadTrustedRules();
   }
 
   // ─── Polling ──────────────────────────────────
@@ -2117,11 +2182,21 @@ Continue?`;
   startPolling();
 </script>
 
-    <!-- Trusted Source Rules Card -->
-    <div id="trusted-source-rules-card" class="card" style="margin-top:1rem;">
-      <div class="card-header">Trusted Source Rules</div>
-      <div class="card-body" id="trusted-rules-body">
-        <p class="text-muted">Loading...</p>
+
+    <!-- Rules -->
+    <div id="panel-rules" class="hidden">
+      <div style="max-width:800px;margin:0 auto;padding:16px 0;">
+        <h3 style="font-size:16px;font-weight:600;margin-bottom:4px;">Trusted Source Rules</h3>
+        <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">
+          Trusted source rules let your agent's scheduled and system tasks run without triggering unnecessary taint alerts.
+          When your agent fetches data from a known source (like a security advisory database or package registry),
+          these rules recognise the pattern and cap the taint at LOW instead of escalating to HIGH.
+          This prevents routine maintenance from being flagged — but security is never bypassed.
+          If the same tools are used outside these patterns, or by an interactive session, normal taint rules apply in full.
+        </p>
+        <div id="rules-tab-body" style="font-size:13px;">
+          <p style="color:var(--text-dim);">Loading...</p>
+        </div>
       </div>
     </div>
     <script>
@@ -2130,24 +2205,28 @@ Continue?`;
         fetch('/api/trusted-source-rules')
           .then(r => r.json())
           .then(data => {
-            const body = document.getElementById('trusted-rules-body');
+            const body = document.getElementById('rules-tab-body');
+            if (!body) return;
             if (!data.rules || data.rules.length === 0) {
-              body.innerHTML = '<p class="text-muted">No trusted source rules configured (default — all sensor traffic taints normally).</p>';
+              body.innerHTML = '<p style="color:var(--text-dim);">No trusted source rules configured. All sensor traffic taints normally.</p>';
               return;
             }
-            let html = '<table class="table table-sm"><thead><tr><th>Rule</th><th>Sources</th><th>Tools</th><th>Domains</th></tr></thead><tbody>';
+            let html = '';
             data.rules.forEach(r => {
-              html += '<tr><td><code>' + r.rule_id + '</code></td>';
-              html += '<td>' + r.source_types.join(', ') + '</td>';
-              html += '<td>' + r.tools.join(', ') + '</td>';
-              html += '<td>' + r.domains.join(', ') + '</td></tr>';
+              html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;">';
+              html += '<div style="font-weight:600;color:var(--text-bright);margin-bottom:8px;">' + r.rule_id + '</div>';
+              html += '<div style="display:grid;grid-template-columns:80px 1fr;gap:6px 12px;font-size:12px;">';
+              html += '<span style="color:var(--text-dim);">Sources</span><span>' + r.source_types.map(s => '<span class="badge green" style="font-size:11px;margin-right:4px;">' + s + '</span>').join('') + '</span>';
+              html += '<span style="color:var(--text-dim);">Tools</span><span style="font-family:monospace;">' + r.tools.join(', ') + '</span>';
+              html += '<span style="color:var(--text-dim);">Domains</span><span style="word-break:break-all;">' + r.domains.join(', ') + '</span>';
+              html += '</div></div>';
             });
-            html += '</tbody></table>';
-            html += '<small class="text-muted">' + data.count + ' rule(s) active — matching calls capped at LOW taint.</small>';
+            html += '<div style="color:var(--text-dim);font-size:12px;margin-top:8px;">' + data.count + ' rule(s) active — matching calls capped at LOW taint.</div>';
             body.innerHTML = html;
           })
           .catch(() => {
-            document.getElementById('trusted-rules-body').innerHTML = '<p class="text-danger">Failed to load rules.</p>';
+            const body = document.getElementById('rules-tab-body');
+            if (body) body.innerHTML = '<p style="color:var(--red);">Failed to load rules.</p>';
           });
       }
       if (document.readyState === 'loading') {
