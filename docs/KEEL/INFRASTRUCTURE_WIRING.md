@@ -16,13 +16,19 @@
 
 ### Stack Startup (after reboot)
 
-1. SSH in, then: `export UNWIND_SIDECAR_SHARED_SECRET=<value from .env>`
-2. `export UNWIND_WATCHDOG_THRESHOLD=86400`
-3. `cd ~/.openclaw/workspace/UNWIND`
-4. `bash tools/start-stack.sh` (starts sidecar + dashboard + gateway, sources .env automatically)
-5. Open second SSH terminal, export the shared secret, run `openclaw tui`
+**One command starts everything:**
 
-Or start each service manually — see `docs/CONTINUITY.md` section 3.
+1. `ssh dandare@raspberrypi`
+2. `cd ~/.openclaw/workspace/UNWIND && bash tools/start-stack.sh`
+3. Script loads `.env` automatically, starts sidecar → dashboard → gateway, verifies each with health checks, reports status. Every service gets a ✓ or ✗.
+4. Open a second SSH terminal, then:
+5. `cd ~/.openclaw/workspace/UNWIND && source .env && export UNWIND_SIDECAR_SHARED_SECRET && openclaw tui`
+
+**Do NOT start services manually.** Always use `start-stack.sh`. It handles secrets, startup order, and verification.
+
+**If start-stack.sh fails on "policy hash mismatch":**
+`sha256sum ~/.unwind/policy.json | cut -d' ' -f1 > ~/.unwind/policy.sha256`
+Then re-run `bash tools/start-stack.sh`.
 
 ### Check / Kill Services
 
