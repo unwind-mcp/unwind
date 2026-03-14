@@ -24,7 +24,8 @@
       --info-bg: rgba(88,166,255,0.08);
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
+    *, *::before, *::after { box-sizing: border-box; }
+    body { overflow-x: hidden;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
       background: var(--bg);
       color: var(--text);
@@ -77,8 +78,10 @@
     .integrity-bar {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 6px 24px;
+      gap: 8px;
+      padding: 6px 16px;
+      overflow: hidden;
+      max-width: 100%;
       background: var(--surface-2);
       border-bottom: 1px solid var(--border);
       font-size: 12px;
@@ -112,6 +115,9 @@
       color: var(--text-dim);
       font-size: 10px;
       white-space: nowrap;
+      flex-shrink: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .integrity-warning {
       padding: 6px 24px;
@@ -228,6 +234,7 @@
       display: flex;
       gap: 0;
       border-bottom: 1px solid var(--border);
+      position: relative;
       background: var(--surface);
       padding: 0 24px;
     }
@@ -345,6 +352,7 @@
     }
     .undo-header {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: flex-start;
       gap: 12px;
@@ -355,9 +363,10 @@
     .undo-bulk-controls {
       display: flex;
       gap: 8px;
-      align-items: center;
+      align-items: stretch;
       flex-wrap: wrap;
       justify-content: flex-end;
+      width: 100%;
     }
     .undo-filters {
       display: flex;
@@ -369,8 +378,9 @@
     }
     .undo-filters label { display: inline-flex; gap: 6px; align-items: center; }
     .undo-select {
-      min-width: 320px;
-      max-width: 520px;
+      min-width: 0;
+      max-width: 100%;
+      width: 100%;
       background: var(--surface);
       color: var(--text);
       border: 1px solid var(--border);
@@ -705,59 +715,104 @@
 
     /* ─── Mobile Responsive ────────────────────── */
     @media (max-width: 768px) {
-      body { padding: 8px; }
+      body { padding: 8px; max-width: 100vw; }
       .header { flex-direction: column; gap: 8px; padding: 12px; text-align: center; }
-      .header h1 span { display: block; margin-left: 0; margin-top: 4px; }
-      .header-right { justify-content: center; }
+      .header h1 { font-size: 15px; }
+      .header h1 span { display: block; margin-left: 0; margin-top: 4px; font-size: 11px; }
+      .header-right { justify-content: center; flex-wrap: wrap; }
 
       .trust-light {
         flex-direction: column;
         text-align: center;
         gap: 12px;
-        padding: 16px;
+        padding: 12px;
       }
-      .trust-light img { width: 64px !important; height: 64px !important; }
-      .trust-orb { width: 36px; height: 36px; }
+      .trust-light img { width: 56px !important; height: 56px !important; }
+      .trust-orb { width: 32px; height: 32px; }
+      .trust-info { width: 100%; }
       .trust-info h2 { font-size: 16px; }
-      .trust-stats { margin-left: 0; justify-content: center; gap: 16px; flex-wrap: wrap; }
+      .trust-info .subtitle { font-size: 12px; }
+      .trust-stats { margin-left: 0; justify-content: center; gap: 12px; flex-wrap: wrap; width: 100%; }
       .stat-value { font-size: 18px; }
+      .stat-label { font-size: 10px; }
 
-      .explanation-panel { flex-direction: column; padding: 12px; }
+      .explanation-panel { flex-direction: column; padding: 10px; }
+      .explanation-panel div { word-break: break-word; }
 
-      .tab-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
-      .tab { padding: 10px 14px; font-size: 12px; flex-shrink: 0; }
+      .status-bar { flex-wrap: wrap; gap: 6px; padding: 8px 10px; font-size: 10px; overflow: hidden; }
 
-      .timeline-event { padding: 10px; gap: 8px; }
-      .event-time { font-size: 11px; min-width: 40px; }
+      .tab-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; scrollbar-width: none; }
+      .tab-bar::-webkit-scrollbar { display: none; }
+      .tab { padding: 10px 12px; font-size: 11px; flex-shrink: 0; }
+
+      .content { overflow-x: hidden; }
+
+      .timeline-event { padding: 8px; gap: 6px; }
+      .event-time { font-size: 11px; min-width: 36px; }
       .event-tool { font-size: 12px; }
-      .event-target { font-size: 11px; }
+      .event-target { font-size: 11px; word-break: break-all; overflow-wrap: anywhere; }
       .event-actions { flex-direction: column; gap: 4px; }
       .amber-btn { font-size: 11px; padding: 4px 10px; }
       .undo-btn { font-size: 11px; padding: 4px 10px; }
 
-      .event-detail-panel { padding: 12px; }
+      .event-detail-panel { padding: 10px; word-break: break-word; overflow-wrap: anywhere; }
 
-      .status-bar { flex-wrap: wrap; gap: 8px; padding: 8px 12px; font-size: 11px; }
+      #panel-undo { overflow-x: hidden; }
+      #panel-undo select { max-width: 100%; font-size: 12px; }
+      #panel-undo .undo-btn { padding: 6px 12px; font-size: 11px; }
+      #undo-container { padding: 8px 0; }
+      #undo-container div { word-break: break-word; overflow-wrap: anywhere; }
 
-      #panel-undo .undo-btn { padding: 6px 14px; }
+      .ghost-tab-wrapper { padding: 10px; }
+      .ghost-summary-card { padding: 12px; }
+      .ghost-file-path { word-break: break-all; font-size: 11px; }
 
-      .ghost-tab-wrapper { padding: 12px; }
-      .ghost-summary-card { padding: 16px; }
-
-      .cadence-pill { font-size: 11px; padding: 4px 10px; }
+      .cadence-pill { font-size: 11px; padding: 4px 8px; }
 
       .rule-item { font-size: 0.75rem; }
+
+      .trust-guidance { font-size: 11px; }
+    }
+
+    .tab-bar::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 40px;
+      background: linear-gradient(to right, transparent, var(--bg));
+      pointer-events: none;
+      display: none;
+    }
+
+    @media (max-width: 768px) {
+      .tab-bar::after { display: block; }
+      .integrity-bar { flex-wrap: wrap; padding: 6px 10px; }
+      .integrity-pills { flex-wrap: wrap; gap: 4px; }
+      .integrity-ts { font-size: 9px; }
+      .undo-header { flex-direction: column; }
+      .undo-bulk-controls { width: 100%; }
+      .undo-select { min-width: 0 !important; max-width: 100% !important; }
+      .undo-filters { flex-direction: column; gap: 6px; }
+      .undo-filters label { font-size: 11px; }
     }
 
     @media (max-width: 480px) {
-      .header h1 { font-size: 14px; }
-      .trust-light img { width: 48px !important; height: 48px !important; }
-      .trust-orb { width: 28px; height: 28px; }
-      .trust-stats { gap: 12px; }
-      .stat-value { font-size: 16px; }
-      .stat-label { font-size: 10px; }
-      .tab { padding: 8px 10px; font-size: 11px; }
+      body { padding: 4px; }
+      .header { padding: 8px; }
+      .header h1 { font-size: 13px; letter-spacing: 1px; }
+      .header h1 span { font-size: 10px; }
+      .trust-light { padding: 8px; gap: 8px; }
+      .trust-light img { width: 40px !important; height: 40px !important; }
+      .trust-orb { width: 24px; height: 24px; }
+      .trust-info h2 { font-size: 14px; }
+      .trust-stats { gap: 8px; }
+      .stat-value { font-size: 15px; }
+      .stat-label { font-size: 9px; }
+      .tab { padding: 8px 10px; font-size: 10px; }
       .event-time { display: none; }
+      .status-bar { font-size: 9px; padding: 6px 8px; }
     }
   </style>
 </head>
@@ -940,14 +995,23 @@
           <h3>UNWIND</h3>
         </div>
         <div class="about-tagline">See Everything. Rewind File Changes. Test Without Consequences.</div>
-        <p>UNWIND is a security layer that sits between your AI agent and the tools it uses. Every tool call &mdash; reading a file, sending an email, running a command &mdash; passes through a 15-stage enforcement pipeline before it reaches the real world.</p>
-        <p>If something looks wrong, UNWIND blocks it. If something goes through and you change your mind, UNWIND can undo it. If you want to test something risky, UNWIND can simulate it without consequences.</p>
-        <p>No AI in the security path. Every check is deterministic. The agent doesn't know UNWIND exists.</p>
+        <p>UNWIND is a security layer that sits between your AI agent and the tools it uses. Every tool call &mdash; reading a file, sending an email, running a command &mdash; passes through a 15-stage enforcement pipeline before it reaches the real world. Single-digit millisecond overhead. No AI in the security path &mdash; every check is deterministic.</p>
+        <p>Framework-agnostic: one core engine, multiple adapters. Works with OpenClaw, MCP-compatible clients (Claude Desktop, Cursor), and any platform that routes tool calls through a proxy. The agent doesn't know UNWIND exists.</p>
         <div class="about-detail">
-          <div class="about-detail-item"><strong>Trust Light</strong> &mdash; the coloured orb at the top. Green means all clear. Amber means the session has ingested external content and high-risk actions need your approval. Red means something was blocked or a security rule was triggered.</div>
-          <div class="about-detail-item"><strong>Flight Recorder</strong> &mdash; every tool call is logged to a tamper-evident database with cryptographic hash chaining. The timeline below shows what happened, when, and whether it was allowed.</div>
-          <div class="about-detail-item"><strong>Undo Button</strong> &mdash; before every file write, UNWIND takes a snapshot. You can undo any action, or undo everything since a point in time.</div>
+          <div class="about-detail-item"><strong>Trust Light</strong> &mdash; the coloured orb at the top. Green means no violations detected. Amber means your agent has used external content and high-risk actions will ask for your approval first. Red means something was blocked.</div>
+          <div class="about-detail-item"><strong>Flight Recorder</strong> &mdash; every tool call is logged to a tamper-evident database with cryptographic hash chaining (CRAFT). The Timeline tab shows what happened, when, and whether it was allowed.</div>
+          <div class="about-detail-item"><strong>Trusted Source Rules</strong> &mdash; your agent's scheduled tasks (security scans, tests, maintenance) can be whitelisted so they run without triggering unnecessary alerts. See the Rules tab.</div>
         </div>
+      </div>
+
+      <div class="about-card">
+        <div class="about-header">
+          <span class="about-icon">&#x21a9;&#xfe0f;</span>
+          <h3>Rewind</h3>
+        </div>
+        <div class="about-tagline">One-click undo for any file your agent changed.</div>
+        <p>Before every file write, UNWIND takes a snapshot. If your agent makes a mistake or you change your mind, you can restore any file to its pre-write state with a single click. You can also undo everything since a point in time.</p>
+        <p>Snapshots use reflink-first copy (instant, zero-cost on supported filesystems) with automatic fallback. The Rewind tab shows all restorable snapshots. Rewind buttons also appear on individual events in the Timeline.</p>
       </div>
 
       <div class="about-card">
@@ -956,9 +1020,9 @@
           <h3>Ghost Mode</h3>
         </div>
         <div class="about-tagline">See what your agent would do &mdash; without it actually doing anything.</div>
-        <p>Ghost Mode is a dry-run sandbox. When active, all state-modifying actions (file writes, emails, commands) are intercepted and simulated. The agent receives a fake success response and continues working normally, but nothing real changes.</p>
-        <p>A shadow filesystem serves back "written" content on subsequent reads, so the agent stays internally consistent. An egress guard scans outbound requests for leaked secrets before they leave your device.</p>
-        <p>Use it to test untrusted tools, risky prompts, or new agent configurations. When the purple banner appears at the top of this dashboard, Ghost Mode is active.</p>
+        <p>Ghost Mode is a dry-run sandbox. When active, all state-modifying actions (file writes, emails, commands) are intercepted and simulated. Your agent receives a fake success response and continues working normally, but nothing real changes.</p>
+        <p>A shadow filesystem serves back "written" content on subsequent reads, so your agent stays internally consistent. An egress guard scans outbound requests for leaked secrets before they leave your device.</p>
+        <p>Use it to test untrusted tools, risky prompts, or new agent configurations. When the purple banner appears at the top, Ghost Mode is active. Switch it on or off from the Ghost Mode tab.</p>
       </div>
 
       <div class="about-card">
@@ -966,10 +1030,10 @@
           <span class="about-icon">&#x1f517;</span>
           <h3>CRAFT Protocol</h3>
         </div>
-        <div class="about-tagline">Cryptographic proof that every command is genuine, in sequence, and untampered.</div>
-        <p>CRAFT (Cryptographic Relay Authentication for Faithful Transmission) authenticates every command before it reaches the enforcement pipeline. It provides proof of who sent a command, that it hasn't been modified in transit, and that it arrived in the correct order.</p>
-        <p>Every event in the timeline is linked to the previous one by a cryptographic hash &mdash; forming an unbreakable chain of evidence. If anyone alters or deletes a record, the chain breaks and the dashboard will show you exactly where.</p>
-        <p>The "Chain Verify" tab lets you check this at any time. CRAFT has zero external dependencies and can be used independently as a standalone audit library.</p>
+        <div class="about-tagline">Cryptographic proof that every action is genuine, in sequence, and untampered.</div>
+        <p>CRAFT (Cryptographic Relay Authentication for Faithful Transmission) provides transport-layer command provenance and anti-spoofing. It proves who sent a command, that it hasn't been modified in transit, and that it arrived in the correct order.</p>
+        <p>Every event in the timeline is linked to the previous one by a cryptographic hash &mdash; forming a tamper-evident chain of evidence. If anyone alters or deletes a record, the chain breaks and this dashboard will show you exactly where. Use the Verify History tab to check at any time.</p>
+        <p>CRAFT has zero external dependencies and can be used independently as a standalone audit library.</p>
       </div>
 
       <div class="about-card">
@@ -977,10 +1041,10 @@
           <span class="about-icon">&#x23f1;&#xfe0f;</span>
           <h3>Cadence</h3>
         </div>
-        <div class="about-tagline">Your agent learns your rhythm &mdash; and uses it to keep you safe.</div>
-        <p>Cadence watches timing patterns (never content) to understand when you're actively working, reading, in deep focus, or away from your device. It feeds these signals into the enforcement pipeline.</p>
-        <p>If tool calls arrive at machine speed while you appear to be away, Cadence raises the alert level. If the timing between actions is suspiciously regular (like a bot, not a human), it flags it. The small pill in the header shows your current detected state.</p>
-        <p>All timing data stays on your device, auto-deletes after 7 days, and UNWIND works perfectly without it. Cadence is opt-in &mdash; enable it with <code>UNWIND_CADENCE_BRIDGE=1</code>, disable it any time with no side effects.</p>
+        <div class="about-tagline">Temporal anomaly detection &mdash; flags when something acts at the wrong time or speed.</div>
+        <p>Cadence watches timing patterns (never content) to build a baseline of when you're actively working, reading, in deep focus, or away from your device. It feeds these signals into the enforcement pipeline.</p>
+        <p>If tool calls arrive at machine speed while you appear to be away, Cadence raises the alert level. If the timing between actions is suspiciously regular (like a bot, not a human), it flags it. The small pill in the header shows the current detected state.</p>
+        <p>All timing data stays on your device and auto-deletes after 7 days. Cadence is opt-in &mdash; enable it with <code>UNWIND_CADENCE_BRIDGE=1</code>, disable any time with no side effects. UNWIND works perfectly without it.</p>
       </div>
 
     </div>
