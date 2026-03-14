@@ -71,3 +71,5 @@ dash_audit*.py
 dash_fix_*.py
 purge_sensitive_files.py
 *.bak*
+ghost_venv/
+pytest-cache-files-*/
