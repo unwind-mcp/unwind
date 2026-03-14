@@ -6,15 +6,9 @@ Ghost Mode is a safe first step before giving an AI agent real authority.
 
 It's a zero-config dry-run layer for AI agents. It intercepts every write and lets reads through. Think of it as a flight simulator for AI agents — nothing gets modified, but you see everything the agent tried to do.
 
+Requires Python 3.9+.
+
 ## Quick Start
-
-### OpenClaw Users
-
-Tell your agent:
-
-> Enable Ghost Mode for this session. Install with `pip install ghostmode` and the OpenClaw Ghost Mode plugin with `openclaw plugins install @unwind/ghostmode-openclaw`. Restart the gateway.
-
-Ghost Mode hooks into OpenClaw's tool-call system. Every write is intercepted. Every read passes through.
 
 ### MCP Client Users (Claude Desktop, Cursor, etc.)
 
@@ -23,7 +17,21 @@ pip install ghostmode
 ghostmode -- npx @modelcontextprotocol/server-filesystem ~/Documents
 ```
 
-Point your agent at Ghost Mode instead of the real server. When the session ends, you get a full timeline of what happened.
+Point your agent at Ghost Mode instead of the real server. When the session ends, a summary is written to `ghostmode-summary.txt` in your working directory and printed to stderr.
+
+### OpenClaw Users
+
+```bash
+# 1. Install Ghost Mode
+pip install ghostmode
+
+# 2. Install the OpenClaw plugin
+openclaw plugins install @unwind/ghostmode-openclaw
+
+# 3. Restart the gateway
+```
+
+Ghost Mode hooks into OpenClaw's tool-call system. Every write is intercepted. Every read passes through.
 
 ## What it does
 
@@ -94,21 +102,23 @@ If a tool slips through, use `--also-block tool_name` to add it.
 
 ## Zero dependencies
 
-Ghost Mode has no external dependencies. It uses only Python 3.10+ stdlib (asyncio, json, pathlib). It installs in under a second.
+Ghost Mode has no external dependencies. It uses only Python 3.9+ stdlib (asyncio, json, pathlib). It installs in under a second.
 
-## The pattern
+## Known limitations
 
-Ghost Mode and UNWIND illustrate a layered safety pattern for AI agents: visibility first, then enforcement, then reversibility.
+**Shell commands can't see ghost-written files.** If the agent writes a file through Ghost Mode and then tries to run it via `bash_exec` or `shell_exec`, the shell will fail because the file only exists in the in-memory shadow VFS, not on disk. Ghost Mode works best for tool-call-level dry runs, not multi-step build/execute workflows.
+
+**Session summary in background clients.** Claude Desktop and Cursor run MCP servers in the background and may not surface stderr output. Ghost Mode automatically writes a `ghostmode-summary.txt` file to your working directory on exit. You can also use `--export log.json` for a machine-readable session log.
 
 ## Want more?
 
 Ghost Mode shows you what happened. **UNWIND** lets you control it:
 
-- 13-stage enforcement pipeline (path jail, SSRF shield, DLP, canary honeypots)
+- 15-stage enforcement pipeline (path jail, SSRF shield, DLP, canary honeypots)
 - Smart snapshots with one-command rollback
-- CR-AFT tamper-evident audit chain
+- CRAFT tamper-evident audit chain
 - Real-time trust light dashboard
-- Shannon entropy gate for encoded exfiltration
+- Detects encoded/obfuscated data exfiltration attempts
 
 ```bash
 pip install unwind-mcp

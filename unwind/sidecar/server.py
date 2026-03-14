@@ -24,17 +24,29 @@ import logging
 import os
 import secrets
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Query, Request, Response
 from fastapi.responses import JSONResponse
 
 from ..config import UnwindConfig
 from ..enforcement.pipeline import EnforcementPipeline, CheckResult, PipelineResult
 from ..enforcement.path_jail import PathJailCheck
 from ..enforcement.policy_source import ImmutablePolicySource, PolicyLoadResult
+from ..enforcement.amber_store import AmberEventStore
+from ..enforcement.amber_mediator import (
+    build_pattern_id,
+    build_batch_hint,
+    new_challenge_nonce,
+    challenge_expires_at,
+    compute_action_hash,
+    derive_destination_scope,
+    build_risk_capsule,
+    hash_risk_capsule,
+)
 from ..session import Session
 from ..recorder.event_store import EventStore, EventStatus
 from ..snapshots.manager import SnapshotManager
@@ -122,6 +134,33 @@ def create_app(
                 policy_load.hash_hex[-4:],
             )
 
+        # --- Wire policy.json fields into config ---
+        _pd = policy_load.config_data or {}
+        if "trusted_source_rules" in _pd:
+            from ..config import validate_trusted_rules
+            config.trusted_source_rules = validate_trusted_rules(
+                _pd["trusted_source_rules"]
+            )
+            logger.info(
+                "[sidecar] Loaded %d trusted source rule(s)",
+                len(config.trusted_source_rules),
+            )
+
+    # --- Session principal map (server-side provenance binding) ---
+    # Maps session keys to principal contexts (e.g. "system", "cron").
+    # Loaded from policy.json — server-controlled, not caller-supplied.
+    _session_principal_map: dict[str, str] = {}
+    _pd_principals = (policy_load.config_data or {}).get("session_principal_map")
+    if isinstance(_pd_principals, dict):
+        for _sk, _ctx in _pd_principals.items():
+            if isinstance(_sk, str) and isinstance(_ctx, str) and _ctx.lower() != "user":
+                _session_principal_map[_sk] = _ctx.lower()
+        if _session_principal_map:
+            logger.info(
+                "[sidecar] Session principal map: %d binding(s)",
+                len(_session_principal_map),
+            )
+
     # --- Secret Registry (known-secret exact matching) ---
     _secret_registry = None
     if config.secret_registry_enabled:
@@ -192,6 +231,8 @@ def create_app(
         read_collapse_seconds=config.read_collapse_interval_seconds,
     )
     event_store.initialize()
+    amber_store = AmberEventStore(config.events_db_path)
+    amber_store.initialize()
     snapshot_manager = SnapshotManager(config)
 
     # --- Mandatory auth (CWE-306 fix) ---
@@ -301,6 +342,21 @@ def create_app(
     # -----------------------------------------------------------------------
     # GET /v1/health
     # -----------------------------------------------------------------------
+
+    @app.get("/v1/policy/rules")
+    async def get_rules():
+        """Report active trusted source rules from config."""
+        return {
+            "rules": [
+                {
+                    "rule_id": r.rule_id, 
+                    "source_types": list(r.source_types), 
+                    "tools": list(r.tools), 
+                    "domains": list(r.domains)
+                } for r in config.trusted_source_rules
+            ], 
+            "count": len(config.trusted_source_rules)
+        }
 
     @app.get("/v1/health")
     async def health():
@@ -428,8 +484,11 @@ def create_app(
                 timestamp=body.get("timestamp"),
             )
 
-            # --- Resolve session ---
-            session = _resolve_session(sessions, check_req.session_key, config)
+            # --- Resolve session (with server-side principal binding) ---
+            session = _resolve_session(
+                sessions, check_req.session_key, config,
+                principal_map=_session_principal_map,
+            )
 
             # --- P0-1: apply_patch multi-path jail validation (fail-closed) ---
             patch_paths = _extract_patch_paths(check_req.tool_name, check_req.params)
@@ -452,6 +511,9 @@ def create_app(
                 if not primary_target and patch_paths:
                     primary_target = patch_paths[0]
 
+                # --- Derive server-trusted source_type (never from request body) ---
+                _source_type = _derive_source_type(session)
+
                 # --- Run enforcement pipeline ---
                 result = pipeline.check(
                     session=session,
@@ -459,6 +521,7 @@ def create_app(
                     target=primary_target,
                     parameters=check_req.params,
                     payload=_extract_payload(check_req.tool_name, check_req.params),
+                    source_type=_source_type,
                 )
 
             # --- Update last policy check timestamp + watchdog ---
@@ -469,6 +532,72 @@ def create_app(
             mediation_active[0] = True
             tool_calls_processed[0] += 1
 
+            # --- Issue amber challenge if AMBER ---
+            challenge_event_id = None
+            if result.action == CheckResult.AMBER:
+                try:
+                    target = _extract_target(check_req.params)
+                    dest_scope = derive_destination_scope(
+                        check_req.tool_name, check_req.params,
+                    )
+                    risk_tier = "AMBER_HIGH"
+                    taint_level = "HIGH" if session.is_tainted else "NONE"
+                    pattern_id = build_pattern_id(
+                        tool_name=check_req.tool_name,
+                        destination_scope=dest_scope,
+                        risk_tier=risk_tier,
+                        taint_level=taint_level,
+                    )
+                    batch_hint = build_batch_hint(
+                        session_id=check_req.session_key,
+                        tool_name=check_req.tool_name,
+                        destination_scope=dest_scope,
+                        risk_tier=risk_tier,
+                        pattern_id=pattern_id,
+                    )
+                    nonce = new_challenge_nonce()
+                    seq = amber_store.next_challenge_seq(check_req.session_key)
+                    expires = challenge_expires_at()
+                    action_hash = compute_action_hash(
+                        check_req.tool_name, check_req.params,
+                    )
+                    capsule = build_risk_capsule(
+                        tool_name=check_req.tool_name,
+                        destination_scope=dest_scope,
+                        risk_tier=risk_tier,
+                        taint_level=taint_level,
+                        amber_reason=result.amber_reason or "",
+                    )
+                    capsule_hash = hash_risk_capsule(capsule)
+                    ts_str = time.strftime("%Y%m%d_%H%M%S")
+                    uid_str = uuid.uuid4().hex[:6]
+                    challenge_event_id = f"amb_{ts_str}_{uid_str}"
+                    amber_store.issue_amber_event(
+                        event_id=challenge_event_id,
+                        session_id=check_req.session_key,
+                        request_id=request_id or "",
+                        pattern_id=pattern_id,
+                        action_hash=action_hash,
+                        challenge_nonce=nonce,
+                        challenge_seq=seq,
+                        challenge_expires_at=expires,
+                        risk_tier=risk_tier,
+                        risk_capsule_hash=capsule_hash,
+                        batch_group_key=batch_hint["group_key"],
+                        batch_max_size=batch_hint["max_batch_size"],
+                        batchable=batch_hint["batchable"],
+                        tool_name=check_req.tool_name,
+                        destination_scope=dest_scope,
+                        taint_level=taint_level,
+                    )
+                except Exception:
+                    logger.error(
+                        "[sidecar] amber challenge issuance failed, "
+                        "continuing as blocked",
+                        exc_info=True,
+                    )
+                    challenge_event_id = None
+
             # --- Record event to flight recorder (dashboard data source) ---
             _record_sidecar_event(
                 event_store=event_store,
@@ -477,10 +606,13 @@ def create_app(
                 session=session,
                 request=check_req,
                 result=result,
+                challenge_id=challenge_event_id,
             )
 
             # --- Map pipeline result to wire response ---
             response = _map_pipeline_result(result)
+            if challenge_event_id is not None:
+                response.challenge_id = challenge_event_id
             response.decision_id = request_id
             response.policy_version = ENGINE_VERSION
             response.evaluated_at = last_policy_check_ts[0]
@@ -544,12 +676,13 @@ def create_app(
     # -----------------------------------------------------------------------
 
     @app.get("/v1/ghost/status")
-    async def ghost_status(request: Request):
+    async def ghost_status(
+        session_key: Optional[str] = Query(None, alias="sessionKey"),
+    ):
         """Return the current ghost mode shadow VFS status.
 
         Query param: sessionKey (required) — identifies which session to query.
         """
-        session_key = request.query_params.get("sessionKey", "")
         if not session_key:
             error = ErrorResponse(
                 code="BAD_REQUEST",
@@ -757,6 +890,140 @@ def create_app(
         )
         return JSONResponse(status_code=200, content=resp.to_wire())
 
+    # -----------------------------------------------------------------------
+    # Amber challenge resolution
+    # -----------------------------------------------------------------------
+
+    @app.get("/v1/amber/pending")
+    async def amber_pending(request: Request):
+        """List pending amber challenges."""
+        session_key = request.query_params.get("sessionKey", "")
+        amber_store.expire_stale_events()
+        if session_key:
+            events = amber_store.get_pending_events(session_key, status="pending")
+        else:
+            rows = amber_store._conn.execute(
+                "SELECT * FROM pending_amber_events "
+                "WHERE status = 'pending' ORDER BY issued_at DESC"
+            ).fetchall()
+            events = [dict(r) for r in rows]
+        return JSONResponse(
+            status_code=200,
+            content={"challenges": events, "count": len(events)},
+        )
+
+    @app.post("/v1/amber/resolve")
+    async def amber_resolve(request: Request):
+        """Resolve an amber challenge: allow or deny."""
+        try:
+            body = await request.json()
+        except Exception:
+            error = ErrorResponse(
+                code="SCHEMA_INVALID",
+                message="Request body is not valid JSON.",
+            )
+            return JSONResponse(status_code=422, content=error.to_wire())
+
+        challenge_id = body.get("challengeId", "") if isinstance(body, dict) else ""
+        decision = body.get("decision", "") if isinstance(body, dict) else ""
+
+        if not challenge_id or decision not in ("allow", "deny"):
+            error = ErrorResponse(
+                code="BAD_REQUEST",
+                message="Required: challengeId, decision (allow|deny)",
+            )
+            return JSONResponse(status_code=400, content=error.to_wire())
+
+        amber_store.expire_stale_events()
+
+        pending = amber_store.get_pending_event(challenge_id)
+        if not pending:
+            error = ErrorResponse(
+                code="NOT_FOUND",
+                message=f"Challenge not found: {challenge_id}",
+            )
+            return JSONResponse(status_code=404, content=error.to_wire())
+
+        if pending["status"] != "pending":
+            error = ErrorResponse(
+                code="ALREADY_RESOLVED",
+                message=f"Challenge already {pending['status']}",
+            )
+            return JSONResponse(status_code=409, content=error.to_wire())
+
+        if decision == "deny":
+            amber_store.deny_event(challenge_id)
+            audit_id = event_store.write_pending(
+                session_id=pending["session_id"],
+                tool="amber_resolve",
+                tool_class="control_plane",
+                target=pending["tool_name"],
+                target_canonical=None,
+                parameters={
+                    "challenge_id": challenge_id,
+                    "decision": "deny",
+                },
+                session_tainted=False,
+                trust_state="amber",
+                ghost_mode=False,
+            )
+            event_store.complete_event(
+                event_id=audit_id,
+                status=EventStatus.SUCCESS,
+                duration_ms=0.0,
+                result_summary=f"AMBER DENIED: {pending['tool_name']}",
+            )
+            return JSONResponse(
+                status_code=200,
+                content={"status": "denied", "challengeId": challenge_id},
+            )
+
+        # decision == "allow"
+        jti = f"dash_{uuid.uuid4().hex}"
+        ok, reason = amber_store.validate_and_apply(
+            jti=jti,
+            event_id=challenge_id,
+            pattern_id=pending["pattern_id"],
+            challenge_nonce=pending["challenge_nonce"],
+            challenge_seq=pending["challenge_seq"],
+            action_hash=pending["action_hash"],
+            risk_tier=pending["risk_tier"],
+            presented_capsule_hash=pending["risk_capsule_hash"],
+            session_id=pending["session_id"],
+        )
+
+        if not ok:
+            error = ErrorResponse(
+                code="RESOLVE_FAILED",
+                message=reason or "Validation failed",
+            )
+            return JSONResponse(status_code=409, content=error.to_wire())
+
+        audit_id = event_store.write_pending(
+            session_id=pending["session_id"],
+            tool="amber_resolve",
+            tool_class="control_plane",
+            target=pending["tool_name"],
+            target_canonical=None,
+            parameters={
+                "challenge_id": challenge_id,
+                "decision": "allow",
+            },
+            session_tainted=False,
+            trust_state="amber",
+            ghost_mode=False,
+        )
+        event_store.complete_event(
+            event_id=audit_id,
+            status=EventStatus.SUCCESS,
+            duration_ms=0.0,
+            result_summary=f"AMBER APPROVED: {pending['tool_name']}",
+        )
+        return JSONResponse(
+            status_code=200,
+            content={"status": "approved", "challengeId": challenge_id},
+        )
+
     return app
 
 
@@ -803,6 +1070,7 @@ def _resolve_session(
     sessions: dict[str, Session],
     session_key: str,
     config: UnwindConfig,
+    principal_map: dict[str, str] | None = None,
 ) -> Session:
     """Resolve or create a Session for the given session_key.
 
@@ -810,14 +1078,30 @@ def _resolve_session(
     - In enforce mode, missing session should block. But for the initial
       prototype we auto-create sessions (explicit binding API comes next).
     - Session keyed by session_key from adapter.
+    - principal_map: server-side session-to-context binding from policy.json.
     """
     if session_key not in sessions:
+        # Derive principal_context from server-side map (never caller-supplied)
+        _ctx = (principal_map or {}).get(session_key)
         session = Session(
             session_id=session_key,
             config=config,
+            principal_context=_ctx,
         )
         sessions[session_key] = session
     return sessions[session_key]
+
+
+def _derive_source_type(session: Session) -> str:
+    """Derive source_type from server-attested session metadata.
+
+    Provenance is server-trusted — never read from the request body.
+    principal_context is set server-side from policy.json session_principal_map.
+    """
+    ctx = session.principal_context
+    if ctx in ("cron", "system"):
+        return ctx
+    return "user"
 
 
 def _extract_target(params: dict) -> Optional[str]:
@@ -961,6 +1245,7 @@ def _record_sidecar_event(
     session: Session,
     request: PolicyCheckRequest,
     result: Any,
+    challenge_id: Optional[str] = None,
 ) -> None:
     """Record a sidecar policy decision into EventStore for dashboard APIs.
 
@@ -1016,11 +1301,15 @@ def _record_sidecar_event(
                 exc_info=True,
             )
 
+    summary = _event_summary_for_result(result, request.tool_name)
+    if challenge_id is not None:
+        summary = f"{summary} |challenge_id={challenge_id}"
+
     event_store.complete_event(
         event_id=event_id,
         status=_event_status_for_result(result),
         duration_ms=0.0,
-        result_summary=_event_summary_for_result(result, request.tool_name),
+        result_summary=summary,
     )
 
 
@@ -1032,7 +1321,7 @@ def _map_pipeline_result(result) -> PolicyCheckResponse:
         BLOCK → block
         KILL  → block (with kill reason)
         AMBER → challenge_required
-        GHOST → allow (ghost handling is transparent to adapter)
+        GHOST → block (dry-run — write recorded in shadow VFS only)
     """
     if result.action == CheckResult.ALLOW:
         return PolicyCheckResponse(decision=PolicyDecision.ALLOW)
@@ -1058,8 +1347,12 @@ def _map_pipeline_result(result) -> PolicyCheckResponse:
         )
 
     if result.action == CheckResult.GHOST:
-        # Ghost Mode: transparent to adapter — looks like allow
-        return PolicyCheckResponse(decision=PolicyDecision.ALLOW)
+        # Ghost Mode: block the real call — write was recorded
+        # in the shadow VFS by the pipeline, nothing should execute
+        return PolicyCheckResponse(
+            decision=PolicyDecision.BLOCK,
+            block_reason="GHOST_MODE_BLOCK",
+        )
 
     # Unknown action → block (fail-closed)
     return PolicyCheckResponse(

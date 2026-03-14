@@ -1,10 +1,94 @@
 """UNWIND configuration — all tuneable parameters in one place."""
 
+import logging
 import os
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import FrozenSet, Optional, Set
+
+_config_logger = logging.getLogger("unwind.config")
+
+
+# ---------------------------------------------------------------------------
+# Trusted Source Rules (scoped taint relaxation)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class TrustedSourceRule:
+    """A validated rule for scoped taint relaxation.
+
+    All three dimensions (source_types, tools, domains) must match for the
+    rule to apply.  Empty default on UnwindConfig — operators opt in via
+    policy.json.
+    """
+    rule_id: str                    # unique identifier for audit trail
+    source_types: frozenset         # e.g. {"cron", "system"}
+    tools: frozenset                # e.g. {"web_fetch", "web_search"}
+    domains: frozenset              # e.g. {"github.com", "nvd.nist.gov"}
+
+
+def validate_trusted_rules(raw_rules: list) -> list:
+    """Validate raw dicts from policy.json into TrustedSourceRule instances.
+
+    Invalid rules are rejected and logged as warnings — fail closed.
+    Returns only valid rules.
+    """
+    valid = []
+    if not isinstance(raw_rules, list):
+        _config_logger.warning(
+            "trusted_source_rules: expected list, got %s — ignoring all",
+            type(raw_rules).__name__,
+        )
+        return valid
+
+    for idx, raw in enumerate(raw_rules):
+        if not isinstance(raw, dict):
+            _config_logger.warning(
+                "trusted_source_rules[%d]: expected dict, got %s — skipping",
+                idx, type(raw).__name__,
+            )
+            continue
+
+        rule_id = raw.get("rule_id")
+        source_types = raw.get("source_types")
+        tools = raw.get("tools")
+        domains = raw.get("domains")
+
+        # All fields required and must be non-empty sequences of strings
+        errors = []
+        if not rule_id or not isinstance(rule_id, str):
+            errors.append("rule_id must be a non-empty string")
+        if not source_types or not isinstance(source_types, (list, tuple, set)):
+            errors.append("source_types must be a non-empty list")
+        elif not all(isinstance(s, str) and s for s in source_types):
+            errors.append("source_types entries must be non-empty strings")
+        elif "user" in {s.lower() for s in source_types}:
+            errors.append("source_types must not include 'user' (would bypass taint)")
+        if not tools or not isinstance(tools, (list, tuple, set)):
+            errors.append("tools must be a non-empty list")
+        elif not all(isinstance(t, str) and t for t in tools):
+            errors.append("tools entries must be non-empty strings")
+        if not domains or not isinstance(domains, (list, tuple, set)):
+            errors.append("domains must be a non-empty list")
+        elif not all(isinstance(d, str) and d for d in domains):
+            errors.append("domains entries must be non-empty strings")
+
+        if errors:
+            _config_logger.warning(
+                "trusted_source_rules[%d] (id=%r): rejected — %s",
+                idx, rule_id, "; ".join(errors),
+            )
+            continue
+
+        valid.append(TrustedSourceRule(
+            rule_id=str(rule_id),
+            source_types=frozenset(s.lower() for s in source_types),
+            tools=frozenset(tools),
+            domains=frozenset(d.lower() for d in domains),
+        ))
+
+    return valid
 
 
 @dataclass
@@ -177,6 +261,11 @@ class UnwindConfig:
         "grant_admin_access",
         "override_safety_limits",
     })
+
+    # --- Trusted Source Rules (scoped taint relaxation) ---
+    # Typed rules validated at load. Invalid rules fail closed (rejected + logged).
+    # Empty list = no relaxation (default, backwards-compatible).
+    trusted_source_rules: list = field(default_factory=list)
 
     def is_ghost_intercepted(self, tool_name: str) -> bool:
         """Check if a tool should be intercepted by Ghost Mode.

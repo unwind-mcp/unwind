@@ -73,6 +73,61 @@
     }
     .cadence-dot.anomaly { background: var(--amber); }
 
+    /* ─── Integrity Bar ───────────────────────── */
+    .integrity-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 24px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .integrity-pills {
+      display: flex;
+      gap: 8px;
+      flex: 1;
+    }
+    .integrity-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+    .integrity-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .integrity-dot.green { background: var(--green); }
+    .integrity-dot.amber { background: var(--amber); }
+    .integrity-dot.red { background: var(--red); }
+    .integrity-ts {
+      color: var(--text-dim);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+    .integrity-warning {
+      padding: 6px 24px;
+      font-size: 12px;
+      border-bottom: 1px solid var(--border);
+      line-height: 1.4;
+    }
+    .integrity-warning.warn-amber {
+      background: var(--amber-bg);
+      color: var(--amber);
+    }
+    .integrity-warning.warn-red {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
     /* ─── Ghost Banner ─────────────────────────── */
     .ghost-banner {
       background: rgba(137,87,229,0.12);
@@ -117,6 +172,14 @@
 
     .trust-info h2 { font-size: 20px; font-weight: 600; }
     .trust-info .subtitle { color: var(--text-dim); font-size: 13px; }
+    .trust-guidance {
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      max-width: 620px;
+    }
+    .trust-guidance.amber { color: var(--amber); }
+    .trust-guidance.red { color: var(--red); }
     .trust-stats {
       margin-left: auto;
       display: flex;
@@ -196,6 +259,7 @@
     .timeline-event:hover { background: var(--surface-2); }
     .timeline-event.ghost { opacity: 0.7; border-left: 3px solid var(--ghost); }
     .timeline-event.blocked { border-left: 3px solid var(--red); }
+    .timeline-event.approval { border-left: 3px solid var(--amber); }
     .timeline-event.tainted { border-left: 3px solid var(--amber); }
 
     .event-time {
@@ -221,13 +285,25 @@
       padding: 1px 6px;
       border-radius: 10px;
       font-weight: 600;
-      text-transform: uppercase;
+      text-transform: none;
       letter-spacing: 0.5px;
     }
     .badge.green { background: var(--green-bg); color: var(--green); }
     .badge.amber { background: var(--amber-bg); color: var(--amber); }
     .badge.red { background: var(--red-bg); color: var(--red); }
     .badge.ghost { background: rgba(137,87,229,0.15); color: var(--ghost); }
+    .badge.approval { background: var(--amber-bg); color: var(--amber); }
+    .badge.info { background: var(--info-bg); color: var(--blue); }
+
+    .amber-btn {
+      font-size: 11px; padding: 2px 10px; border-radius: 4px;
+      cursor: pointer; font-weight: 600; border: 1.5px solid;
+      background: transparent; margin-left: 4px;
+    }
+    .amber-btn.allow { color: var(--green); border-color: var(--green); }
+    .amber-btn.allow:hover { background: var(--green-bg); }
+    .amber-btn.deny { color: var(--red); border-color: var(--red); }
+    .amber-btn.deny:hover { background: var(--red-bg); }
 
     .event-actions {
       display: flex;
@@ -245,6 +321,95 @@
       transition: all 0.15s;
     }
     .undo-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--blue); }
+    .undo-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      border-color: var(--border);
+      color: var(--text-dim);
+    }
+    .undo-btn.danger {
+      border-color: var(--red);
+      color: var(--red);
+    }
+    .undo-btn.danger:hover {
+      background: var(--red-bg);
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .undo-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .undo-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+      color: var(--text-dim);
+      font-size: 12px;
+    }
+    .undo-bulk-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .undo-filters {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-dim);
+      flex-wrap: wrap;
+    }
+    .undo-filters label { display: inline-flex; gap: 6px; align-items: center; }
+    .undo-select {
+      min-width: 320px;
+      max-width: 520px;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+    .undo-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .undo-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      background: var(--surface-2);
+    }
+    .undo-row.restored {
+      opacity: 0.75;
+      border-style: dashed;
+    }
+    .undo-path {
+      font-size: 13px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 560px;
+    }
+    .undo-meta {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
 
     .status-icon { font-size: 14px; min-width: 20px; text-align: center; }
 
@@ -460,6 +625,66 @@
     }
     .about-detail-item strong { color: var(--text); }
 
+    /* ─── Ghost Mode Tab ─────────────────────────── */
+    .ghost-tab-wrapper { position: relative; }
+    .ghost-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 48px; font-weight: 800; color: var(--ghost); opacity: 0.06; pointer-events: none; white-space: nowrap; z-index: 1; letter-spacing: 6px; text-transform: uppercase; user-select: none; }
+    .ghost-footer { background: rgba(137,87,229,0.08); border: 1px solid rgba(137,87,229,0.2); border-radius: 6px; padding: 10px 16px; text-align: center; font-size: 12px; color: var(--ghost); margin-top: 24px; }
+    .ghost-status-card { background: var(--surface); border: 2px solid var(--border); border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; position: relative; z-index: 2; }
+    .ghost-status-card.active { border-color: var(--ghost); animation: ghost-pulse-border 3s ease-in-out infinite; }
+    .ghost-status-card.ended { border-color: var(--ghost); }
+    @keyframes ghost-pulse-border { 0%, 100% { border-color: var(--ghost); box-shadow: 0 0 0 0 rgba(137,87,229,0); } 50% { border-color: var(--purple); box-shadow: 0 0 12px rgba(137,87,229,0.15); } }
+    .ghost-lifecycle { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-dim); margin-bottom: 12px; }
+    .ghost-lifecycle .step { padding: 2px 8px; border-radius: 10px; }
+    .ghost-lifecycle .step.current { background: rgba(137,87,229,0.15); color: var(--ghost); font-weight: 600; }
+    .ghost-lifecycle .arrow { color: var(--border); }
+    .ghost-status-label { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .ghost-status-sub { font-size: 13px; color: var(--text-dim); }
+    .ghost-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ghost); margin-right: 6px; animation: ghost-dot-pulse 1.5s ease-in-out infinite; }
+    @keyframes ghost-dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .ghost-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .ghost-btn { padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid; transition: all 0.15s; }
+    .ghost-btn.toggle-on { border-color: var(--ghost); background: rgba(137,87,229,0.12); color: var(--ghost); }
+    .ghost-btn.toggle-on:hover { background: rgba(137,87,229,0.2); }
+    .ghost-btn.toggle-off { border-color: var(--border); background: var(--surface-2); color: var(--text-dim); }
+    .ghost-btn.toggle-off:hover { background: var(--surface); color: var(--text); }
+    .ghost-btn.approve { border-color: var(--green); background: rgba(63,185,80,0.1); color: var(--green); }
+    .ghost-btn.approve:hover { background: rgba(63,185,80,0.2); }
+    .ghost-btn.discard { border-color: var(--red); background: rgba(248,81,73,0.1); color: var(--red); }
+    .ghost-btn.discard:hover { background: rgba(248,81,73,0.2); }
+    .ghost-files-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; position: relative; z-index: 2; }
+    .ghost-files-panel h4 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+    .ghost-file-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .ghost-file-row:last-child { border-bottom: none; }
+    .ghost-file-icon { color: var(--ghost); font-size: 14px; }
+    .ghost-file-path { flex: 1; color: var(--text); font-family: monospace; font-size: 12px; }
+    .ghost-summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 16px; text-align: center; position: relative; z-index: 2; }
+    .ghost-summary-text { font-size: 16px; line-height: 1.7; }
+    .ghost-summary-text strong { color: var(--text); }
+    .ghost-summary-reassurance { font-size: 15px; font-weight: 600; color: var(--green); margin-top: 8px; }
+    .ghost-timeline-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-bottom: 2px; border-radius: 6px; overflow: hidden; position: relative; z-index: 2; }
+    .ghost-timeline-row.intercepted { border-left: 3px solid var(--ghost); }
+    .ghost-timeline-row.passed { border-left: 3px solid var(--green); }
+    .ghost-tl-cell { padding: 10px 14px; font-size: 13px; background: var(--surface); }
+    .ghost-tl-cell.result { background: var(--surface-2); }
+    .ghost-tl-cell .tl-tool { font-weight: 600; font-size: 12px; }
+    .ghost-tl-cell .tl-target { color: var(--text-dim); font-size: 12px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ghost-tl-cell .tl-outcome { color: var(--text-dim); font-size: 12px; }
+    .ghost-tl-header { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-bottom: 4px; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; padding: 0 14px; }
+    .ghost-stage-badge { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 600; margin-left: 6px; }
+    .ghost-stage-badge.safe { background: var(--green-bg); color: var(--green); }
+    .ghost-stage-badge.violation { background: var(--amber-bg); color: var(--amber); }
+    .ghost-egress-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; position: relative; z-index: 2; }
+    .ghost-egress-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+    .ghost-egress-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; color: var(--text-dim); }
+    .tab.active[data-tab="ghost"] { border-bottom-color: var(--ghost); }
+    .ghost-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 200; display: flex; align-items: center; justify-content: center; }
+    .ghost-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; max-width: 480px; width: 90%; }
+    .ghost-modal h3 { font-size: 16px; margin-bottom: 12px; }
+    .ghost-modal p { font-size: 13px; color: var(--text-dim); margin-bottom: 8px; }
+    .ghost-modal .file-list { font-family: monospace; font-size: 12px; background: var(--surface-2); border-radius: 4px; padding: 10px; margin: 10px 0; max-height: 200px; overflow-y: auto; }
+    .ghost-modal .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+    .ghost-session-select { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: 12px; color: var(--text); margin-bottom: 12px; }
+
     /* ─── Empty State ──────────────────────────── */
     .empty-state {
       text-align: center;
@@ -478,14 +703,14 @@
 <body>
 
   <div class="header">
-    <h1>UNWIND <span>See Everything. Undo Anything. Test Anything Safely.</span></h1>
+    <h1>UNWIND <span>See Everything. Rewind File Changes. Test Without Consequences.</span></h1>
     <div class="header-right">
       <span id="cadence-pill" class="cadence-pill hidden">
         <span id="cadence-dot" class="cadence-dot"></span>
         <span id="cadence-label">Active</span>
       </span>
       <span id="chain-badge" class="badge green" style="font-size:11px;cursor:pointer;" onclick="verifyChain()" title="Click to verify">&#x1f512; Chain OK</span>
-      <span id="poll-indicator" style="font-size:10px;color:var(--text-dim);">&#x25cf; Live</span>
+      <span id="poll-indicator" style="font-size:10px;color:var(--text-dim);" title="Dashboard polling is expected: your browser requests /api/trust-state, /api/events, /api/cadence-state, and /api/system-health on a timer.">&#x25cf; Live</span>
     </div>
   </div>
 
@@ -510,11 +735,12 @@
 
   <!-- Trust Light -->
   <div class="trust-light">
-    <img src="{{ url_for('static', filename='logo.png') }}" alt="UNWIND" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
+    <img src="{{ url_for('static', filename='logo.jpg') }}" alt="UNWIND" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
     <div id="trust-orb" class="trust-orb green"></div>
     <div class="trust-info">
       <h2 id="trust-label">All Clear</h2>
       <div class="subtitle" id="trust-subtitle">Loading...</div>
+      <div id="trust-guidance" class="trust-guidance hidden"></div>
     </div>
     <div class="trust-stats">
       <div class="stat">
@@ -531,10 +757,30 @@
       </div>
       <div class="stat">
         <div class="stat-value" id="stat-tainted">&mdash;</div>
-        <div class="stat-label" title="Actions from sessions that ingested external content">Cautious</div>
+        <div class="stat-label" title="Actions from sessions that used external content">Cautious</div>
       </div>
     </div>
   </div>
+
+  <!-- System Integrity Bar -->
+  <div id="integrity-bar" class="integrity-bar">
+    <div class="integrity-pills">
+      <span class="integrity-pill" id="pill-sidecar">
+        <span class="integrity-dot" id="dot-sidecar"></span>
+        <span id="label-sidecar">Sidecar: Checking...</span>
+      </span>
+      <span class="integrity-pill" id="pill-pipeline">
+        <span class="integrity-dot" id="dot-pipeline"></span>
+        <span id="label-pipeline">Pipeline: Checking...</span>
+      </span>
+      <span class="integrity-pill" id="pill-chain">
+        <span class="integrity-dot" id="dot-chain"></span>
+        <span id="label-chain">Chain: Checking...</span>
+      </span>
+    </div>
+    <span class="integrity-ts" id="integrity-ts"></span>
+  </div>
+  <div id="integrity-warning" class="integrity-warning hidden"></div>
 
   <!-- Contextual Explanation Panel -->
   <div id="explanation-panel" class="explanation-panel hidden">
@@ -548,9 +794,11 @@
   <!-- Tabs -->
   <div class="tab-bar">
     <div class="tab active" data-tab="timeline" onclick="switchTab('timeline')">Timeline</div>
-    <div class="tab" data-tab="away" onclick="switchTab('away')">Away Mode</div>
-    <div class="tab" data-tab="verify" onclick="switchTab('verify')">Chain Verify</div>
-    <div class="tab" data-tab="about" onclick="switchTab('about')">What Is This?</div>
+    <div class="tab" data-tab="ghost" onclick="switchTab('ghost')">Ghost Mode</div>
+    <div class="tab" data-tab="away" onclick="switchTab('away')">While You Were Away</div>
+    <div class="tab" data-tab="verify" onclick="switchTab('verify')">Verify History</div>
+    <div class="tab" data-tab="undo" onclick="switchTab('undo')">Rewind</div>
+    <div class="tab" data-tab="about" onclick="switchTab('about')">How It Works</div>
   </div>
 
   <!-- Content Panels -->
@@ -558,6 +806,47 @@
     <!-- Timeline -->
     <div id="panel-timeline">
       <div id="timeline-container" class="loading">Loading events...</div>
+    </div>
+
+    <!-- Ghost Mode -->
+    <div id="panel-ghost" class="hidden">
+      <div class="ghost-tab-wrapper">
+        <div class="ghost-watermark">SIMULATED &mdash; NO CHANGES MADE</div>
+        <div id="ghost-session-selector" class="hidden">
+          <select id="ghost-session-select" class="ghost-session-select" onchange="ghostSelectSession(this.value)"></select>
+        </div>
+        <div id="ghost-status-card" class="ghost-status-card">
+          <div class="ghost-lifecycle" id="ghost-lifecycle">
+            <span class="step current" id="gl-off">OFF</span><span class="arrow">&rarr;</span>
+            <span class="step" id="gl-running">RUNNING</span><span class="arrow">&rarr;</span>
+            <span class="step" id="gl-ended">ENDED</span><span class="arrow">&rarr;</span>
+            <span class="step" id="gl-reviewed">REVIEWED</span>
+          </div>
+          <div class="ghost-status-label" id="ghost-status-label">Ghost Mode is off. Your agent's actions are live.</div>
+          <div class="ghost-status-sub" id="ghost-status-sub"></div>
+          <div class="ghost-actions" id="ghost-actions">
+            <button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>
+          </div>
+        </div>
+        <div id="ghost-files-panel" class="ghost-files-panel hidden">
+          <h4>Files your agent wrote to the sandbox</h4>
+          <div id="ghost-files-list"><div style="color:var(--text-dim);font-size:13px;">No files buffered yet. Your agent's writes will appear here.</div></div>
+        </div>
+        <div id="ghost-summary-card" class="ghost-summary-card hidden">
+          <div class="ghost-summary-text" id="ghost-summary-text"></div>
+          <div class="ghost-summary-reassurance" id="ghost-summary-reassurance"></div>
+        </div>
+        <div id="ghost-timeline-section" class="hidden" style="position:relative;z-index:2;">
+          <div class="ghost-tl-header"><div>What the agent tried to do</div><div>What actually happened</div></div>
+          <div id="ghost-timeline-rows"></div>
+        </div>
+        <div id="ghost-egress-card" class="ghost-egress-card hidden">
+          <h4>Network Activity</h4>
+          <div id="ghost-egress-sub"></div>
+          <div id="ghost-egress-list"></div>
+        </div>
+        <div id="ghost-footer" class="ghost-footer">When Ghost Mode is active, all writes are intercepted. Nothing reaches your real system.</div>
+      </div>
     </div>
 
     <!-- Away Mode -->
@@ -575,6 +864,11 @@
       </div>
     </div>
 
+    <!-- Rewind -->
+    <div id="panel-undo" class="hidden">
+      <div id="undo-container" class="loading">Loading restorable snapshots...</div>
+    </div>
+
     <!-- About -->
     <div id="panel-about" class="hidden">
 
@@ -583,7 +877,7 @@
           <span class="about-icon">&#x1f6e1;&#xfe0f;</span>
           <h3>UNWIND</h3>
         </div>
-        <div class="about-tagline">See Everything. Undo Anything. Test Anything Safely.</div>
+        <div class="about-tagline">See Everything. Rewind File Changes. Test Without Consequences.</div>
         <p>UNWIND is a security layer that sits between your AI agent and the tools it uses. Every tool call &mdash; reading a file, sending an email, running a command &mdash; passes through a 15-stage enforcement pipeline before it reaches the real world.</p>
         <p>If something looks wrong, UNWIND blocks it. If something goes through and you change your mind, UNWIND can undo it. If you want to test something risky, UNWIND can simulate it without consequences.</p>
         <p>No AI in the security path. Every check is deterministic. The agent doesn't know UNWIND exists.</p>
@@ -664,7 +958,7 @@
 
   const TRUST_LABELS = {
     green: 'All Clear',
-    amber: 'Attention Required',
+    amber: 'Review Recommended',
     red: 'Alert',
   };
 
@@ -691,12 +985,25 @@
       const label = document.getElementById('trust-label');
       const subtitle = document.getElementById('trust-subtitle');
 
-      orb.className = 'trust-orb ' + data.trust_state;
-      label.textContent = TRUST_LABELS[data.trust_state] || data.trust_state;
+      const orbState = data.orb_state || data.trust_state;
+      orb.className = 'trust-orb ' + orbState;
+      label.textContent = TRUST_LABELS[orbState] || orbState;
+
+      const guidance = document.getElementById('trust-guidance');
+      if (orbState === 'amber') {
+        guidance.textContent = "This session used content from outside your workspace. Any risky actions will ask for approval first. Check the timeline to review what happened.";
+        guidance.className = 'trust-guidance amber';
+      } else if (orbState === 'red') {
+        guidance.textContent = 'Something was blocked. Check the red events in the timeline. In most cases no action is needed — the block already happened. If you see attempts to disable security, end the session immediately.';
+        guidance.className = 'trust-guidance red';
+      } else {
+        guidance.textContent = '';
+        guidance.className = 'trust-guidance hidden';
+      }
 
       const h = data.last_hour;
       let subtitleText =
-        `${h.total} actions in the last hour` +
+        (h.total === 0 ? 'Quiet for the last hour' : `${h.total} actions in the last hour`) +
         (h.blocked > 0 ? ` \u2022 ${h.blocked} blocked` : '') +
         (h.tainted > 0 ? ` \u2022 ${h.tainted} tainted` : '');
       if (data.taint_level) {
@@ -755,6 +1062,99 @@
     }
   }
 
+  // ─── System Integrity Bar ────────────────────
+  function setIntegrityPill(id, color, label) {
+    const dot = document.getElementById('dot-' + id);
+    const lbl = document.getElementById('label-' + id);
+    dot.className = 'integrity-dot ' + color;
+    lbl.textContent = label;
+  }
+
+  function formatAge(seconds) {
+    if (seconds == null) return 'n/a';
+    if (seconds < 60) return Math.round(seconds) + 's';
+    if (seconds < 3600) return Math.round(seconds / 60) + 'm';
+    return Math.round(seconds / 3600) + 'h';
+  }
+
+  async function refreshIntegrity() {
+    const warningDiv = document.getElementById('integrity-warning');
+    const tsSpan = document.getElementById('integrity-ts');
+
+    try {
+      const res = await fetch('/api/system-health');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+
+      // --- Sidecar pill ---
+      const sc = data.sidecar;
+      if (!sc.connected) {
+        setIntegrityPill('sidecar', 'red', 'Sidecar: Unreachable');
+      } else if (sc.watchdog_stale) {
+        setIntegrityPill('sidecar', 'amber', 'Sidecar: Watchdog Stale');
+      } else if (sc.status === 'degraded') {
+        setIntegrityPill('sidecar', 'amber', 'Sidecar: Degraded');
+      } else {
+        setIntegrityPill('sidecar', 'green', 'Sidecar: Connected');
+      }
+
+      // --- Pipeline pill ---
+      const es = data.event_store;
+      if (!es.connected) {
+        setIntegrityPill('pipeline', 'red', 'Pipeline: DB Error');
+      } else if (es.stale) {
+        setIntegrityPill('pipeline', 'amber', 'Pipeline: No events for ' + formatAge(es.last_event_age));
+      } else {
+        const calls = sc.tool_calls_processed != null ? sc.tool_calls_processed : es.total_events;
+        setIntegrityPill('pipeline', 'green', 'Pipeline: ' + calls + ' calls');
+      }
+
+      // --- Chain pill ---
+      const ch = data.craft_chain;
+      if (ch.verified) {
+        setIntegrityPill('chain', 'green', 'Chain: Verified');
+      } else {
+        setIntegrityPill('chain', 'red', 'Chain: Tamper Detected');
+      }
+
+      // --- Warning text ---
+      const warnings = [];
+      if (!sc.connected) {
+        warnings.push('Dashboard cannot reach the sidecar. Agent actions are not being monitored. Events shown may be stale.');
+      }
+      if (sc.watchdog_stale) {
+        warnings.push('Sidecar watchdog is stale. The adapter may have stopped sending policy checks.');
+      }
+      if (es.stale) {
+        warnings.push('No activity for 5+ minutes while a session is still open. If you expected activity, try a quick test action to check the connection; if you are idle, run one test action to confirm.');
+      }
+      if (!ch.verified && ch.error) {
+        warnings.push('CRAFT chain integrity check failed: ' + ch.error + '. Investigate immediately.');
+      }
+
+      if (warnings.length > 0) {
+        warningDiv.textContent = warnings.join(' ');
+        warningDiv.className = 'integrity-warning ' + (data.overall === 'disconnected' ? 'warn-red' : 'warn-amber');
+        warningDiv.classList.remove('hidden');
+      } else {
+        warningDiv.classList.add('hidden');
+      }
+
+      // --- Timestamp ---
+      tsSpan.textContent = 'Checked: just now';
+
+    } catch (e) {
+      // Dashboard can't reach its own backend
+      setIntegrityPill('sidecar', 'red', 'Sidecar: Unknown');
+      setIntegrityPill('pipeline', 'red', 'Pipeline: Unknown');
+      setIntegrityPill('chain', 'red', 'Chain: Unknown');
+      warningDiv.textContent = 'Dashboard polling failed. Connection to backend lost.';
+      warningDiv.className = 'integrity-warning warn-red';
+      warningDiv.classList.remove('hidden');
+      tsSpan.textContent = 'Check failed';
+    }
+  }
+
   // ─── Timeline ─────────────────────────────────
   function formatTime(ts) {
     const d = new Date(ts * 1000);
@@ -771,40 +1171,97 @@
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  function classifySession(sessionId, event = null) {
+    if (event && event.session_source_short && event.session_source_long) {
+      return { short: event.session_source_short, long: event.session_source_long };
+    }
+    if (!sessionId) return { short: 'unknown', long: 'Unknown session source' };
+    if (sessionId === 'agent:main:main') return { short: 'this-session', long: 'Current chat session (agent:main:main)' };
+    if (sessionId.includes(':cron:')) return { short: 'scheduled', long: `Scheduled run (${sessionId})` };
+    if (sessionId.includes(':subagent:')) return { short: 'subagent', long: `Sub-agent session (${sessionId})` };
+    if (sessionId.startsWith('sentinel:')) return { short: sessionId.length > 24 ? sessionId.slice(0, 23) + '…' : sessionId, long: `Scheduled task (${sessionId})` };
+    if (sessionId.startsWith('agent:')) return { short: 'agent', long: `Agent session (${sessionId})` };
+    return { short: 'Session', long: `Session: ${sessionId}` };
+  }
+
+  function eventNeedsApproval(event) {
+    if (!event) return false;
+    if (event.approval_required === true) return true;
+    const summary = String(event.result_summary || '').toUpperCase();
+    if (summary.startsWith('AMBER:')) return true;
+    return event.status === 'blocked' && event.trust_state === 'amber';
+  }
+
+  const TOOL_LABELS = {
+    fetch_web: 'Fetched a webpage',
+    web_fetch: 'Fetched a webpage',
+    fs_read: 'Read a file',
+    fs_write: 'Wrote to a file',
+    fs_delete: 'Deleted a file',
+    http_post: 'Sent an HTTP request',
+    http_get: 'Sent an HTTP request',
+    shell_exec: 'Ran a shell command',
+    bash_exec: 'Ran a shell command',
+    exec_process: 'Ran a process',
+    send_email: 'Sent an email',
+    disable_security_audit: 'Tried to disable security',
+    mcp_tool_call: 'Called an MCP tool',
+    exec: 'Ran a command',
+    browser: 'Opened a browser',
+    nodes: 'Accessed nodes',
+    search_web: 'Searched the web',
+    memory_search: 'Searched memory',
+    session_status: 'Checked session',
+    web_search: 'Searched the web',
+    api_call: 'Made an API call',
+  };
+
   function renderEvent(event) {
     const icon = TOOL_ICONS[event.tool] || '&#x2022;';
     const statusIcon = STATUS_ICONS[event.status] || '';
     const classes = ['timeline-event'];
+    const needsApproval = eventNeedsApproval(event);
     if (event.ghost_mode) classes.push('ghost');
     if (event.status === 'blocked' || event.trust_state === 'red') classes.push('blocked');
+    if (needsApproval) classes.push('approval');
     if (event.session_tainted) classes.push('tainted');
 
     const badges = [];
-    if (event.trust_state === 'amber') badges.push('<span class="badge amber">amber</span>');
-    if (event.trust_state === 'red') badges.push('<span class="badge red">red</span>');
-    if (event.ghost_mode) badges.push('<span class="badge ghost">ghost</span>');
-    if (event.status === 'blocked') badges.push('<span class="badge red">blocked</span>');
+    if (event.trust_state === 'amber') badges.push('<span class="badge amber">Needs Review</span>');
+    if (event.trust_state === 'red') badges.push('<span class="badge red">Threat</span>');
+    if (event.ghost_mode) badges.push('<span class="badge ghost">Simulated</span>');
+    if (event.status === 'blocked') badges.push('<span class="badge red">Blocked</span>');
+    if (needsApproval) badges.push('<span class="badge approval" title="Action paused pending human review">Awaiting Approval</span>');
+    const source = classifySession(event.session_id, event);
+    badges.push(`<span class="badge info" title="${escapeHtml(source.long)}">${escapeHtml(source.short)}</span>`);
 
-    const SNAPSHOT_TOOLS = new Set([
-      'fs_write','fs_delete','fs_rename','fs_mkdir','fs_move','fs_copy',
-      'write_file','delete_file','rename_file','move_file','create_directory',
-      'edit','apply_patch'
-    ]);
-    const hasSnapshot = SNAPSHOT_TOOLS.has(event.tool) && event.status === 'success';
-    const eid = escapeHtml(event.event_id);
+    const hasSnapshot = !!event.has_snapshot;
+    const rolledBack = !!event.rolled_back;
+    const eidRaw = event.event_id || '';
+    const eid = escapeHtml(eidRaw);
 
     return `
       <div class="${classes.join(' ')}" onclick="toggleEventDetail('${eid}', event)">
         <div class="event-time">${formatTime(event.timestamp)}</div>
         <div class="event-icon">${icon}</div>
         <div class="event-body">
-          <div class="event-tool">${escapeHtml(event.tool)}</div>
+          <div class="event-tool" title="${escapeHtml(event.tool)}">${escapeHtml(TOOL_LABELS[event.tool] || event.tool)}</div>
           <div class="event-target" title="${escapeHtml(event.target)}">${escapeHtml(truncTarget(event.target))}</div>
           ${event.result_summary ? `<div class="event-target">${escapeHtml(truncTarget(event.result_summary, 80))}</div>` : ''}
           <div class="event-badges">${badges.join('')}</div>
         </div>
         <div class="event-actions">
-          ${hasSnapshot ? `<button class="undo-btn" onclick="event.stopPropagation();undoEvent('${eid}')">&#x21a9;&#xfe0f; Undo</button>` : ''}
+          ${(() => {
+            const s = event.result_summary || '';
+            const m = s.match(/\|challenge_id=([\w_]+)/);
+            if (m && event.trust_state === 'amber' && event.status === 'blocked') {
+              return '<button class="amber-btn allow" onclick="event.stopPropagation();resolveAmber(\'' + m[1] + '\',\'allow\')" title="Allow this action">Allow</button>' +
+                     '<button class="amber-btn deny" onclick="event.stopPropagation();resolveAmber(\'' + m[1] + '\',\'deny\')" title="Deny this action">Deny</button>';
+            }
+            return '';
+          })()}
+          ${hasSnapshot && !rolledBack ? `<button class="undo-btn" onclick="event.stopPropagation();undoEvent('${eidRaw}')" title="Restore from snapshot">&#x21a9;&#xfe0f; Rewind</button>` : ''}
+          ${hasSnapshot && rolledBack ? `<button class="undo-btn" disabled title="Already restored">&#x2705; Restored</button>` : ''}
         </div>
         <div class="status-icon">${statusIcon}</div>
       </div>
@@ -838,6 +1295,7 @@
       const data = await api(`/api/events/${eventId}`);
       const ev = data.event;
       const ex = data.explanation;
+      const snapshot = data.snapshot;
 
       let explanationHtml = '';
       if (ex) {
@@ -852,17 +1310,54 @@
           </div>`;
       }
 
+      const needsApproval = eventNeedsApproval(ev);
+      const approvalContext = ev.scheduled_job_name || ev.scheduled_job_id || null;
+      const approvalDetail = approvalContext
+        ? `This action came from scheduled task <strong>${escapeHtml(approvalContext)}</strong> and is paused pending review.`
+        : 'This action is paused pending human review.';
+      const approvalHtml = needsApproval
+        ? `<div class="edp-section"><div class="edp-label">Approval required</div><div class="edp-explanation severity-warning"><div style="font-weight:600;">Human approval needed before execution</div><div style="margin-top:4px;color:var(--text-dim);">${approvalDetail}</div><div style="margin-top:6px;color:var(--blue);font-size:12px;">Approve or deny from the controlling session. If this keeps recurring, adjust the scheduled task or policy.</div></div></div>`
+        : '';
+
+      let snapshotHtml = '';
+      if (snapshot) {
+        const action = snapshotRestoreAction(snapshot);
+        const restored = isRestoredSnapshot(snapshot);
+        const restoredAt = restored && snapshot.rolled_back_at ? formatSnapshotTimestamp(snapshot.rolled_back_at) : null;
+        const actionBtn = restored
+          ? `<button class="undo-btn" disabled>&#x2705; Restored</button>`
+          : `<button class="undo-btn ${action.startsWith('Delete') ? 'danger' : ''}" onclick="event.stopPropagation();undoEventFromSnapshot('${escapeHtml(snapshot.event_id || ev.event_id || '')}')">${action.startsWith('Delete') ? 'Delete' : 'Restore'}</button>`;
+
+        snapshotHtml = `
+          <div class="edp-section">
+            <div class="edp-label">Snapshot status</div>
+            <div class="edp-meta">
+              <div>Type: ${escapeHtml(snapshotTypeLabel(snapshot))}</div>
+              <div>Size: ${escapeHtml(snapshotSizeLabel(snapshot))}</div>
+              <div>Action: ${escapeHtml(action)}</div>
+              <div>Status: ${restored ? `Restored${restoredAt ? ' at ' + restoredAt : ''}` : 'Not restored yet'}</div>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+              ${actionBtn}
+              <button class="undo-btn" onclick="event.stopPropagation();switchTab('undo')">Open Rewind tab</button>
+            </div>
+          </div>`;
+      }
+
       panel.innerHTML = `
         ${ev.result_summary ? `
           <div class="edp-section">
             <div class="edp-label">What happened</div>
             <div>${escapeHtml(ev.result_summary)}</div>
           </div>` : ''}
+        ${approvalHtml}
+        ${snapshotHtml}
         ${explanationHtml}
         <div class="edp-section">
           <div class="edp-label">Metadata</div>
           <div class="edp-meta">
-            <div>Session: ${escapeHtml((ev.session_id || '').substring(0, 12))}...</div>
+            <div>Source: ${escapeHtml(classifySession(ev.session_id, ev).long)}</div>
+            <div>Session ID: ${escapeHtml(ev.session_id || 'n/a')}</div>
             <div>Tool class: ${escapeHtml(ev.tool_class)}</div>
             <div>Duration: ${ev.duration_ms != null ? ev.duration_ms.toFixed(0) + 'ms' : 'n/a'}</div>
             <div>Chain: ${escapeHtml((ev.chain_hash || '').substring(0, 16))}...</div>
@@ -880,6 +1375,7 @@
     try {
       const data = await api('/api/events?limit=100');
       const container = document.getElementById('timeline-container');
+      container.classList.remove('loading');
 
       if (data.events.length === 0) {
         container.innerHTML = `
@@ -916,6 +1412,24 @@
   async function refreshAway() {
     try {
       const data = await api('/api/away-summary');
+
+  function humanizeReason(reason) {
+    if (!reason) return '';
+    let r = reason;
+    // Strip challenge_id
+    r = r.replace(/\|challenge_id=\S+/g, '');
+    // Humanize AMBER prefix
+    r = r.replace(/^AMBER:\s*/, '');
+    // Clean up common technical phrases
+    r = r.replace(/Unrestricted exec \(security=\w+, host=\w+\)/, 'Command execution');
+    r = r.replace(/on tainted session\.?\s*/, 'in a session with external content. ');
+    r = r.replace(/Review command before proceeding\.?/, 'Review before allowing.');
+    r = r.replace(/Tainted session \(level=\w+\) attempting high-risk action\.?/, 'High-risk action in a tainted session.');
+    r = r.replace(/Sources:\s*[\w_,\s]+\.?/, '');
+    r = r.replace(/Permission Denied: System Core Protected \(resolved: [^)]+\)/, 'Blocked: tried to access a protected system file');
+    return r.trim();
+  }
+
       const container = document.getElementById('away-container');
 
       const trustColors = { green: 'var(--green)', amber: 'var(--amber)', red: 'var(--red)' };
@@ -926,8 +1440,8 @@
           <h4 style="margin-top:16px;color:var(--amber);">&#x26a0;&#xfe0f; ${data.review_items.length} item(s) for your review:</h4>
           ${data.review_items.map(item => `
             <div class="review-item">
-              <div class="ri-tool">${TOOL_ICONS[item.tool] || ''} ${escapeHtml(item.tool)} &rarr; ${escapeHtml(truncTarget(item.target, 50))}</div>
-              <div class="ri-reason">${escapeHtml(item.reason)}</div>
+              <div class="ri-tool">${TOOL_ICONS[item.tool] || ''} ${escapeHtml(TOOL_LABELS[item.tool] || item.tool)} &rarr; ${escapeHtml(truncTarget(item.target, 50))}</div>
+              <div class="ri-reason">${escapeHtml(humanizeReason(item.reason))}</div>
             </div>
           `).join('')}
         `;
@@ -959,6 +1473,7 @@
           ` : ''}
         </div>
       `;
+      container.classList.remove('loading');
     } catch (e) {
       console.error('Away summary fetch failed:', e);
     }
@@ -1062,13 +1577,246 @@
   }
 
   // ─── Undo ─────────────────────────────────────
-  async function undoEvent(eventId) {
-    if (!confirm(`Undo event ${eventId}?`)) return;
+  let undoSnapshotsCache = [];
+  let undoShowRestored = false;
+  let undoShowAllSnapshotTypes = false; // false = rewrites-only view
+
+  function formatSnapshotTimestamp(ts) {
+    if (!ts) return 'Unknown time';
+    const d = new Date(ts * 1000);
+    return d.toLocaleString([], {
+      year: 'numeric', month: 'short', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+  }
+
+  function parseSnapshotMeta(snapshot) {
+    try {
+      return snapshot && snapshot.metadata ? JSON.parse(snapshot.metadata) : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function isRestoredSnapshot(snapshot) {
+    return Number(snapshot.rolled_back || 0) === 1;
+  }
+
+  function isNewFileDeleteSnapshot(snapshot) {
+    const t = (snapshot.snapshot_type || '').toLowerCase();
+    const meta = parseSnapshotMeta(snapshot);
+    return (meta.type === 'new_file') || (meta.existed === false) || (t === 'content_only' && !snapshot.snapshot_path && Number(snapshot.original_size || 0) === 0);
+  }
+
+  function snapshotTypeLabel(snapshot) {
+    const t = (snapshot.snapshot_type || '').toLowerCase();
+    if (t === 'file_copy') return 'file_copy';
+    if (t === 'content_only') return 'content_only';
+    if (t === 'json_diff') return 'json_diff';
+    if (t === 'atomic_move') return 'atomic_move';
+    return t || 'unknown';
+  }
+
+  function snapshotRestoreAction(snapshot) {
+    const t = (snapshot.snapshot_type || '').toLowerCase();
+    if (isNewFileDeleteSnapshot(snapshot)) return 'Delete (was a new file)';
+    if (t === 'file_copy') return 'Revert to previous version';
+    if (t === 'json_diff') return 'Revert JSON content';
+    if (t === 'atomic_move') return 'Restore moved file';
+    if (t === 'content_only') return 'Restore previous content';
+    return 'Restore previous state';
+  }
+
+  function snapshotSizeLabel(snapshot) {
+    const n = Number(snapshot.original_size || 0);
+    return Number.isFinite(n) ? formatBytes(n) : 'n/a';
+  }
+
+  function setUndoFilter(kind, checked) {
+    if (kind === 'restored') undoShowRestored = !!checked;
+    if (kind === 'allTypes') undoShowAllSnapshotTypes = !!checked;
+    refreshUndoSnapshots();
+  }
+
+  async function refreshUndoSnapshots() {
+    const container = document.getElementById('undo-container');
+    try {
+      const data = await api('/api/snapshots?limit=500&include_rolled_back=1');
+      const snapshots = data.snapshots || [];
+      undoSnapshotsCache = snapshots;
+      container.classList.remove('loading');
+
+      if (snapshots.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon">&#x21a9;&#xfe0f;</div>
+            <div>No snapshots yet &mdash; UNWIND will save a restore point before every file write your agent makes.</div>
+          </div>`;
+        return;
+      }
+
+      const filtered = snapshots
+        .filter(s => undoShowRestored || !isRestoredSnapshot(s))
+        .filter(s => undoShowAllSnapshotTypes || !isNewFileDeleteSnapshot(s));
+
+      const restorable = filtered.filter(s => !isRestoredSnapshot(s));
+      const restorePoints = restorable.map(s => `
+        <option value="${s.timestamp}">${formatSnapshotTimestamp(s.timestamp)} &mdash; ${escapeHtml(truncTarget(s.original_path || '(unknown path)', 70))}</option>
+      `).join('');
+
+      const hiddenByType = snapshots.filter(s => isNewFileDeleteSnapshot(s)).length;
+      const hiddenByRestored = snapshots.filter(s => isRestoredSnapshot(s)).length;
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="undo-panel">
+            <div class="undo-header">
+              <div>
+                <strong>Snapshots</strong>
+                <div style="margin-top:4px;">0 shown of ${snapshots.length}</div>
+              </div>
+              <div class="undo-filters">
+                <label><input type="checkbox" ${undoShowAllSnapshotTypes ? 'checked' : ''} onchange="setUndoFilter('allTypes', this.checked)"> Include deleted files</label>
+                <label><input type="checkbox" ${undoShowRestored ? 'checked' : ''} onchange="setUndoFilter('restored', this.checked)"> Show already restored</label>
+              </div>
+            </div>
+            <div class="empty-state">
+              <div class="icon">&#x1f50d;</div>
+              <div>No snapshots match current filters.</div>
+              <div style="margin-top:8px;font-size:13px;">Try enabling “Include deleted files” and/or “Show already restored”.</div>
+            </div>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="undo-panel">
+          <div class="undo-header">
+            <div>
+              <strong>Snapshots</strong>
+              <div style="margin-top:4px;">${restorable.length} snapshots available</div>
+              <div style="margin-top:4px;">${hiddenByType > 0 ? hiddenByType + ' deleted files hidden' : ''}${hiddenByRestored > 0 ? ' &bull; ' + hiddenByRestored + ' restored files hidden' : ''}</div>
+            </div>
+            <div class="undo-bulk-controls">
+              <select id="undo-since-select" class="undo-select" ${restorable.length === 0 ? 'disabled' : ''}>
+                ${restorePoints}
+              </select>
+              <button class="undo-btn" ${restorable.length === 0 ? 'disabled' : ''} onclick="undoSinceSelected()">Restore all since selected</button>
+              <div class="undo-filters">
+                <label><input type="checkbox" ${undoShowAllSnapshotTypes ? 'checked' : ''} onchange="setUndoFilter('allTypes', this.checked)"> Show all snapshot types</label>
+                <label><input type="checkbox" ${undoShowRestored ? 'checked' : ''} onchange="setUndoFilter('restored', this.checked)"> Show restored history</label>
+              </div>
+            </div>
+          </div>
+          <div class="undo-list">
+            ${filtered.map(s => {
+              const restored = isRestoredSnapshot(s);
+              const action = snapshotRestoreAction(s);
+              const destructive = action.startsWith('Delete');
+              const restoredAt = restored && s.rolled_back_at ? ` &bull; restored ${formatSnapshotTimestamp(s.rolled_back_at)}` : '';
+              return `
+                <div class="undo-row ${restored ? 'restored' : ''}">
+                  <div style="min-width:0;flex:1;">
+                    <div class="undo-path" title="${escapeHtml(s.original_path || '')}">${escapeHtml(s.original_path || '(unknown path)')}</div>
+                    <div class="undo-meta">
+                      ${formatSnapshotTimestamp(s.timestamp)}
+                      &bull; ${escapeHtml(snapshotSizeLabel(s))}
+                      &bull; ${escapeHtml(action)}
+                      ${restoredAt}
+                    </div>
+                  </div>
+                  <button class="undo-btn ${destructive ? 'danger' : ''}" ${restored ? 'disabled' : ''} onclick="undoEventFromSnapshot('${s.event_id}')">${restored ? 'Restored' : (destructive ? 'Delete' : 'Restore')}</button>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    } catch (e) {
+      container.classList.remove('loading');
+      container.innerHTML = '<div class="empty-state" style="color:var(--red);">Failed to load snapshots</div>';
+      console.error('Snapshots fetch failed:', e);
+    }
+  }
+
+  function getSnapshotByEventId(eventId) {
+    return undoSnapshotsCache.find(s => s.event_id === eventId);
+  }
+
+  async function undoEventFromSnapshot(eventId) {
+    const snapshot = getSnapshotByEventId(eventId);
+    if (snapshot && isRestoredSnapshot(snapshot)) {
+      alert('This snapshot is already restored.');
+      return;
+    }
+
+    const path = snapshot ? (snapshot.original_path || '(unknown path)') : '(unknown path)';
+    const ts = snapshot ? formatSnapshotTimestamp(snapshot.timestamp) : 'the selected time';
+    const action = snapshot ? snapshotRestoreAction(snapshot) : 'Restore previous state';
+    const msg = `This will ${action.toLowerCase()} for:
+
+${path}
+
+Snapshot time: ${ts}
+
+Continue?`;
+    if (!confirm(msg)) return;
+
+    await undoEvent(eventId, { skipConfirm: true });
+  }
+
+  async function undoSinceSelected() {
+    const select = document.getElementById('undo-since-select');
+    if (!select || !select.value) {
+      alert('Select a restore point first.');
+      return;
+    }
+
+    const since = parseFloat(select.value);
+    const ts = formatSnapshotTimestamp(since);
+    if (!confirm(`This will restore all snapshots taken at or after ${ts}. Continue?`)) return;
+
+    try {
+      const result = await apiPost('/api/undo/since', { since });
+      if (result.status === 'success' || result.status === 'partial') {
+        alert(`Bulk restore complete: ${result.restored}/${result.attempted} restored${result.failed ? ` (${result.failed} failed)` : ''}.`);
+        refreshTimeline();
+        refreshUndoSnapshots();
+      } else {
+        alert(`Bulk restore failed: ${result.error || result.message || 'Unknown error'}`);
+      }
+    } catch (e) {
+      alert('Bulk restore error: ' + e.message);
+    }
+  }
+
+  async function resolveAmber(challengeId, decision) {
+    const action = decision === 'allow' ? 'ALLOW' : 'DENY';
+    if (!confirm('Are you sure you want to ' + action + ' this action?')) return;
+    try {
+      const resp = await fetch('/api/amber/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeId, decision }),
+      });
+      const result = await resp.json();
+      if (resp.ok) {
+        alert(action + ': ' + (result.message || 'Done'));
+        refreshTimeline();
+      } else {
+        alert('Error: ' + (result.error || result.detail || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Failed to resolve: ' + e.message);
+    }
+  }
+
+  async function undoEvent(eventId, options = {}) {
+    if (!options.skipConfirm && !confirm(`Undo event ${eventId}?`)) return;
     try {
       const result = await apiPost(`/api/undo/${eventId}`);
       if (result.status === 'success') {
         alert(`Restored: ${result.message}`);
         refreshTimeline();
+        refreshUndoSnapshots();
       } else {
         alert(`Undo failed: ${result.message}`);
       }
@@ -1077,16 +1825,263 @@
     }
   }
 
+  // ─── Ghost Mode ─────────────────────────────
+  let ghostState = { active: false, filesBuffered: 0, paths: [], totalSize: 0, lifecycle: 'off' };
+  let ghostSelectedSession = '';
+  let ghostHasHistory = false;
+  let ghostPollTimer = null;
+  let ghostEventsPollTimer = null;
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  function updateGhostLifecycle(stage) {
+    ['off', 'running', 'ended', 'reviewed'].forEach(s => {
+      document.getElementById('gl-' + s).classList.toggle('current', s === stage);
+    });
+  }
+
+  async function refreshGhostStatus() {
+    try {
+      const url = ghostSelectedSession ? `/api/ghost/status?session=${encodeURIComponent(ghostSelectedSession)}` : '/api/ghost/status';
+      const data = await api(url);
+      const card = document.getElementById('ghost-status-card');
+      const label = document.getElementById('ghost-status-label');
+      const sub = document.getElementById('ghost-status-sub');
+      const actions = document.getElementById('ghost-actions');
+      const filesPanel = document.getElementById('ghost-files-panel');
+
+      if (data.error && !data.ghost_mode) {
+        card.className = 'ghost-status-card';
+        ghostState.active = false;
+        ghostState.lifecycle = 'off';
+        updateGhostLifecycle('off');
+        label.textContent = 'Ghost Mode is off. Your agent\'s actions are live.';
+        sub.textContent = data.error === 'Sidecar unavailable' ? 'Sidecar is not running.' : '';
+        actions.innerHTML = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+        filesPanel.classList.add('hidden');
+        return;
+      }
+
+      const ghostMode = data.ghostMode !== undefined ? data.ghostMode : data.ghost_mode;
+      const buffered = data.filesBuffered !== undefined ? data.filesBuffered : (data.files_buffered || 0);
+      const paths = data.paths || [];
+      const totalSize = data.totalSizeBytes !== undefined ? data.totalSizeBytes : (data.total_size_bytes || 0);
+      ghostState.active = ghostMode;
+      ghostState.filesBuffered = buffered;
+      ghostState.paths = paths;
+      ghostState.totalSize = totalSize;
+
+      if (ghostMode) {
+        card.className = 'ghost-status-card active';
+        ghostState.lifecycle = 'running';
+        updateGhostLifecycle('running');
+        label.innerHTML = '<span class="ghost-dot"></span>Ghost Mode Active' + (buffered > 0 ? ` &mdash; ${buffered} file${buffered !== 1 ? 's' : ''} buffered (${formatBytes(totalSize)})` : '');
+        sub.textContent = 'All writes are being intercepted and simulated.';
+        actions.innerHTML = '<button class="ghost-btn toggle-off" onclick="ghostToggle()">Disable Ghost Mode</button>';
+        filesPanel.classList.remove('hidden');
+        document.getElementById('ghost-files-list').innerHTML = buffered > 0
+          ? paths.map(p => `<div class="ghost-file-row"><span class="ghost-file-icon">&#x1f4c4;</span><span class="ghost-file-path">${escapeHtml(p)}</span></div>`).join('')
+          : '<div style="color:var(--text-dim);font-size:13px;">No files buffered yet. Your agent\'s writes will appear here.</div>';
+      } else if (ghostState.lifecycle === 'running' || buffered > 0 || ghostHasHistory) {
+        card.className = 'ghost-status-card ended';
+        ghostState.lifecycle = 'ended';
+        updateGhostLifecycle('ended');
+        label.textContent = 'Ghost Mode session ended. Review what happened below.';
+        sub.textContent = '';
+        let btns = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+        if (buffered > 0) {
+          btns += ' <button class="ghost-btn approve" onclick="ghostApprove()">Approve All</button>';
+          btns += ' <button class="ghost-btn discard" onclick="ghostDiscard()">Discard All</button>';
+          filesPanel.classList.remove('hidden');
+          document.getElementById('ghost-files-list').innerHTML = paths.map(p => `<div class="ghost-file-row"><span class="ghost-file-icon">&#x1f4c4;</span><span class="ghost-file-path">${escapeHtml(p)}</span></div>`).join('');
+        } else { filesPanel.classList.add('hidden'); }
+        actions.innerHTML = btns;
+      } else {
+        card.className = 'ghost-status-card';
+        ghostState.lifecycle = 'off';
+        updateGhostLifecycle('off');
+        label.textContent = 'Ghost Mode is off. Your agent\'s actions are live.';
+        sub.textContent = '';
+        actions.innerHTML = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+        filesPanel.classList.add('hidden');
+      }
+    } catch (e) { console.error('Ghost status fetch failed:', e); }
+  }
+
+  async function refreshGhostEvents() {
+    try {
+      const data = await api('/api/ghost/events?limit=200');
+      const events = data.events || [];
+      ghostHasHistory = events.length > 0;
+
+      const summaryCard = document.getElementById('ghost-summary-card');
+      const timelineSection = document.getElementById('ghost-timeline-section');
+      const egressCard = document.getElementById('ghost-egress-card');
+      const footer = document.getElementById('ghost-footer');
+
+      if (!ghostState.active && !ghostSelectedSession) {
+        summaryCard.classList.add('hidden');
+        timelineSection.classList.add('hidden');
+        egressCard.classList.add('hidden');
+
+        if (events.length > 0 && ghostState.lifecycle === 'off') {
+          ghostState.lifecycle = 'ended';
+          updateGhostLifecycle('ended');
+        }
+
+        const neverRun = !ghostState.active && events.length === 0 && ghostState.filesBuffered === 0;
+        footer.classList.toggle('hidden', neverRun);
+        return;
+      }
+      if (events.length > 0 && data.summary) {
+        summaryCard.classList.remove('hidden');
+        const summaryHtml = escapeHtml(data.summary).replace(/(\d+ \w+)/g, '<strong>$1</strong>');
+        const reassurance = document.getElementById('ghost-summary-reassurance');
+        if (data.summary.indexOf('None of these happened') >= 0) {
+          document.getElementById('ghost-summary-text').innerHTML = summaryHtml.substring(0, summaryHtml.indexOf('None of these happened'));
+          reassurance.textContent = 'None of these happened. Your system is unchanged.';
+        } else {
+          document.getElementById('ghost-summary-text').innerHTML = summaryHtml;
+          reassurance.textContent = '';
+        }
+      } else { summaryCard.classList.add('hidden'); }
+
+      const timelineRows = document.getElementById('ghost-timeline-rows');
+      if (events.length > 0) {
+        timelineSection.classList.remove('hidden');
+        timelineRows.innerHTML = events.map(ev => {
+          const tool = ev.tool || 'unknown';
+          const target = truncTarget(ev.target || '', 40);
+          const icon = TOOL_ICONS[tool] || '&#x2022;';
+          const stageLabel = ev.interception_label || '';
+          let rowClass = 'intercepted', outcomeText = '', badgeHtml = '';
+          if (ev.status === 'ghost_success' || (ev.result_summary || '').toUpperCase().startsWith('GHOST')) {
+            outcomeText = 'Intercepted &mdash; written to sandbox only';
+            badgeHtml = `<span class="ghost-stage-badge safe">${escapeHtml(stageLabel)}</span>`;
+          } else if (ev.status === 'blocked') {
+            outcomeText = 'Blocked &mdash; ' + escapeHtml(truncTarget(ev.result_summary || '', 50));
+            badgeHtml = `<span class="ghost-stage-badge violation">${escapeHtml(stageLabel)}</span>`;
+          } else if (ev.status === 'success' && (tool.includes('read') || tool === 'fs_read')) {
+            rowClass = 'passed';
+            outcomeText = 'Allowed (read-only)';
+          } else {
+            outcomeText = 'Simulated &mdash; nothing changed';
+            badgeHtml = stageLabel ? `<span class="ghost-stage-badge safe">${escapeHtml(stageLabel)}</span>` : '';
+          }
+          let triedText = `${icon} <span class="tl-tool">${escapeHtml(tool)}</span>`;
+          if (target) triedText += `<div class="tl-target">${escapeHtml(target)}</div>`;
+          return `<div class="ghost-timeline-row ${rowClass}"><div class="ghost-tl-cell tried">${triedText}</div><div class="ghost-tl-cell result"><span class="tl-outcome">${outcomeText}</span>${badgeHtml}</div></div>`;
+        }).join('');
+      } else { timelineSection.classList.add('hidden'); }
+
+      const networkEvents = events.filter(ev => (ev.tool || '').match(/fetch_web|search_web|http_post|api_call/) || (ev.result_summary || '').includes('GHOST_MODE_NETWORK_BLOCKED'));
+      if (networkEvents.length > 0) {
+        egressCard.classList.remove('hidden');
+        document.getElementById('ghost-egress-sub').innerHTML = `Your agent attempted to contact <strong>${networkEvents.length} external URL${networkEvents.length !== 1 ? 's' : ''}</strong> during this session:`;
+        document.getElementById('ghost-egress-list').innerHTML = networkEvents.map(ev =>
+          `<div class="ghost-egress-row"><span>${TOOL_ICONS[ev.tool] || '&#x1f310;'}</span><span>${escapeHtml(ev.tool)}</span><span>&rarr;</span><span style="color:var(--text);">${escapeHtml(truncTarget(ev.target || '', 50))}</span><span class="badge ${ev.status === 'blocked' ? 'red' : 'ghost'}" style="margin-left:auto;">${ev.status === 'blocked' ? 'blocked' : 'simulated'}</span></div>`
+        ).join('');
+      } else { egressCard.classList.add('hidden'); }
+
+      if (!ghostState.active && events.length > 0 && ghostState.lifecycle === 'off') {
+        ghostState.lifecycle = 'ended';
+        updateGhostLifecycle('ended');
+      }
+
+      const neverRun = !ghostState.active && events.length === 0 && ghostState.filesBuffered === 0;
+      footer.classList.toggle('hidden', neverRun);
+    } catch (e) { console.error('Ghost events fetch failed:', e); }
+  }
+
+  function ghostSelectSession(val) { ghostSelectedSession = val; refreshGhostStatus(); refreshGhostEvents(); }
+
+  async function ghostToggle() {
+    try {
+      const body = { enabled: !ghostState.active };
+      if (ghostSelectedSession) body.session = ghostSelectedSession;
+      const result = await apiPost('/api/ghost/toggle', body);
+      if (result.error) {
+        alert('Ghost toggle failed: ' + (result.error.message || result.error));
+        return;
+      }
+      if (result.sessions_toggled === 0) {
+        alert('No active agent sessions found. Ghost Mode needs an agent session — start or connect an agent first.');
+        return;
+      }
+      if (!ghostState.active) ghostState.lifecycle = 'running';
+      refreshGhostStatus();
+    } catch (e) { alert('Ghost toggle failed: ' + e.message); }
+  }
+
+  function showGhostModal(title, message, fileList, confirmLabel, confirmClass, onConfirm) {
+    const overlay = document.createElement('div');
+    overlay.className = 'ghost-modal-overlay';
+    overlay.innerHTML = `<div class="ghost-modal"><h3>${escapeHtml(title)}</h3><p>${escapeHtml(message)}</p>${fileList ? `<div class="file-list">${fileList.map(f => escapeHtml(f)).join('<br>')}</div>` : ''}<p style="font-size:12px;color:var(--amber);">This cannot be undone.</p><div class="modal-actions"><button class="ghost-btn toggle-off" onclick="this.closest('.ghost-modal-overlay').remove()">Cancel</button><button class="ghost-btn ${confirmClass}" id="ghost-modal-confirm">${escapeHtml(confirmLabel)}</button></div></div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('ghost-modal-confirm').onclick = async () => { overlay.remove(); await onConfirm(); };
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  }
+
+  async function ghostApprove() {
+    showGhostModal('Approve Ghost Writes', `This will write ${ghostState.filesBuffered} file${ghostState.filesBuffered !== 1 ? 's' : ''} to the real filesystem:`, ghostState.paths, 'Approve', 'approve', async () => {
+      try {
+        const result = await apiPost('/api/ghost/approve', { session: ghostSelectedSession });
+        if (result.error) { alert('Approve failed: ' + (result.error.message || result.error)); }
+        else {
+          const count = result.filesCount || result.files_count || 0;
+          ghostState.lifecycle = 'reviewed';
+          updateGhostLifecycle('reviewed');
+          document.getElementById('ghost-status-label').textContent = count + ' file' + (count !== 1 ? 's' : '') + ' written successfully. Ghost Mode session approved.';
+          document.getElementById('ghost-status-sub').textContent = 'Approve writes the files your agent created. Commands and emails that were intercepted cannot be replayed.';
+          document.getElementById('ghost-actions').innerHTML = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+          document.getElementById('ghost-files-panel').classList.add('hidden');
+        }
+        refreshGhostStatus();
+      } catch (e) { alert('Approve error: ' + e.message); }
+    });
+  }
+
+  async function ghostDiscard() {
+    showGhostModal('Discard Ghost Writes', 'This will permanently discard all buffered writes. Nothing will be saved.', null, 'Discard All', 'discard', async () => {
+      try {
+        const result = await apiPost('/api/ghost/discard', { session: ghostSelectedSession });
+        if (result.error) { alert('Discard failed: ' + (result.error.message || result.error)); }
+        else {
+          ghostState.lifecycle = 'reviewed';
+          updateGhostLifecycle('reviewed');
+          document.getElementById('ghost-status-label').textContent = 'All buffered writes discarded. Your system remains unchanged.';
+          document.getElementById('ghost-status-sub').textContent = '';
+          document.getElementById('ghost-actions').innerHTML = '<button class="ghost-btn toggle-on" onclick="ghostToggle()">Enable Ghost Mode</button>';
+          document.getElementById('ghost-files-panel').classList.add('hidden');
+        }
+        refreshGhostStatus();
+      } catch (e) { alert('Discard error: ' + e.message); }
+    });
+  }
+
+  function startGhostPolling() { refreshGhostStatus(); refreshGhostEvents(); ghostPollTimer = setInterval(refreshGhostStatus, 3000); ghostEventsPollTimer = setInterval(refreshGhostEvents, 5000); }
+  function stopGhostPolling() { if (ghostPollTimer) { clearInterval(ghostPollTimer); ghostPollTimer = null; } if (ghostEventsPollTimer) { clearInterval(ghostEventsPollTimer); ghostEventsPollTimer = null; } }
+
   // ─── Tab Switching ────────────────────────────
   function switchTab(tab) {
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
     document.getElementById('panel-timeline').classList.toggle('hidden', tab !== 'timeline');
+    document.getElementById('panel-ghost').classList.toggle('hidden', tab !== 'ghost');
     document.getElementById('panel-away').classList.toggle('hidden', tab !== 'away');
     document.getElementById('panel-verify').classList.toggle('hidden', tab !== 'verify');
+    document.getElementById('panel-undo').classList.toggle('hidden', tab !== 'undo');
     document.getElementById('panel-about').classList.toggle('hidden', tab !== 'about');
 
+    if (tab === 'ghost') { startGhostPolling(); } else { stopGhostPolling(); }
     if (tab === 'away') refreshAway();
     if (tab === 'verify') verifyChain();
+    if (tab === 'undo') refreshUndoSnapshots();
   }
 
   // ─── Polling ──────────────────────────────────
@@ -1094,15 +2089,59 @@
     refreshTrustState();
     refreshTimeline();
     refreshCadence();
+    refreshIntegrity();
     pollTimer = setInterval(() => {
       refreshTrustState();
       refreshTimeline();
       refreshCadence();
+      refreshIntegrity();
     }, POLL_INTERVAL);
   }
 
   // ─── Init ─────────────────────────────────────
   startPolling();
 </script>
+
+    <!-- Trusted Source Rules Card -->
+    <div id="trusted-source-rules-card" class="card" style="margin-top:1rem;">
+      <div class="card-header">Trusted Source Rules</div>
+      <div class="card-body" id="trusted-rules-body">
+        <p class="text-muted">Loading...</p>
+      </div>
+    </div>
+    <script>
+    (function() {
+      function loadTrustedRules() {
+        fetch('/api/trusted-source-rules')
+          .then(r => r.json())
+          .then(data => {
+            const body = document.getElementById('trusted-rules-body');
+            if (!data.rules || data.rules.length === 0) {
+              body.innerHTML = '<p class="text-muted">No trusted source rules configured (default — all sensor traffic taints normally).</p>';
+              return;
+            }
+            let html = '<table class="table table-sm"><thead><tr><th>Rule</th><th>Sources</th><th>Tools</th><th>Domains</th></tr></thead><tbody>';
+            data.rules.forEach(r => {
+              html += '<tr><td><code>' + r.rule_id + '</code></td>';
+              html += '<td>' + r.source_types.join(', ') + '</td>';
+              html += '<td>' + r.tools.join(', ') + '</td>';
+              html += '<td>' + r.domains.join(', ') + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            html += '<small class="text-muted">' + data.count + ' rule(s) active — matching calls capped at LOW taint.</small>';
+            body.innerHTML = html;
+          })
+          .catch(() => {
+            document.getElementById('trusted-rules-body').innerHTML = '<p class="text-danger">Failed to load rules.</p>';
+          });
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadTrustedRules);
+      } else {
+        loadTrustedRules();
+      }
+    })();
+    </script>
+
 </body>
 </html>

@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["mcp", "ai-agents", "security", "proxy", "audit", "rollback"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -41,16 +41,16 @@ dev = [
 unwind = "unwind.cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/brugai/unwind"
-Documentation = "https://github.com/brugai/unwind#readme"
-Repository = "https://github.com/brugai/unwind"
-Issues = "https://github.com/brugai/unwind/issues"
+Homepage = "https://github.com/unwind-mcp/unwind"
+Documentation = "https://github.com/unwind-mcp/unwind#readme"
+Repository = "https://github.com/unwind-mcp/unwind"
+Issues = "https://github.com/unwind-mcp/unwind/issues"
 
 [tool.setuptools.packages.find]
 include = ["unwind*"]
 
 [tool.setuptools.package-data]
-unwind = ["dashboard/templates/*.html"]
+unwind = ["dashboard/templates/*.html", "dashboard/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

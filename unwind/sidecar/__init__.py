@@ -7,8 +7,7 @@ from .models import (
     TelemetryEvent,
     TelemetryEventResponse,
     HealthResponse,
-    ErrorResponse,
-)
+    ErrorResponse)
 from .server import create_app, serve, ENGINE_VERSION
 
 __all__ = [
