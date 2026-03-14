@@ -106,10 +106,16 @@ DANGEROUS_COMMANDS = {
 AUTHORISED_HOSTS = {
     "api.openai.com",
     "nvd.nist.gov",
+    "services.nvd.nist.gov",
     "github.com",
+    "api.github.com",
     "raw.githubusercontent.com",
     "pypi.org",
     "files.pythonhosted.org",
+    "arxiv.org",
+    "export.arxiv.org",
+    "news.ycombinator.com",
+    "hn.algolia.com",
     "127.0.0.1",
     "localhost",
     # Add your Mac's IP when using key proxy:

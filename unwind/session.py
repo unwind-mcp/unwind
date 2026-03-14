@@ -50,6 +50,9 @@ class Session:
     blocked_actions: int = 0
     amber_confirmations: int = 0
 
+    # --- Provenance (server-derived, never caller-supplied) ---
+    principal_context: Optional[str] = None
+
     # --- Session kill flag ---
     killed: bool = False
 
