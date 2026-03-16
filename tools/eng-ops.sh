@@ -233,6 +233,8 @@ run_test6h() {
   count="${count:-0}"
 
   echo "[eng-test6h] running full suite with $pybin"
+  # Isolate tests from production EventStore (prevents dashboard contamination)
+  export UNWIND_HOME="$(mktemp -d /tmp/unwind-test-XXXXXX)"
   set +e
   (cd "$ROOT" && "$pybin" -m pytest tests/ -q) 2>&1 | tee "$out"
   rc=${PIPESTATUS[0]}
@@ -305,6 +307,7 @@ PY
 
   commit="$(cd "$ROOT" && git rev-parse --short HEAD)"
   echo "[eng-coverage] running coverage with $pybin"
+  export UNWIND_HOME="$(mktemp -d /tmp/unwind-test-XXXXXX)"
   set +e
   (cd "$ROOT" && "$pybin" -m pytest tests/ --cov=unwind --cov-report=term -q) 2>&1 | tee "$out"
   rc=${PIPESTATUS[0]}
@@ -379,17 +382,17 @@ run_release_gate() {
   ts="$(date +%s)"
 
   echo "[release-gate] checking canary"
-  if ! (cd "$ROOT" && .venv/bin/python -m pytest tests/canary/test_canary_contracts.py tests/test_canary_randomization.py -q >/tmp/release_gate_canary.log 2>&1); then
+  if ! (cd "$ROOT" && UNWIND_HOME="$(mktemp -d /tmp/unwind-test-XXXXXX)" .venv/bin/python -m pytest tests/canary/test_canary_contracts.py tests/test_canary_randomization.py -q >/tmp/release_gate_canary.log 2>&1); then
     missing+=("canary")
   fi
 
   echo "[release-gate] checking enforcement-in-path"
-  if ! (cd "$ROOT" && .venv/bin/python -m pytest tests/test_enforcement_in_path.py -q >/tmp/release_gate_enf.log 2>&1); then
+  if ! (cd "$ROOT" && UNWIND_HOME="$(mktemp -d /tmp/unwind-test-XXXXXX)" .venv/bin/python -m pytest tests/test_enforcement_in_path.py -q >/tmp/release_gate_enf.log 2>&1); then
     missing+=("enforcement-in-path")
   fi
 
   echo "[release-gate] checking retention"
-  if ! (cd "$ROOT" && .venv/bin/python -m pytest tests/test_events_retention.py -q >/tmp/release_gate_ret.log 2>&1); then
+  if ! (cd "$ROOT" && UNWIND_HOME="$(mktemp -d /tmp/unwind-test-XXXXXX)" .venv/bin/python -m pytest tests/test_events_retention.py -q >/tmp/release_gate_ret.log 2>&1); then
     missing+=("retention")
   fi
 
