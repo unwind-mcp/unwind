@@ -1,346 +1,127 @@
 # UNWIND
 
-*UNWIND watches what AI agents do, not what they say they'll do.*
+[![PyPI](https://img.shields.io/pypi/v/unwind-mcp)](https://pypi.org/project/unwind-mcp/)
+[![Tests](https://img.shields.io/badge/tests-1%2C859_passing-brightgreen)](https://github.com/unwind-mcp/unwind)
+[![Python](https://img.shields.io/pypi/pyversions/unwind-mcp)](https://pypi.org/project/unwind-mcp/)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+[![Ghost Mode](https://img.shields.io/pypi/v/ghostmode?label=ghostmode&color=purple)](https://pypi.org/project/ghostmode/)
+[![CRAFT](https://img.shields.io/pypi/v/craft-auth?label=craft-auth&color=orange)](https://pypi.org/project/craft-auth/)
+
+*Your agent can read your email, write files, send messages, and call APIs. Do you know what it did while you were away?*
 
 **See Everything. Rewind File Changes. Test Without Consequences.**
 
-One core security engine, multiple adapters. UNWIND makes AI agents observable, enforceable, and reversible — regardless of which platform runs them.
+UNWIND is a security layer for AI agents. Install it once, and every action your agent takes — every file write, API call, and command — is checked, logged, and reversible. If something goes wrong, you'll know. If you need to undo it, one click.
 
-No LLM in the hot path. Every check is deterministic. Single-digit millisecond overhead on typical calls. Framework-agnostic — zero coupling to any specific agent platform.
+Check on your agent from your phone. Get a summary of what happened while you were away. See a green light when everything's fine, amber when something needs your attention, red when something was blocked.
 
-```
-    ┌─────────────────────────────────────────────────────────────────┐
-    │                     CRAFT Protocol (v4.2)                       │
-    │  Transport-layer command provenance + anti-spoofing             │
-    │  HKDF key schedule · HMAC envelopes · strict FIFO · cap tokens │
-    └──────────────────────────────┬──────────────────────────────────┘
-                                   │ authenticated command stream
-    ┌──────────────────────────────┴──────────────────────────────────┐
-    │                      UNWIND Core Engine                         │
-    │                                                                 │
-    │  Enforcement Pipeline (15 stages, <10ms)                        │
-    │  Flight Recorder (SQLite + CR-AFT chain)                        │
-    │  Smart Snapshots (reflink-first, 25MB)                          │
-    │  Rollback Engine (file-level snapshots + restore)                │
-    │  Trust Light (green / amber / red)                              │
-    └──────────┬──────────────────────────────────┬───────────────────┘
-               │                                  │
-    ┌──────────┴───────────┐           ┌──────────┴──────────────────┐
-    │  OpenClaw Adapter    │           │  MCP Stdio Proxy Adapter    │
-    │  (native plugin hook)│           │  (command-chain wrapper)    │
-    │                      │           │                             │
-    │  before_tool_call    │           │  Agent → UNWIND → Server   │
-    │  after_tool_call     │           │  (stdio JSON-RPC 2.0)      │
-    │  fail-closed policy  │           │                             │
-    └──────────────────────┘           └─────────────────────────────┘
+No AI in the security path. Your agent doesn't know UNWIND exists.
+
+![UNWIND Dashboard](https://raw.githubusercontent.com/unwind-mcp/unwind/main/unwind/dashboard/static/dashboard-preview.jpg)
+
+## Install
+
+**OpenClaw users** — tell your agent:
+
+> Install the UNWIND security plugin. The Python engine is `pip install unwind-mcp` and the adapter is `openclaw plugins install @unwind/openclaw-adapter`. Restart the gateway when done.
+
+Or manually:
+
+```bash
+pip install unwind-mcp
+openclaw plugins install @unwind/openclaw-adapter
 ```
 
-
-## The Six-Layer Model
-
-UNWIND is built on a six-layer security architecture, moving from immediate visibility to deep cryptographic attestation:
-
-1. **UNWIND** — The core 15-stage deterministic enforcement pipeline, flight recorder, and trust light dashboard.
-2. **Rollback** — One-command undo via file-level smart snapshots (reflink-first fallback to copy) taken before risky operations.
-3. **Ghost Mode** — Dry-run sandbox. Intercepts writes, returns fake success, maintains shadow VFS for read consistency.
-4. **CRAFT** — Transport-layer authentication and tamper-evident hash chain. Detects replay, tampering, and chain breaks.
-5. **CADENCE** — Temporal anomaly inference. Builds per-device rhythm baselines to detect if an agent operates outside normal patterns.
-6. **CRIP** — Consent protocol for rhythm data (Privacy layer over CADENCE).
-
-## Two Products, One Codebase
-
-| | **Ghost Mode** | **UNWIND** |
-|---|---|---|
-| What it does | See what your agent would do | See, control, undo, and audit |
-| Enforcement | Write blocking only | 15-stage+substage pipeline |
-| Transport auth | No | CRAFT protocol (command provenance + anti-spoofing) |
-| Rollback | No | Yes (smart snapshots) |
-| Audit chain | No | CR-AFT hash chain |
-| Dashboard | No | Web UI with trust light |
-| Price | Free | Open core (free core, enterprise dashboard) |
-
-**Ghost Mode** is the entry point — zero risk, instant value. **UNWIND** is the full security suite for when you need control, not just visibility.
-
-## Quick Start
-
-### MCP Client Users (Claude Desktop, Cursor, etc.)
+**MCP clients** (Claude Desktop, Cursor, Windsurf, VS Code):
 
 ```bash
 pip install unwind-mcp
 unwind serve -- npx @modelcontextprotocol/server-filesystem ~/Documents
 ```
 
-Point your MCP client at UNWIND instead of the upstream server. In your client config:
+Point your client at UNWIND instead of the upstream server. The agent doesn't know it's there.
 
-```json
-{
-  "mcpServers": {
-    "filesystem": {
-      "command": "unwind",
-      "args": ["serve", "--", "npx", "@modelcontextprotocol/server-filesystem", "~/Documents"]
-    }
-  }
-}
-```
-
-The agent doesn't know UNWIND exists.
-
-### OpenClaw Users
-
-OpenClaw users can ask their agent to perform the install end-to-end — plugin install, sidecar setup, gateway restart — then verify with a built-in smoke check. Tell it:
-
-> Install the UNWIND security plugin. The Python engine is at `pip install unwind-mcp` and the OpenClaw adapter is at `openclaw plugins install @unwind/openclaw-adapter`. Restart the gateway when done.
-
-Or step by step:
-
-```bash
-# 1. Install the Python security engine
-pip install unwind-mcp
-
-# 2. Install the OpenClaw plugin adapter
-openclaw plugins install @unwind/openclaw-adapter
-
-# 3. Restart the gateway
-```
-
-UNWIND hooks into OpenClaw's native `before_tool_call` / `after_tool_call` plugin system. Every tool call passes through the enforcement engine. Fail-closed — if anything goes wrong, the call is blocked, not allowed.
-
-### Ghost Mode (just watching — any platform)
+**Just want to watch first?** Ghost Mode shows you what your agent would do, without letting it do anything:
 
 ```bash
 pip install ghostmode
 ghostmode -- npx @modelcontextprotocol/server-filesystem ~/Documents
 ```
 
-Reads pass through. Writes get intercepted. When the session ends, you see everything the agent tried to do. Nothing was modified.
+## What You Get
 
-## Compatibility
+- **Trust Light** — a green, amber, or red indicator that tells you at a glance whether your agent is operating normally. Check it from your phone.
+- **Timeline** — every action your agent took, when, and whether it was allowed. Expandable detail on each event. Scroll through it on mobile.
+- **Rewind** — before every file write, UNWIND takes a snapshot. Changed your mind? One click to restore.
+- **While You Were Away** — a summary of what happened while you weren't watching, with anything that needs your attention highlighted.
+- **Ghost Mode** — test untrusted tools or risky prompts without consequences. Your agent thinks it worked, but nothing real changed.
+- **Trusted Source Rules** — your agent's scheduled tasks (security scans, maintenance, updates) run without triggering false alerts. [Setup guide →](docs/TRUSTED_SOURCE_RULES.md)
+- **15-Stage Security Pipeline** — path jail, SSRF shield, credential scanning, circuit breaker, taint tracking, and more. All deterministic checks, no AI in the security path. [Pipeline details →](docs/ARCHITECTURE.md)
 
-UNWIND's core engine is framework-agnostic. The Python codebase has zero imports from any agent platform — no OpenClaw SDK, no MCP library, no framework-specific dependencies. Integration happens at the adapter boundary, not in the engine.
+## Dashboard
 
-**Three integration paths:**
-
-| Path | How it works | Code needed |
-|------|-------------|-------------|
-| **MCP stdio proxy** | `unwind serve -- <command>` wraps any MCP server | Zero — out of the box |
-| **HTTP sidecar API** | POST `{toolName, params}` to `/v1/policy/check`, get back `ALLOW\|BLOCK\|MUTATE\|CHALLENGE` | ~50 lines in any language |
-| **OpenClaw plugin** | Native `before_tool_call` / `after_tool_call` hooks | Zero — adapter ships with UNWIND |
-
-**Platform compatibility:**
-
-| Platform | Integration | Install |
-|----------|-------------|---------|
-| Claude Desktop | MCP stdio proxy | `pip install unwind-mcp` + config |
-| Cursor | MCP stdio proxy | `pip install unwind-mcp` + config |
-| Windsurf | MCP stdio proxy | `pip install unwind-mcp` + config |
-| VS Code (Copilot) | MCP stdio proxy | `pip install unwind-mcp` + config |
-| OpenClaw | Native plugin | `pip install unwind-mcp` + `openclaw plugins install` |
-| LangChain / CrewAI / AutoGPT / Haystack | HTTP sidecar API | `pip install unwind-mcp` + adapter code |
-| Custom Python agents | HTTP sidecar API or `UnwindProxy` class | `pip install unwind-mcp` + integration |
-| Non-Python agents | HTTP sidecar API | `pip install unwind-mcp` + HTTP calls |
-
-See `docs/COMPATIBILITY_MATRIX.md` for details.
-
-## Why UNWIND Exists
-
-AI agents can read your email, write files, send messages, and call APIs. When something goes wrong — a prompt injection, a hallucinated command, an overeager automation — there's no audit trail, no undo button, and no way to know what happened while you were away.
-
-UNWIND fixes that.
-
-## What It Does
-
-### The Flight Recorder
-Every tool call is logged to a tamper-evident SQLite database with SHA-256 hash chaining (CR-AFT). Parameters are hashed, not stored — the audit trail proves what happened without leaking secrets.
-
-### The CRAFT Protocol (Transport-Layer Security)
-
-CRAFT (Cryptographic Relay Authentication for Faithful Transmission) sits at the front of the ingress path, authenticating every command before it reaches the enforcement pipeline. It provides cryptographic proof of who sent a command, that it hasn't been tampered with, and that it's in the correct sequence. CRAFT uses HKDF-derived directional keys, HMAC-SHA256 envelope authentication, strict FIFO state commitment chains, and issuer-authenticated capability tokens for scoped tool delegation. See `docs/CRAFT_Protocol_v4.2.md` for the full specification.
-
-CRAFT does not claim to solve prompt injection. It solves transport-layer command spoofing, relay tampering, replay attacks, session hijacking, and confused-deputy misuse — making the downstream pipeline's job easier by guaranteeing the commands it processes are genuine. CRAFT has zero external dependencies (pure Python stdlib) and can be used independently as a standalone audit library without the rest of UNWIND.
-
-> **Why CRAFT matters:** Most agent security focuses on what an agent *can* do. CRAFT focuses on proving what it *did* do. Every command carries cryptographic proof of origin, sequence, and integrity — meaning you can demonstrate to auditors, regulators, or your own team exactly what happened, in what order, and that nobody altered the record afterwards. This is the difference between "we have logs" and "we have evidence."
-
-### The Enforcement Pipeline
-
-15 deterministic checks/sub-stages run on every tool call, in order:
-
-1. **0a Session Kill** — immediate termination check (canary triggered, break-glass, admin kill)
-2. **0b Supply Chain** — pre-RBAC trust gate (plugin/tool provenance verification)
-3. **1 Canary** — honeypot tripwire (fake high-sensitivity tools; if called, instant session kill)
-4. **2 Self-Protection** — blocks access to UNWIND's own data (`.unwind/`)
-5. **2b Exec Tunnel** — detects shell/exec invocations disguised as safe tool calls
-6. **2c Credential Exposure** — pre-execution parameter scan for secrets in outbound args
-7. **3 Path Jail** — confines filesystem access to the workspace root (canonicalisation + symlink resolution)
-8. **3b Ghost Egress Guard** — blocks network reads in Ghost Mode before DNS resolution
-9. **4 SSRF Shield** — DNS resolve + IP block (private IPs, cloud metadata, IPv6 transition bypasses per CVE-2026-26322, non-standard IPv4 forms)
-10. **4b Egress Policy** — domain-level enforcement (metadata endpoints, internal ranges, denylists)
-11. **5 DLP-Lite** — scans egress for API keys, JWTs, PEM certs, high-entropy blobs (Shannon entropy gate)
-12. **6 Circuit Breaker** — rate-limits rapid state-modifying calls
-13. **7 Taint Tracking** — marks sessions that ingested external content (email, web, etc.)
-14. **8 Session Scope** — per-session tool allowlists
-15. **9 Ghost Mode Gate** — dry-run mode with shadow VFS for read-after-write fidelity
-
-### Smart Snapshots & Rollback
-Snapshots are captured before file-modifying actions — writes, edits, deletes, renames, moves. Reflink-first (instant on APFS/btrfs), falling back to copy, with a 25MB cap and atomic moves for deletions. Files exceeding the cap are skipped safely — the action still proceeds, but without rollback coverage.
+Open `http://your-machine:9001` from any browser — including your phone.
 
 ```bash
-unwind undo last              # Undo the most recent action
-unwind undo evt_abc123        # Undo a specific event
-unwind undo --since "2h"      # Undo everything in the last 2 hours
-unwind undo --since "3pm"     # Undo everything since 3pm
+unwind dashboard
 ```
 
-### The Trust Light
-A real-time indicator of session health:
-
-- **Green** — all clear, routine operations
-- **Amber** — tainted session (external content ingested), high-risk actuators need confirmation
-- **Red** — action blocked, circuit breaker tripped, or canary triggered
-
-Taint uses graduated decay (120s per level, with clean-op gating), typically clearing over ~6–8 minutes under normal traffic.
-
-### The Dashboard
-![UNWIND Dashboard — Allow/Deny](https://raw.githubusercontent.com/unwind-mcp/unwind/main/unwind/dashboard/static/dashboard-preview.jpg)
-
-A web UI providing real-time operational awareness and integrity evidence.
-
-- **Trust Orb** — live trust state indicator (green/amber/red), updating in real time
-- **Event Timeline** — every agent action with status, tool, target, and expandable detail
-- **Allow / Deny** — when approval workflows are enabled, amber challenges appear inline with action buttons for human decision
-- **Rewind** — one-click file restoration where snapshot coverage exists, directly in the timeline
-- **Away Mode** — summarises what happened while you were away, highlights items needing review
-- **Chain Verification** — integrity check across the full event history, displayed on load
-- **Continuity Gaps** — restart gaps in the hash chain are expected boundary markers during service restarts, not tamper evidence by default. Expected gaps align with controlled service restarts; unexplained or frequent gaps should be reviewed.
-
-```bash
-unwind dashboard              # Launch at http://127.0.0.1:9001
-```
-
-### Ghost Mode
-![Ghost Mode Dashboard](https://raw.githubusercontent.com/unwind-mcp/unwind/main/unwind/dashboard/static/ghost-mode-preview.jpg)
-
-Test untrusted tools or risky prompts without consequences. All state-modifying calls are logged but not executed. A shadow VFS serves back "written" content on subsequent reads, so the agent stays consistent. An egress guard scans outbound URLs and search queries for known secret patterns (API key formats, high-entropy strings) before they leave. Available as a standalone package (`pip install ghostmode`) or as part of UNWIND.
-
-**Ghost Mode vs Amber Challenges:** Ghost Mode is a sandbox — "what would happen?" with fake success, nothing real changes. Amber challenges are a pause — "are you sure?" before executing a high-risk action for real. They are architecturally distinct.
-
-### Cadence (Temporal Security Signal)
-Cadence turns timing into a security layer. Your agent learns your rhythm — when you're focused, when you're away, when you're reading — using only timestamps, never content. If tool calls fire at machine speed while you're marked away, Cadence feeds that anomaly directly into the enforcement pipeline, triggering amber challenges before damage occurs. This can catch abuse patterns that pass content-based checks, because commands may be valid but timing is anomalous.
-
-Enable with `UNWIND_CADENCE_BRIDGE=1`. All timing data stays on your device (enforced by the CRIP consent protocol), auto-deletes in 7 days, and UNWIND works fully without it.
-
-### CR-AFT External Anchoring
-Export the hash chain for third-party audit. Create periodic anchor checkpoints. Detect tampering across the full event history.
-
-```bash
-unwind verify                 # Check chain integrity
-unwind anchor                 # Create a checkpoint
-unwind tamper-check           # Full tamper detection report
-unwind export html -o audit.html  # Printable audit report
-```
-
-### Conversational Interface
-Ask questions about agent activity in plain English:
-
-```bash
-unwind ask "what happened today?"
-unwind ask "how many emails were sent this morning?"
-unwind ask "were any actions blocked?"
-```
+See what your agent is doing right now. Review what it did while you were away. Undo file changes. Toggle Ghost Mode. Verify the audit chain. All from one page, designed for mobile.
 
 ## Architecture
 
-Two layers, one engine, multiple adapters.
+UNWIND is built on a six-layer security model, from immediate enforcement to deep cryptographic attestation:
 
-**CRAFT (transport layer):** Authenticates command provenance at the front of the ingress path. Every command is MAC'd, sequenced, and state-chained before it reaches the enforcement pipeline. Capability tokens gate privileged tool execution. CRAFT sits between the client and the proxy; the pipeline never sees an unauthenticated command.
+| Layer | What it does | Status |
+|-------|-------------|--------|
+| **UNWIND** | 15-stage enforcement pipeline, flight recorder, trust light | Operational |
+| **Rollback** | File-level smart snapshots with one-command undo | Operational |
+| **Ghost Mode** | Dry-run sandbox with shadow VFS | Operational |
+| **CRAFT** | Transport-layer auth + tamper-evident hash chain | Operational |
+| **CADENCE** | Temporal anomaly detection (timing-based) | Live prototype |
+| **CRIP** | Consent protocol for rhythm data | Verify |
 
-**UNWIND (enforcement layer):** The 15-stage pipeline, flight recorder, snapshot engine, and trust logic are shared across all integration paths. Only the adapter layer changes. The core Python engine has zero framework imports — it takes generic `{tool_name, target, parameters}` inputs and returns `{decision}` outputs. Any agent framework that can serialize a tool call to JSON can use it.
+[Full architecture →](docs/SIX_LAYER_ALIGNMENT.md) · [Pipeline stages →](docs/ARCHITECTURE.md) · [Threat model →](docs/THREAT_MODEL_BOUNDARIES.md)
 
-**HTTP sidecar API:** The universal integration point. Any language, any framework — POST a tool call to `/v1/policy/check`, get back an enforcement decision. This is how the OpenClaw adapter communicates with the engine, and it's the same API available to any other integration.
+## Compatibility
 
-**MCP stdio proxy adapter:** UNWIND wraps the upstream MCP server process, intercepting JSON-RPC messages on stdin/stdout. The agent talks to UNWIND; UNWIND talks to the real server.
+One core engine, multiple adapters. Works with any platform that routes tool calls:
 
-**OpenClaw adapter:** A TypeScript plugin hooks into OpenClaw's native `before_tool_call` / `after_tool_call` system. The plugin communicates with the sidecar API. Fail-closed — if the sidecar is unreachable, the plugin blocks the tool call.
+| Platform | Integration |
+|----------|------------|
+| Claude Desktop, Cursor, Windsurf, VS Code | MCP stdio proxy (zero config) |
+| OpenClaw | Native plugin (fail-closed) |
+| LangChain, CrewAI, AutoGPT, custom agents | HTTP sidecar API (~50 lines) |
 
-All adapters enforce the same policy, produce the same telemetry, and use the same rollback infrastructure.
+[Compatibility matrix →](docs/COMPATIBILITY_MATRIX.md)
 
-## Security Model and Limits
-
-UNWIND focuses on practical risk reduction through deterministic enforcement and reversibility. Designed for real-world developer and SME environments where most threats are accidental or opportunistic.
-
-**Mitigates:** transport-layer spoofing/replay/tampering (CRAFT), accidental destructive tool use, prompt-injection-triggered exfiltration, opportunistic data leakage (DLP-lite), runaway automation (circuit breaker), unobserved autonomous sessions (taint + trust light).
-
-**Does not defend against:** host OS / Python runtime / MCP client compromise, determined adversary with full system access, side-channel attacks on the proxy process. UNWIND is a user-space enforcement layer, not a trusted execution environment.
-
-**Adapter notes:** OpenClaw plugin slash commands bypass the tool loop. The adapter enforces fail-closed — sidecar errors block, never allow. MCP stdio proxy fully mediates agent-to-server communication.
-
-See `docs/THREAT_MODEL_BOUNDARIES.md` for the full threat model.
-
-## CLI Reference
-
-```
-unwind serve -- <command>     Start the MCP stdio proxy adapter
-unwind sidecar serve          Start the OpenClaw sidecar (managed by plugin)
-unwind status                 Trust state + recent high-risk events
-unwind log [--since TIME]     Event timeline
-unwind verify                 CR-AFT chain integrity check
-unwind undo last|ID|--since   Rollback actions
-unwind dashboard [--port N]   Web UI
-unwind ask "question"         Natural language query
-unwind export json|jsonl|html Export events
-unwind anchor                 CR-AFT checkpoint
-unwind tamper-check           Tamper detection report
-```
+## CLI
 
 ```
-ghostmode -- <command>         Dry-run proxy (standalone)
-ghostmode -v -- <command>      Verbose mode
-ghostmode --export log.json    Export session on exit
+unwind serve -- <command>      MCP stdio proxy
+unwind status                  Trust state + recent events
+unwind log [--since TIME]      Event timeline
+unwind verify                  Hash chain integrity check
+unwind undo last|ID|--since    Rollback actions
+unwind dashboard               Web UI
+unwind ask "question"          Natural language query
+unwind export json|html        Export events
+unwind anchor                  Chain checkpoint
+unwind tamper-check            Tamper detection report
 ```
 
-## Configuration
+[CLI reference →](docs/CLI_REFERENCE.md)
 
-UNWIND uses sensible defaults. Override via environment variables:
+## Packages
 
-```bash
-UNWIND_HOME=~/.unwind          # Data directory
-UNWIND_WORKSPACE=~/workspace   # Path jail root
-```
+`pip install unwind-mcp` gives you **everything** — pipeline, dashboard, Ghost Mode, CRAFT chain, rewind, CLI. One install.
 
-## Project Structure
+The standalone packages below are for people who want just one piece:
 
-```
-docs/
-├── CRAFT_Protocol_v4.2.md     # CRAFT specification (signed off, live on hardware)
-├── CRAFT_Protocol_v4.2.docx   # Formatted spec for external review
-└── ...                        # Compatibility matrix, security coverage, etc.
-
-unwind/                        # Core security engine (pip install unwind-mcp)
-├── enforcement/               # 15-stage+substage pipeline (path jail, SSRF, DLP, canary...)
-├── recorder/event_store.py    # SQLite flight recorder (WAL + CR-AFT chain)
-├── snapshots/                 # Smart snapshots + rollback engine
-├── sidecar/                   # OpenClaw adapter sidecar (local policy server)
-├── transport/stdio.py         # MCP stdio proxy adapter
-├── dashboard/                 # Flask web UI + Away Mode
-├── anchoring/                 # CR-AFT external anchoring + tamper detection
-├── conversational/            # Natural language query interface
-├── export/                    # JSON, JSONL, HTML report export
-└── cli/main.py                # CLI entry point
-
-openclaw-adapter/              # OpenClaw native plugin (TypeScript)
-├── src/hooks/                 # before_tool_call / after_tool_call handlers
-├── src/service/               # Sidecar lifecycle manager
-├── src/ipc/                   # Sidecar communication client
-├── openclaw.plugin.json       # Plugin manifest
-└── package.json               # Node package config
-
-ghostmode/                     # Standalone dry-run proxy (pip install ghostmode)
-├── proxy.py                   # Write-blocking proxy + shadow VFS
-├── shadow_vfs.py              # In-memory filesystem overlay
-├── event_log.py               # Lightweight session recorder
-└── cli.py                     # One-command entry point
-
-tests/                         # 1,845 tests across all packages
-```
+| Package | What | Install |
+|---------|------|---------|
+| [**ghostmode**](https://pypi.org/project/ghostmode/) | Dry-run proxy only (MIT, zero deps) | `pip install ghostmode` |
+| [**craft-auth**](https://pypi.org/project/craft-auth/) | Transport auth library only (zero deps) | `pip install craft-auth && craft-auth demo` |
 
 ## Development
 
@@ -348,28 +129,17 @@ tests/                         # 1,845 tests across all packages
 git clone https://github.com/unwind-mcp/unwind
 cd unwind
 pip install -e ".[dev]"
-pytest                         # 1,845 tests (2026-03-09)
+pytest    # 1,859 tests
 ```
 
-## Development Discipline
-
-- One PR = one intent: **refactor OR feature/fix**, never both in the same PR.
-- For any Tier A security-path change, include this checklist in the commit message:
-  - fail-closed: yes/no
-  - path jail order: unchanged/changed
-  - ghost semantics: unchanged/changed
-  - CRAFT chain: verified/not applicable
-  - rollback: unchanged/changed
-- Mandatory checks:
-  - `pytest -q` passes
-  - `unwind verify` is clean (Tier A changes)
-- One bug = one regression test.
-- Pin adapter contract in tested constants (not scattered assumptions):
-  - tool mapping: `write→fs_write`, `read→fs_read`, `edit→fs_write`
-  - param expectations: `path`, `content`
-- Deferred until multi-contributor stage:
-  - RFC template / PR template / formal review workflow / extra process docs
+[Contributing →](CONTRIBUTING.md) · [Security policy →](SECURITY.md) · [Changelog →](CHANGELOG.md)
 
 ## License
 
-AGPL-3.0-or-later
+AGPL-3.0-or-later (Ghost Mode is MIT)
+
+---
+
+[PyPI](https://pypi.org/project/unwind-mcp/) · [Ghost Mode](https://pypi.org/project/ghostmode/) · [CRAFT](https://pypi.org/project/craft-auth/) · [Dashboard Demo](docs/screenshots/) · [Architecture](docs/SIX_LAYER_ALIGNMENT.md) · [Threat Model](docs/THREAT_MODEL_BOUNDARIES.md) · [Security Policy](SECURITY.md) · [Changelog](CHANGELOG.md)
+
+Built by [Brug AI](https://github.com/unwind-mcp)
