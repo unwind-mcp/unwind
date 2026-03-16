@@ -688,16 +688,28 @@ class EnforcementPipeline:
 
         # --- 2d. Control-plane tool gate ---
         if tool_class == "control_plane":
-            session.trust_state = TrustState.AMBER
-            return PipelineResult(
-                action=CheckResult.AMBER,
-                canonical_target=canonical_target,
-                tool_class=tool_class,
-                amber_reason=(
-                    f"Control-plane tool '{tool_name}' requires explicit approval. "
-                    "These tools can modify gateway configuration and scheduling."
-                ),
-            )
+            # Trusted source exemption: cron/system sessions with matching rules
+            # bypass the control-plane gate. This lets scheduled jobs use their
+            # own scheduler tools without AMBER prompts.
+            _cp_exempt = False
+            if source_type and self.config.trusted_source_rules:
+                for _rule in self.config.trusted_source_rules:
+                    if (source_type.lower() in _rule.source_types
+                            and tool_name in _rule.tools):
+                        _cp_exempt = True
+                        break
+
+            if not _cp_exempt:
+                session.trust_state = TrustState.AMBER
+                return PipelineResult(
+                    action=CheckResult.AMBER,
+                    canonical_target=canonical_target,
+                    tool_class=tool_class,
+                    amber_reason=(
+                        f"Control-plane tool '{tool_name}' requires explicit approval. "
+                        "These tools can modify gateway configuration and scheduling."
+                    ),
+                )
 
         # --- 2e. Unknown tool gate (fail-closed) ---
         if tool_class == "unknown_actuator":
