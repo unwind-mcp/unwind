@@ -15,7 +15,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORKSPACE_ROOT="$(dirname "$ROOT")"
 STATE_DIR="$ROOT/.sentinel"
 STATE_FILE="$STATE_DIR/eng-state.json"
-MEM_DIR="$WORKSPACE_ROOT/memory"
+MEM_DIR="$HOME/sentinel-memory"
 DECISION_LOG="$MEM_DIR/decision-log.md"
 BUG_LOG="$MEM_DIR/bug-patterns.md"
 
