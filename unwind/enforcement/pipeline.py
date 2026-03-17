@@ -158,9 +158,12 @@ def _matches_trusted_rule(
             continue
         if tool_name not in rule.tools:
             continue
-        # Domain matching: exact or dot-boundary subdomain
+        # Domain matching: wildcard, exact, or dot-boundary subdomain
         matched_domain = False
         for rule_domain in rule.domains:
+            if rule_domain == "*":
+                matched_domain = True
+                break
             if domain == rule_domain or domain.endswith("." + rule_domain):
                 matched_domain = True
                 break
@@ -851,6 +854,38 @@ class EnforcementPipeline:
 
         # Apply time-based decay first
         session.check_taint_decay()
+
+        # Hard gate: wildcard sensor rules cannot reach actuator/control-plane tools.
+        # Enforces sensor-only isolation as code (per Sentinel security review).
+        if (
+            source_type
+            and source_type.lower() in ("cron", "system")
+            and tool_class in ("actuator", "control_plane", "unknown_actuator")
+            and self.config.trusted_source_rules
+        ):
+            for _wr in self.config.trusted_source_rules:
+                if (
+                    "*" in _wr.domains
+                    and source_type.lower() in _wr.source_types
+                ):
+                    # This session's sensor rule uses wildcard domains.
+                    # Hard-deny any actuator/control-plane tool to prevent
+                    # poisoned sensor data from driving actuator execution.
+                    # Only applies to wildcard rules — exact-domain rules
+                    # are not affected.
+                    if tool_name not in _wr.tools:
+                        session.trust_state = TrustState.RED
+                        return PipelineResult(
+                            action=CheckResult.BLOCK,
+                            canonical_target=canonical_target,
+                            tool_class=tool_class,
+                            block_reason=(
+                                f"Wildcard sensor rule '{_wr.rule_id}' does not "
+                                f"permit actuator tool '{tool_name}'. "
+                                f"Cron sensor sessions are sensor-only by policy."
+                            ),
+                        )
+                    break
 
         # If this is a sensor, taint the session (with source tracking)
         # Trusted source scoped relaxation: cap at LOW if all 3 dimensions match
