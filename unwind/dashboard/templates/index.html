@@ -713,106 +713,188 @@
   .rule-id { font-weight: bold; color: var(--text-bright); }
 
 
-    /* ─── Mobile Responsive ────────────────────── */
+    /* ─── Mobile: iOS-style ─────────────────────── */
     @media (max-width: 768px) {
-      body { padding: 8px; max-width: 100vw; }
-      .header { flex-direction: column; gap: 8px; padding: 12px; text-align: center; }
-      .header h1 { font-size: 15px; }
-      .header h1 span { display: block; margin-left: 0; margin-top: 4px; font-size: 11px; }
-      .header-right { justify-content: center; flex-wrap: wrap; }
+      body {
+        padding: 0 !important;
+        padding-bottom: 64px !important;
+        overflow-x: hidden;
+        max-width: 100vw;
+      }
 
+      /* Header: minimal */
+      .header {
+        padding: 8px 16px;
+        text-align: center;
+        border-bottom: 1px solid var(--border);
+        flex-direction: column;
+        gap: 4px;
+      }
+      .header h1 { font-size: 13px; letter-spacing: 1.5px; }
+      .header h1 span { display: none; }
+      .header-right { justify-content: center; gap: 6px; }
+
+      /* Ask bar: hide on mobile */
+      .ask-wrapper { display: none !important; }
+
+      /* Trust light: hero element */
       .trust-light {
         flex-direction: column;
         text-align: center;
-        gap: 12px;
-        padding: 12px;
+        gap: 8px;
+        padding: 20px 16px 12px;
+        border-bottom: none;
       }
-      .trust-light img { width: 56px !important; height: 56px !important; }
-      .trust-orb { width: 32px; height: 32px; }
+      .trust-light img { width: 48px !important; height: 48px !important; }
+      .trust-orb { width: 48px; height: 48px; }
       .trust-info { width: 100%; }
-      .trust-info h2 { font-size: 16px; }
-      .trust-info .subtitle { font-size: 12px; }
-      .trust-stats { margin-left: 0; justify-content: center; gap: 12px; flex-wrap: wrap; width: 100%; }
-      .stat-value { font-size: 18px; }
-      .stat-label { font-size: 10px; }
+      .trust-info h2 { font-size: 22px; font-weight: 700; }
+      .trust-info .subtitle { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+      .trust-guidance { font-size: 12px; margin-top: 6px; }
 
-      .explanation-panel { flex-direction: column; padding: 10px; }
-      .explanation-panel div { word-break: break-word; }
+      /* Stats: compact row */
+      .trust-stats {
+        margin-left: 0;
+        justify-content: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+      }
+      .stat-value { font-size: 20px; }
+      .stat-label { font-size: 9px; letter-spacing: 1px; }
 
-      .status-bar { flex-wrap: wrap; gap: 6px; padding: 8px 10px; font-size: 10px; overflow: hidden; }
+      /* Integrity bar: simplified */
+      .integrity-bar {
+        padding: 6px 12px;
+        font-size: 10px;
+        flex-wrap: wrap;
+        gap: 4px;
+        overflow: hidden;
+        border-bottom: 1px solid var(--border);
+        max-width: 100%;
+      }
+      .integrity-pills { flex-wrap: wrap; gap: 4px; }
+      .integrity-pill { font-size: 10px; padding: 1px 8px; }
+      .integrity-ts { font-size: 9px; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; }
 
-      .tab-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; scrollbar-width: none; }
-      .tab-bar::-webkit-scrollbar { display: none; }
-      .tab { padding: 10px 12px; font-size: 11px; flex-shrink: 0; }
+      /* Explanation panel */
+      .explanation-panel {
+        flex-direction: column;
+        padding: 10px 14px;
+        font-size: 12px;
+      }
 
-      .content { overflow-x: hidden; }
+      /* Tab bar: BOTTOM, fixed, iOS-style */
+      .tab-bar {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        border-top: 1px solid var(--border);
+        border-bottom: none;
+        display: flex;
+        justify-content: space-around;
+        padding: 6px 0 env(safe-area-inset-bottom, 8px);
+        overflow-x: visible;
+        white-space: normal;
+        -webkit-backdrop-filter: blur(20px);
+        backdrop-filter: blur(20px);
+        background: rgba(15, 21, 32, 0.95);
+      }
+      .tab {
+        flex: 1;
+        text-align: center;
+        padding: 6px 2px;
+        font-size: 10px;
+        font-weight: 500;
+        border-bottom: none !important;
+        min-width: 0;
+        white-space: nowrap;
+      }
+      .tab.active {
+        color: var(--blue);
+        border-bottom: none !important;
+      }
+      .tab-bar::after { display: none !important; }
 
-      .timeline-event { padding: 8px; gap: 6px; }
-      .event-time { font-size: 11px; min-width: 36px; }
-      .event-tool { font-size: 12px; }
+      /* Ghost banner */
+      .ghost-banner { font-size: 12px; padding: 8px 12px; }
+
+      /* Content */
+      .content { padding: 0 8px; overflow-x: hidden; }
+
+      /* Timeline events */
+      .timeline-event {
+        padding: 10px 12px;
+        gap: 8px;
+        border-radius: 8px;
+      }
+      .event-time { font-size: 11px; min-width: 38px; }
+      .event-tool { font-size: 13px; font-weight: 600; }
       .event-target { font-size: 11px; word-break: break-all; overflow-wrap: anywhere; }
-      .event-actions { flex-direction: column; gap: 4px; }
-      .amber-btn { font-size: 11px; padding: 4px 10px; }
-      .undo-btn { font-size: 11px; padding: 4px 10px; }
+      .event-actions { flex-direction: column; gap: 6px; }
 
-      .event-detail-panel { padding: 10px; word-break: break-word; overflow-wrap: anywhere; }
+      /* Amber buttons: big iOS touch targets */
+      .amber-btn {
+        font-size: 14px !important;
+        padding: 10px 20px !important;
+        border-radius: 8px;
+        font-weight: 600;
+        width: 100%;
+        text-align: center;
+      }
+      .amber-btn.allow { background: var(--green-bg); border-color: var(--green); }
+      .amber-btn.deny { background: var(--red-bg); border-color: var(--red); }
 
-      #panel-undo { overflow-x: hidden; }
-      #panel-undo select { max-width: 100%; font-size: 12px; }
-      #panel-undo .undo-btn { padding: 6px 12px; font-size: 11px; }
+      /* Undo buttons */
+      .undo-btn {
+        font-size: 13px;
+        padding: 8px 16px;
+        border-radius: 8px;
+      }
+
+      .event-detail-panel {
+        padding: 12px;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+
+      /* Undo/Rewind tab */
+      .undo-header { flex-direction: column; gap: 8px; }
+      .undo-bulk-controls { width: 100%; }
+      .undo-select { min-width: 0 !important; max-width: 100% !important; width: 100% !important; }
+      .undo-filters { flex-direction: column; gap: 6px; }
+      .undo-filters label { font-size: 12px; }
       #undo-container { padding: 8px 0; }
       #undo-container div { word-break: break-word; overflow-wrap: anywhere; }
 
-      .ghost-tab-wrapper { padding: 10px; }
-      .ghost-summary-card { padding: 12px; }
+      /* Ghost mode */
+      .ghost-tab-wrapper { padding: 8px; }
+      .ghost-summary-card { padding: 14px; }
+      .ghost-status-card { padding: 16px; }
+      .ghost-btn {
+        font-size: 14px !important;
+        padding: 10px 20px !important;
+        border-radius: 8px;
+        width: 100%;
+      }
       .ghost-file-path { word-break: break-all; font-size: 11px; }
+      .ghost-lifecycle { font-size: 10px; gap: 4px; }
 
-      .cadence-pill { font-size: 11px; padding: 4px 8px; }
+      /* Cadence */
+      .cadence-pill { font-size: 10px; padding: 2px 8px; }
 
+      /* Rules */
       .rule-item { font-size: 0.75rem; }
-
-      .trust-guidance { font-size: 11px; }
     }
 
-    .tab-bar::after {
-      content: '';
-      position: absolute;
-      right: 0;
-      top: 0;
-      bottom: 0;
-      width: 40px;
-      background: linear-gradient(to right, transparent, var(--bg));
-      pointer-events: none;
-      display: none;
-    }
-
-    @media (max-width: 768px) {
-      .tab-bar::after { display: block; }
-      .integrity-bar { flex-wrap: wrap; padding: 6px 10px; }
-      .integrity-pills { flex-wrap: wrap; gap: 4px; }
-      .integrity-ts { font-size: 9px; }
-      .undo-header { flex-direction: column; }
-      .undo-bulk-controls { width: 100%; }
-      .undo-select { min-width: 0 !important; max-width: 100% !important; }
-      .undo-filters { flex-direction: column; gap: 6px; }
-      .undo-filters label { font-size: 11px; }
-    }
-
-    @media (max-width: 480px) {
-      body { padding: 4px; }
-      .header { padding: 8px; }
-      .header h1 { font-size: 13px; letter-spacing: 1px; }
-      .header h1 span { font-size: 10px; }
-      .trust-light { padding: 8px; gap: 8px; }
-      .trust-light img { width: 40px !important; height: 40px !important; }
-      .trust-orb { width: 24px; height: 24px; }
-      .trust-info h2 { font-size: 14px; }
-      .trust-stats { gap: 8px; }
-      .stat-value { font-size: 15px; }
-      .stat-label { font-size: 9px; }
-      .tab { padding: 8px 10px; font-size: 10px; }
-      .event-time { display: none; }
-      .status-bar { font-size: 9px; padding: 6px 8px; }
+    /* Extra small phones */
+    @media (max-width: 380px) {
+      .trust-orb { width: 40px; height: 40px; }
+      .trust-info h2 { font-size: 20px; }
+      .stat-value { font-size: 17px; }
+      .tab { font-size: 9px; }
     }
   </style>
 </head>
@@ -2241,6 +2323,46 @@ Continue?`;
       refreshIntegrity();
     }, POLL_INTERVAL);
   }
+
+  // ─── Mobile tab labels ──────────────────────────
+  function applyMobileTabLabels() {
+    if (window.innerWidth > 768) return;
+    const labels = {
+      'timeline': 'Timeline',
+      'ghost': 'Ghost',
+      'away': 'Away',
+      'verify': 'Verify',
+      'undo': 'Rewind',
+      'about': 'Info',
+      'rules': 'Rules'
+    };
+    document.querySelectorAll('.tab').forEach(t => {
+      const key = t.dataset.tab;
+      if (key && labels[key]) t.textContent = labels[key];
+    });
+  }
+  applyMobileTabLabels();
+  window.addEventListener('resize', applyMobileTabLabels);
+
+  // ─── Mobile tab labels ──────────────────────────
+  function applyMobileTabLabels() {
+    if (window.innerWidth > 768) return;
+    const labels = {
+      'timeline': 'Timeline',
+      'ghost': 'Ghost',
+      'away': 'Away',
+      'verify': 'Verify',
+      'undo': 'Rewind',
+      'about': 'Info',
+      'rules': 'Rules'
+    };
+    document.querySelectorAll('.tab').forEach(t => {
+      const key = t.dataset.tab;
+      if (key && labels[key]) t.textContent = labels[key];
+    });
+  }
+  applyMobileTabLabels();
+  window.addEventListener('resize', applyMobileTabLabels);
 
   // ─── Init ─────────────────────────────────────
   startPolling();
