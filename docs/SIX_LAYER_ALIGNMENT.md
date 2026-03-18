@@ -10,7 +10,7 @@
 Individual layers are stable. System-level alpha (0.1.0-alpha) requires:
 - [ ] Sentinel step 5 stability confirmation (automated cycles)
 - [ ] Opus review sign-off (complete — patches applied 654f131)
-- [ ] UK patent filing (blocks full Cadence README)
+- [ ] UK operational planning
 - [ ] Alpha tag stamped
 
 ---
@@ -165,7 +165,7 @@ A transport-layer authentication protocol and tamper-evident flight recorder tha
 - Continue hardening persistence/resync edge cases
 - Separate "implemented now" vs "planned hardening" clearly in public-facing docs
 - Keep anchor/check outputs in release evidence packet
-- Patent docs must separate implemented embodiment from forward embodiments
+- Internal docs must separate implemented embodiment from forward embodiments
 
 ### In pipeline / planned
 - Optional blockchain anchoring (periodic epoch checkpoints to external chain)
@@ -210,7 +210,7 @@ With a formal heartbeat (cron/n8n updating state.env with clock, day-of-week, ho
 - [x] Tests passing (112 tests across bridge, rhythm, storage, CRIP, cognitive load)
 - [x] Policy influence observed (low-risk allowed, exec challenged on tainted session)
 - [ ] Clean A/B causality proof pending (bridge ON vs OFF same scenario — Sentinel's recommendation)
-- [ ] Docs complete (full README written but origin story paragraph blocked on UK patent filing)
+- [ ] Docs complete (full README written)
 - [ ] Pulse ingestion automated (currently manual state edits for testing)
 
 **Honest status: [live-prototype]** The bridge is running, the state file is being consumed, and we observed it influencing policy decisions. But the proof testing had shell friction, and a clean isolated A/B test hasn't been completed yet. For public claims: "live-prototype, influencing policy" is accurate. For formal evidence: A/B causality proof is pending. Learned daily rhythm profiles and automated pulse ingestion are planned, not operational.

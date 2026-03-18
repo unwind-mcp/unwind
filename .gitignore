@@ -65,6 +65,15 @@ sentinel/openclaw/openclaw/
 *.docx
 evidence_pack_*.txt
 
+# AI Operations & Internal Strategy
+UNWIND_OPS/
+CONTINUITY.md
+KEEL/
+SESSION_STATE.md
+AIP_SPECIFICATION.md
+OPEN_CORE_BOUNDARY.md
+DECISIONS_LOG.md
+
 # Temp patch/audit scripts
 patch_*.py
 dash_audit*.py
