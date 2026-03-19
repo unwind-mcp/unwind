@@ -26,23 +26,36 @@ sleep 1
 # ─── 2. Start Sidecar ──────────────────────────────────────
 echo "=== [2/5] Starting Sidecar (port 9100) ==="
 nohup .venv/bin/unwind sidecar serve --port 9100 --log-level warning > /tmp/unwind-sidecar.log 2>&1 &
-sleep 3
 
-# Verify sidecar
-SC_RESP=$(curl -sf \
-    -H "Authorization: Bearer $UNWIND_SIDECAR_SHARED_SECRET" \
-    -H "X-UNWIND-API-Version: 1" \
-    http://127.0.0.1:9100/v1/health 2>&1) || SC_RESP="FAILED"
+echo "  Waiting for Sidecar to bind and report healthy..."
+MAX_RETRIES=20
+ATTEMPT=0
+SC_RESP="FAILED"
+
+while [ $ATTEMPT -lt $MAX_RETRIES ]; do
+    SC_RESP=$(curl -s -f \
+        -H "Authorization: Bearer $UNWIND_SIDECAR_SHARED_SECRET" \
+        -H "X-UNWIND-API-Version: 1" \
+        http://127.0.0.1:9100/v1/health 2>&1) || SC_RESP="FAILED"
+
+    if echo "$SC_RESP" | grep -q '"status":"up"'; then
+        break
+    fi
+    
+    ATTEMPT=$((ATTEMPT+1))
+    sleep 1
+done
 
 if echo "$SC_RESP" | grep -q '"status":"up"'; then
-    echo "  ✓ Sidecar healthy"
+    echo "  ✓ Sidecar healthy (took $ATTEMPT seconds)"
 else
-    echo "  ✗ Sidecar FAILED. Check /tmp/unwind-sidecar.log"
-    echo "    Response: $SC_RESP"
+    echo "  ✗ Sidecar FAILED to boot within $MAX_RETRIES seconds. Check /tmp/unwind-sidecar.log"
+    echo "    Last Response: $SC_RESP"
     echo ""
     echo "  Common fix: policy hash mismatch →"
     echo "    sha256sum ~/.unwind/policy.json | cut -d' ' -f1 > ~/.unwind/policy.sha256"
     echo "    Then re-run this script."
+    pkill -f "unwind sidecar serve" 2>/dev/null || true
     exit 1
 fi
 

@@ -87,6 +87,8 @@ export class SidecarClient {
   private _lastHealthy = false;
   private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
 
+  private clientStartedAt = Date.now();
+
   constructor(config: UnwindAdapterConfig) {
     this.config = config;
   }
@@ -170,6 +172,8 @@ export class SidecarClient {
     }
   }
 
+  private healthCheckFailures = 0;
+
   /**
    * Probe sidecar health. Updates internal health state.
    * NEVER throws.
@@ -184,33 +188,47 @@ export class SidecarClient {
 
       if (response.status !== 200) {
         this.markUnhealthy();
+        this.healthCheckFailures++;
         return null;
       }
 
       const body = (await response.json()) as HealthResponse;
       if (body.status === "up") {
         this.markHealthy();
+        this.healthCheckFailures = 0;
       } else {
         this.markUnhealthy();
+        this.healthCheckFailures++;
       }
       return body;
     } catch {
       this.markUnhealthy();
+      this.healthCheckFailures++;
       return null;
     }
   }
 
   startHealthLoop(): void {
     if (this.healthCheckTimer) return;
-    this.healthCheckTimer = setInterval(
-      () => void this.checkHealth(),
-      this.config.healthCheckIntervalMs
-    );
+    
+    const loop = async () => {
+      await this.checkHealth();
+      
+      // Exponential backoff for the first few failures if the sidecar is slow to boot
+      // Base interval, scaled up by failures, capped at max 10s
+      const backoffMultiplier = Math.min(Math.pow(1.5, this.healthCheckFailures), 4);
+      const nextInterval = Math.min(this.config.healthCheckIntervalMs * backoffMultiplier, 10000);
+      
+      this.healthCheckTimer = setTimeout(loop, nextInterval);
+    };
+    
+    // Start first loop immediately
+    void loop();
   }
 
   stopHealthLoop(): void {
     if (this.healthCheckTimer) {
-      clearInterval(this.healthCheckTimer);
+      clearTimeout(this.healthCheckTimer);
       this.healthCheckTimer = null;
     }
   }
@@ -225,16 +243,29 @@ export class SidecarClient {
       if (elapsed < this.config.breakerOpenMs) {
         return blockWith("SIDECAR_CIRCUIT_OPEN");
       }
+      // Transition to HALF_OPEN to allow ONE probe request through
       this.circuitState = CircuitState.HALF_OPEN;
     }
     return null;
   }
 
   private recordFailure(): void {
-    this.consecutiveFailures++;
-    if (this.consecutiveFailures >= this.config.maxConsecutiveFailures) {
+    const uptime = Date.now() - this.clientStartedAt;
+    const isStartupGrace = uptime < 15000; // 15 seconds grace period for sidecar to boot
+
+    // If we fail while half-open, immediately reopen the breaker
+    if (this.circuitState === CircuitState.HALF_OPEN) {
       this.circuitState = CircuitState.OPEN;
       this.circuitOpenedAt = Date.now();
+      return;
+    }
+
+    if (!isStartupGrace) {
+      this.consecutiveFailures++;
+      if (this.consecutiveFailures >= this.config.maxConsecutiveFailures) {
+        this.circuitState = CircuitState.OPEN;
+        this.circuitOpenedAt = Date.now();
+      }
     }
   }
 
