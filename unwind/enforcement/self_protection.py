@@ -28,7 +28,13 @@ class SelfProtectionCheck:
                 self._protected_canonical.append(canonical)
             except OSError:
                 # Root doesn't exist yet — protect the expected path
-                self._protected_canonical.append(str(root.expanduser()))
+                self._protected_canonical.append(os.path.abspath(os.path.expanduser(str(root))))
+
+        # Single canonical exemption: the active workspace root
+        try:
+            self._workspace_canonical = os.path.realpath(str(config.workspace_root))
+        except OSError:
+            self._workspace_canonical = os.path.abspath(os.path.expanduser(str(config.workspace_root)))
 
     def _normalize_text(self, text: str) -> str:
         """Normalize Unicode to defeat lookalike characters."""
@@ -58,7 +64,14 @@ class SelfProtectionCheck:
             return os.path.realpath(expanded)
 
     def _is_protected(self, canonical_path: str) -> bool:
-        """Check if a canonical path falls within any protected root."""
+        """Check if a canonical path falls within any protected root, unless explicitly exempt."""
+        
+        # 1. Is it explicitly inside the canonical workspace?
+        # If so, it is EXEMPT from self-protection blocks.
+        if canonical_path == self._workspace_canonical or canonical_path.startswith(self._workspace_canonical + os.sep):
+            return False
+
+        # 2. Otherwise, check if it falls under any protected root
         for protected in self._protected_canonical:
             # Path is protected if it IS the root or starts with root + separator
             if canonical_path == protected or canonical_path.startswith(protected + os.sep):

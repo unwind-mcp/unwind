@@ -103,6 +103,77 @@ class TestSelfProtection(unittest.TestCase):
         self.assertIsInstance(config.protected_roots, list)
         self.assertGreaterEqual(len(config.protected_roots), 1)
 
+    def test_nested_openclaw_topology(self):
+        """Test the exact OpenClaw topology: workspace is inside a protected root."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Simulate ~/.openclaw
+            openclaw_dir = Path(tmpdir) / ".openclaw"
+            openclaw_dir.mkdir()
+            
+            # Simulate ~/.openclaw/workspace
+            workspace_dir = openclaw_dir / "workspace"
+            workspace_dir.mkdir()
+            
+            # Create a mock config.json outside the workspace but inside .openclaw
+            config_json = openclaw_dir / "config.json"
+            config_json.write_text("{}")
+            
+            config = UnwindConfig(
+                unwind_home=Path(tmpdir) / ".unwind",
+                workspace_root=workspace_dir,
+                extra_protected_roots=[openclaw_dir]
+            )
+            config.ensure_dirs()
+            check = SelfProtectionCheck(config)
+            
+            # 1. Access INSIDE workspace -> MUST ALLOW
+            safe_file = str(workspace_dir / "safe.txt")
+            self.assertIsNone(check.check("fs_write", target=safe_file))
+            
+            # 2. Access OUTSIDE workspace but INSIDE .openclaw -> MUST BLOCK
+            self.assertIsNotNone(check.check("fs_read", target=str(config_json)))
+            
+            # 3. Traversal from INSIDE workspace escaping to config -> MUST BLOCK
+            traversal_path = str(workspace_dir / ".." / "config.json")
+            self.assertIsNotNone(check.check("fs_read", target=traversal_path))
+            
+            # 4. Symlink from INSIDE workspace pointing outside -> MUST BLOCK
+            link_path = workspace_dir / "evil_link"
+            os.symlink(str(config_json), str(link_path))
+            self.assertIsNotNone(check.check("fs_read", target=str(link_path)))
+
+    def test_prefix_collision_not_exempt(self):
+        """Test that a directory named /x/workspace-evil is not mistakenly exempt if workspace is /x/workspace."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            
+            # The real workspace
+            workspace_dir = tmp / "workspace"
+            workspace_dir.mkdir()
+            
+            # The evil directory with a colliding prefix
+            evil_dir = tmp / "workspace-evil"
+            evil_dir.mkdir()
+            
+            # A protected target inside the evil directory
+            target_file = evil_dir / "secret.json"
+            target_file.write_text("{}")
+            
+            # Let's say tmpdir is the protected root (e.g. ~/.openclaw equivalent)
+            config = UnwindConfig(
+                unwind_home=tmp / ".unwind",
+                workspace_root=workspace_dir,
+                extra_protected_roots=[tmp]  # Protects the whole temp dir
+            )
+            config.ensure_dirs()
+            check = SelfProtectionCheck(config)
+            
+            # Accessing the evil directory must be blocked because it's inside the protected tmp
+            # and is NOT strictly inside the allowed workspace (despite prefix match).
+            self.assertIsNotNone(check.check("fs_read", target=str(target_file)))
+
 
 class TestPathJail(unittest.TestCase):
     """Test path jail (workspace canonicalization)."""
