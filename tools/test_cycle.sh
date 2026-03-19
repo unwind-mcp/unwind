@@ -7,7 +7,6 @@ git pull origin main
 echo "== rebuild adapter =="
 cd openclaw-adapter
 npm install
-npm run build
 cd ..
 
 echo "== keep cron disabled =="
