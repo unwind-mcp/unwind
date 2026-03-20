@@ -117,6 +117,20 @@ class UnwindConfig:
     # (e.g., ~/.openclaw for OpenClaw deployments).  Auto-detected if present.
     extra_protected_roots: list[Path] = field(default_factory=list)
 
+    # Paths inside protected roots that agents ARE allowed to access
+    workspace_exemptions: list[Path] = field(default_factory=lambda: [
+        Path(os.environ.get("UNWIND_WORKSPACE", "~/agent-workspace")).expanduser(),
+        Path("~/.openclaw/workspace").expanduser(),
+        Path("~/sentinel-memory").expanduser(),
+    ])
+
+    # Paths inside protected roots that agents ARE allowed to access
+    workspace_exemptions: list[Path] = field(default_factory=lambda: [
+        Path(os.environ.get("UNWIND_WORKSPACE", "~/agent-workspace")).expanduser(),
+        Path("~/.openclaw/workspace").expanduser(),
+        Path("~/sentinel-memory").expanduser(),
+    ])
+
     @property
     def protected_roots(self) -> list[Path]:
         roots = [self.unwind_home]
@@ -157,6 +171,20 @@ class UnwindConfig:
     # Control-plane tools: scheduler/gateway/orchestrator controls
     control_plane_tools: FrozenSet[str] = frozenset({
         "gateway", "cron", "subagents", "lobster",
+    })
+
+    # Read-only shell commands: exec calls that are safe even in tainted sessions.
+    # These commands cannot modify state — they only read and display.
+    # If an exec tool call starts with one of these, it skips the AMBER taint gate.
+    readonly_exec_commands: FrozenSet[str] = frozenset({
+        "cat", "ls", "head", "tail", "grep", "egrep", "fgrep", "rg",
+        "wc", "file", "stat", "find", "which", "whereis", "type",
+        "pwd", "whoami", "hostname", "date", "uptime", "uname",
+        "echo", "printf", "env", "printenv",
+        "less", "more", "sort", "uniq", "diff", "comm",
+        "sha256sum", "md5sum", "cksum",
+        "tree", "du", "df",
+        "git status", "git log", "git diff", "git show", "git branch",
     })
 
     # Filesystem tools subject to path jail checks (stage 3)

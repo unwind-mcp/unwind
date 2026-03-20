@@ -926,9 +926,25 @@ class EnforcementPipeline:
             session.record_clean_op()
 
         # Graduated amber: only HIGH/CRITICAL taint triggers amber
+        # Read-only exec commands (cat, ls, head, etc) skip the gate —
+        # reading a file after browsing the web is not dangerous.
+        _is_readonly_exec = False
+        if (
+            tool_name in ("exec", "bash_exec", "shell_exec", "run_command", "execute_command")
+            and parameters
+        ):
+            _cmd = str(parameters.get("command", "") or parameters.get("cmd", "") or "").strip()
+            # Extract the first word (the binary name)
+            _first_word = _cmd.split()[0].split("/")[-1] if _cmd else ""
+            # Also check two-word commands like "git status"
+            _two_words = " ".join(_cmd.split()[:2]) if _cmd else ""
+            if _first_word in self.config.readonly_exec_commands or _two_words in self.config.readonly_exec_commands:
+                _is_readonly_exec = True
+
         if (
             session.should_amber_for_taint()
             and tool_name in self.config.high_risk_actuator_tools
+            and not _is_readonly_exec
         ):
             # Check for valid approval window before prompting
             args_shape = self._compute_args_shape(parameters)
