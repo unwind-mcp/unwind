@@ -23,13 +23,13 @@ No AI in the security path. Your agent doesn't know UNWIND exists.
 
 **OpenClaw users** — tell your agent:
 
-> Install the UNWIND security plugin. The Python engine is `pip install unwind-mcp` and the adapter is `openclaw plugins install @unwind/openclaw-adapter`. Restart the gateway when done.
+> Install the UNWIND security engine with `pip install unwind-mcp`, then install the experimental OpenClaw adapter from this repo with `openclaw plugins install ./openclaw-adapter`. Restart the gateway when done.
 
 Or manually:
 
 ```bash
 pip install unwind-mcp
-openclaw plugins install @unwind/openclaw-adapter
+openclaw plugins install ./openclaw-adapter
 ```
 
 **Just want to watch first?** Ghost Mode shows you what your agent would do, without letting it do anything:

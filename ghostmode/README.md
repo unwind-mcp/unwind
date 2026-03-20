@@ -6,7 +6,7 @@ Ghost Mode is a safe first step before giving an AI agent real authority.
 
 It's a zero-config dry-run layer for AI agents. It intercepts every write and lets reads through. Think of it as a flight simulator for AI agents — nothing gets modified, but you see everything the agent tried to do.
 
-Requires Python 3.9+.
+Requires Python 3.10+.
 
 ## Quick Start
 
@@ -22,16 +22,14 @@ Point your agent at Ghost Mode instead of the real server. When the session ends
 ### OpenClaw Users
 
 ```bash
-# 1. Install Ghost Mode
-pip install ghostmode
-
-# 2. Install the OpenClaw plugin
-openclaw plugins install @unwind/ghostmode-openclaw
-
-# 3. Restart the gateway
+# Ghost Mode is verified today as a standalone stdio proxy.
+# If you need OpenClaw-native integration from this repo, use UNWIND's
+# adapter and enable Ghost Mode there instead of a separate Ghost Mode plugin.
+pip install unwind-mcp
+openclaw plugins install ./openclaw-adapter
 ```
 
-Ghost Mode hooks into OpenClaw's tool-call system. Every write is intercepted. Every read passes through.
+This repo does not currently ship a separate OpenClaw Ghost Mode plugin package. For OpenClaw, use the UNWIND adapter and turn Ghost Mode on there.
 
 ## What it does
 
@@ -102,7 +100,7 @@ If a tool slips through, use `--also-block tool_name` to add it.
 
 ## Zero dependencies
 
-Ghost Mode has no external dependencies. It uses only Python 3.9+ stdlib (asyncio, json, pathlib). It installs in under a second.
+Ghost Mode has no external dependencies. It uses only Python 3.10+ stdlib (asyncio, json, pathlib). It installs in under a second.
 
 ## Known limitations
 

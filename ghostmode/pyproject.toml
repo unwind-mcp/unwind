@@ -38,8 +38,11 @@ Homepage = "https://github.com/unwind-mcp/ghostmode"
 Repository = "https://github.com/unwind-mcp/ghostmode"
 "Full Security Suite" = "https://github.com/unwind-mcp/unwind"
 
-[tool.setuptools.packages.find]
-include = ["ghostmode*"]
+[tool.setuptools]
+packages = ["ghostmode"]
+
+[tool.setuptools.package-dir]
+ghostmode = "."
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
