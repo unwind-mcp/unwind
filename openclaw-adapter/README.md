@@ -34,4 +34,4 @@ openclaw plugins install ./openclaw-adapter
 
 ## Status
 
-Scaffold only. Not yet functional. See TODO markers in source files.
+Early adapter for local development. Hook-level tests pass, but full OpenClaw integration and release packaging are still in progress.

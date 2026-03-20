@@ -124,13 +124,6 @@ class UnwindConfig:
         Path("~/sentinel-memory").expanduser(),
     ])
 
-    # Paths inside protected roots that agents ARE allowed to access
-    workspace_exemptions: list[Path] = field(default_factory=lambda: [
-        Path(os.environ.get("UNWIND_WORKSPACE", "~/agent-workspace")).expanduser(),
-        Path("~/.openclaw/workspace").expanduser(),
-        Path("~/sentinel-memory").expanduser(),
-    ])
-
     @property
     def protected_roots(self) -> list[Path]:
         roots = [self.unwind_home]
