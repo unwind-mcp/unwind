@@ -656,7 +656,13 @@ class EnforcementPipeline:
                 )
 
             if host == "gateway" and security == "full" and not elevated:
-                if session.is_tainted:
+                # Read-only commands (cat, ls, head, etc) are safe even when tainted
+                _cmd_2b = str(parameters.get("command", "") or "").strip()
+                _first_2b = _cmd_2b.split()[0].split("/")[-1] if _cmd_2b else ""
+                _two_2b = " ".join(_cmd_2b.split()[:2]) if _cmd_2b else ""
+                _readonly_2b = _first_2b in self.config.readonly_exec_commands or _two_2b in self.config.readonly_exec_commands
+
+                if session.is_tainted and not _readonly_2b:
                     session.trust_state = TrustState.AMBER
                     return PipelineResult(
                         action=CheckResult.AMBER,
@@ -934,6 +940,8 @@ class EnforcementPipeline:
             and parameters
         ):
             _cmd = str(parameters.get("command", "") or parameters.get("cmd", "") or "").strip()
+            import logging as _lg
+            _lg.warning("[READONLY-DEBUG] cmd=%r first=%r", _cmd[:80], _cmd.split()[0].split("/")[-1] if _cmd else "EMPTY")
             # Extract the first word (the binary name)
             _first_word = _cmd.split()[0].split("/")[-1] if _cmd else ""
             # Also check two-word commands like "git status"

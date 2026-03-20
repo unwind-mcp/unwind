@@ -187,6 +187,20 @@ class UnwindConfig:
         "git status", "git log", "git diff", "git show", "git branch",
     })
 
+    # Read-only shell commands: exec calls that are safe even in tainted sessions.
+    # These commands cannot modify state — they only read and display.
+    # If an exec tool call starts with one of these, it skips the AMBER taint gate.
+    readonly_exec_commands: FrozenSet[str] = frozenset({
+        "cat", "ls", "head", "tail", "grep", "egrep", "fgrep", "rg",
+        "wc", "file", "stat", "find", "which", "whereis", "type",
+        "pwd", "whoami", "hostname", "date", "uptime", "uname",
+        "echo", "printf", "env", "printenv",
+        "less", "more", "sort", "uniq", "diff", "comm",
+        "sha256sum", "md5sum", "cksum",
+        "tree", "du", "df",
+        "git status", "git log", "git diff", "git show", "git branch",
+    })
+
     # Filesystem tools subject to path jail checks (stage 3)
     # Includes all tools that accept file path targets, not just fs_* prefixed.
     filesystem_tools: FrozenSet[str] = frozenset({
