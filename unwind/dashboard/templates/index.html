@@ -713,6 +713,8 @@
   .rule-id { font-weight: bold; color: var(--text-bright); }
 
 
+    .mobile-logo { display: none; }
+
     /* ─── Mobile: iOS-style ─────────────────────── */
     @media (max-width: 768px) {
       body {
@@ -745,7 +747,14 @@
         padding: 20px 16px 12px;
         border-bottom: none;
       }
-      .trust-light img { width: 48px !important; height: 48px !important; }
+      .trust-light img { display: none !important; }
+      .mobile-logo {
+        display: block !important;
+        width: 36px;
+        height: 36px;
+        object-fit: contain;
+        margin: 6px auto 2px;
+      }
       .trust-orb { width: 48px; height: 48px; }
       .trust-info { width: 100%; }
       .trust-info h2 { font-size: 22px; font-weight: 700; }
@@ -933,7 +942,7 @@
 
   <!-- Trust Light -->
   <div class="trust-light">
-    <img src="{{ url_for('static', filename='logo.jpg') }}" alt="UNWIND" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="UNWIND" style="width:120px;height:120px;object-fit:contain;flex-shrink:0;">
     <div id="trust-orb" class="trust-orb green"></div>
     <div class="trust-info">
       <h2 id="trust-label">All Clear</h2>
@@ -955,7 +964,7 @@
       </div>
       <div class="stat">
         <div class="stat-value" id="stat-tainted">&mdash;</div>
-        <div class="stat-label" title="Actions from sessions that used external content">Cautious</div>
+        <div class="stat-label" title="Actions from sessions that used external content">Watchful</div>
       </div>
     </div>
   </div>
@@ -1204,10 +1213,10 @@
 
       const guidance = document.getElementById('trust-guidance');
       if (orbState === 'amber') {
-        guidance.textContent = "This session used content from outside your workspace. Any risky actions will ask for approval first. Check the timeline to review what happened.";
+        guidance.textContent = "Your agent browsed the web. High-risk actions will ask for your approval first. Check the timeline to review what happened.";
         guidance.className = 'trust-guidance amber';
       } else if (orbState === 'red') {
-        guidance.textContent = 'Something was blocked. Check the red events in the timeline. In most cases no action is needed — the block already happened. If you see attempts to disable security, end the session immediately.';
+        guidance.textContent = 'Something was blocked. Check the timeline for details. In most cases no action is needed — the block already happened.';
         guidance.className = 'trust-guidance red';
       } else {
         guidance.textContent = '';
@@ -1216,7 +1225,7 @@
 
       const h = data.last_hour;
       let subtitleText =
-        (h.total === 0 ? 'Quiet for the last hour' : `${h.total} actions in the last hour`) +
+        (h.total === 0 ? 'Quiet for the last hour' : `${h.total} action(s) in the last hour`) +
         (h.blocked > 0 ? ` \u2022 ${h.blocked} blocked` : '') +
         (h.tainted > 0 ? ` \u2022 ${h.tainted} tainted` : '');
       if (data.taint_level) {
@@ -1390,12 +1399,42 @@
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  function friendlyResult(text) {
+    if (!text) return '';
+    if (text === 'OK (sidecar)') return 'Allowed';
+    if (text === 'OK (no upstream)') return 'Allowed';
+    if (text.startsWith('AMBER:')) return text.replace('AMBER:', 'Needs approval:');
+    if (text.startsWith('AMBER APPROVED:')) return 'Approved by you';
+    if (text.startsWith('AMBER DENIED:')) return 'Denied by you';
+    return text;
+  }
+
+  const FRIENDLY_JOB_NAMES = {
+    'sentinel:mcp-watch': 'Security Watch',
+    'sentinel:claim-corroborator': 'Claim Checker',
+    'sentinel:release-diff-risk': 'Release Monitor',
+    'sentinel:supply-chain-drift': 'Supply Chain Scan',
+    'sentinel:exploit-prioritizer': 'Exploit Monitor',
+    'sentinel:weekly-intel-brief': 'Weekly Brief',
+    'sentinel:eng-test6h': 'Test Suite',
+    'sentinel:eng-coverage': 'Coverage Check',
+    'sentinel:eng-continuity-drift': 'Drift Check',
+    'sentinel:eng-release-gate': 'Release Gate',
+    'sentinel:config-integrity': 'Config Check',
+    'sentinel:ai-safety-watch': 'AI Safety Watch',
+    'sentinel:daily-brief': 'Daily Brief',
+    'sentinel:daily-brief-chat': 'Daily Summary',
+  };
+  function friendlyJobName(name) {
+    if (name === 'your-agent' || name === 'this-session') return 'Your Agent'; return FRIENDLY_JOB_NAMES[name] || name;
+  }
+
   function classifySession(sessionId, event = null) {
     if (event && event.session_source_short && event.session_source_long) {
-      return { short: event.session_source_short, long: event.session_source_long };
+      return { short: friendlyJobName(event.session_source_short), long: event.session_source_long };
     }
     if (!sessionId) return { short: 'unknown', long: 'Unknown session source' };
-    if (sessionId === 'agent:main:main') return { short: 'this-session', long: 'Current chat session (agent:main:main)' };
+    if (sessionId === 'agent:main:main') return { short: 'your-agent', long: 'Current chat session (agent:main:main)' };
     if (sessionId.includes(':cron:')) return { short: 'scheduled', long: `Scheduled run (${sessionId})` };
     if (sessionId.includes(':subagent:')) return { short: 'subagent', long: `Sub-agent session (${sessionId})` };
     if (sessionId.startsWith('sentinel:')) return { short: sessionId.length > 24 ? sessionId.slice(0, 23) + '…' : sessionId, long: `Scheduled task (${sessionId})` };
@@ -1446,11 +1485,11 @@
     if (event.session_tainted) classes.push('tainted');
 
     const badges = [];
-    if (event.trust_state === 'amber') badges.push('<span class="badge amber">Needs Review</span>');
+    if (event.trust_state === 'amber') badges.push('<span class="badge amber">Review</span>');
     if (event.trust_state === 'red') badges.push('<span class="badge red">Threat</span>');
     if (event.ghost_mode) badges.push('<span class="badge ghost">Simulated</span>');
     if (event.status === 'blocked') badges.push('<span class="badge red">Blocked</span>');
-    if (needsApproval) badges.push('<span class="badge approval" title="Action paused pending human review">Awaiting Approval</span>');
+    if (needsApproval) badges.push('<span class="badge approval" title="Action paused pending human review">Waiting for you</span>');
     const source = classifySession(event.session_id, event);
     badges.push(`<span class="badge info" title="${escapeHtml(source.long)}">${escapeHtml(source.short)}</span>`);
 
@@ -1466,7 +1505,7 @@
         <div class="event-body">
           <div class="event-tool" title="${escapeHtml(event.tool)}">${escapeHtml(TOOL_LABELS[event.tool] || event.tool)}</div>
           <div class="event-target" title="${escapeHtml(event.target)}">${escapeHtml(truncTarget(event.target))}</div>
-          ${event.result_summary ? `<div class="event-target">${escapeHtml(truncTarget(event.result_summary, 80))}</div>` : ''}
+          ${event.result_summary ? `<div class="event-target">${escapeHtml(truncTarget(friendlyResult(event.result_summary), 80))}</div>` : ''}
           <div class="event-badges">${badges.join('')}</div>
         </div>
         <div class="event-actions">
@@ -1476,7 +1515,7 @@
             if (m && event.trust_state === 'amber' && event.status === 'blocked') {
               const ageSec = (Date.now() / 1000) - (event.timestamp || 0);
               if (ageSec > 95) {
-                return '<span class="badge" style="color:var(--text-dim);font-size:11px;">Challenge expired</span>';
+                return '<span class="badge" style="color:var(--text-dim);font-size:11px;">Expired</span>';
               }
               return '<button class="amber-btn allow" onclick="event.stopPropagation();resolveAmber(\'' + m[1] + '\',\'allow\')" title="Allow this action">Allow</button>' +
                      '<button class="amber-btn deny" onclick="event.stopPropagation();resolveAmber(\'' + m[1] + '\',\'deny\')" title="Deny this action">Deny</button>';
@@ -1571,7 +1610,7 @@
         ${ev.result_summary ? `
           <div class="edp-section">
             <div class="edp-label">What happened</div>
-            <div>${escapeHtml(ev.result_summary)}</div>
+            <div>${escapeHtml(friendlyResult(ev.result_summary))}</div>
           </div>` : ''}
         ${approvalHtml}
         ${snapshotHtml}
@@ -2363,6 +2402,21 @@ Continue?`;
   }
   applyMobileTabLabels();
   window.addEventListener('resize', applyMobileTabLabels);
+
+  // ─── Mobile logo above UNWIND text ─────────────
+  function setupMobileLogo() {
+    if (window.innerWidth > 768) return;
+    if (document.querySelector('.mobile-logo')) return;
+    var logo = document.querySelector('.trust-light img');
+    if (!logo) return;
+    var clone = document.createElement('img');
+    clone.src = logo.src;
+    clone.className = 'mobile-logo';
+    clone.alt = 'UNWIND';
+    var header = document.querySelector('.header');
+    if (header) header.insertBefore(clone, header.firstChild);
+  }
+  setTimeout(setupMobileLogo, 200);
 
   // ─── Init ─────────────────────────────────────
   startPolling();
