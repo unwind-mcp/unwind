@@ -17,7 +17,11 @@ Check on your agent from your phone. Green light means everything's fine. Amber 
 
 No AI in the security path. Your agent doesn't know UNWIND exists.
 
-![UNWIND Dashboard](https://raw.githubusercontent.com/unwind-mcp/unwind/main/unwind/dashboard/static/dashboard-preview.jpg)
+<p align="center">
+  <img src="docs/screenshots/mobile-green.jpg" width="250" alt="All Clear — your agent is operating normally">
+  <img src="docs/screenshots/mobile-amber.jpg" width="250" alt="Review Recommended — your agent browsed the web">
+  <img src="docs/screenshots/mobile-red.jpg" width="250" alt="Alert — SSRF attack blocked">
+</p>
 
 ## Install
 
