@@ -245,7 +245,7 @@ class UnwindConfig:
 
     # Network tools subject to SSRF checks
     network_tools: FrozenSet[str] = frozenset({
-        "fetch_web", "http_post", "http_put", "http_delete", "http_patch", "http_get",
+        "fetch_web", "web_fetch", "web_search", "http_post", "http_put", "http_delete", "http_patch", "http_get",
         "browser_navigate", "browser",  # OpenClaw browser tool can reach arbitrary URLs
         "webhook", "websocket", "api_call",
     })
