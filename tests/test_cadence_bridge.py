@@ -540,7 +540,7 @@ class TestPipelineIntegration:
             for i in range(3):
                 mock_time.return_value = base + i * 0.5
                 session = Session(session_id="s1", config=config)
-                result = pipeline.check(session, "bash_exec")
+                result = pipeline.check(session, "bash_exec", source_type="cron")
 
             assert result.action == CheckResult.AMBER
             assert "AWAY" in result.amber_reason
@@ -558,7 +558,7 @@ class TestPipelineIntegration:
             for i in range(3):
                 mock_time.return_value = base + i * 0.5
                 session = Session(session_id="s1", config=config)
-                result = pipeline.check(session, "fs_read")
+                result = pipeline.check(session, "fs_read", source_type="cron")
 
             # Sensor tool → taint escalation happens but AMBER only on high-risk actuators
             assert result.action != CheckResult.AMBER or "AWAY" not in (result.amber_reason or "")
@@ -659,7 +659,7 @@ class TestPipelineIntegration:
             for i in range(5):
                 mock_time.return_value = base + i * 0.5  # Very regular, very fast
                 session = Session(session_id="s1", config=config)
-                result = pipeline.check(session, "bash_exec")
+                result = pipeline.check(session, "bash_exec", source_type="cron")
 
             assert result.action == CheckResult.AMBER
 

@@ -129,8 +129,8 @@ class TestProxy(unittest.TestCase):
             parameters={"to": "test@example.com", "body": "hello"},
             session_id="sess_001",
         ))
-        self.assertEqual(result["status"], "amber")
-        self.assertTrue(result["requires_confirmation"])
+        self.assertEqual(result["status"], "success")
+        # Interactive sessions no longer require confirmation
 
     def test_ghost_mode(self):
         """Ghost mode should intercept writes and return success."""

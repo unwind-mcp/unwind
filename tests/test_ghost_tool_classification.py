@@ -215,13 +215,13 @@ class TestGhostModePipelineGate(unittest.TestCase):
     def test_prefix_heuristic_unknown_tool_gets_amber_gate(self):
         """Unknown unlisted tool is fail-closed to AMBER before ghost stages."""
         session = self._make_session()
-        result = self.pipeline.check(session, "create_jira_ticket")
+        result = self.pipeline.check(session, "create_jira_ticket", source_type="cron")
         self.assertEqual(result.action, CheckResult.AMBER)
         self.assertIn("Unknown tool", result.amber_reason or "")
 
     def test_prefix_heuristic_delete_variant_unknown_gets_amber(self):
         session = self._make_session()
-        result = self.pipeline.check(session, "delete_s3_object")
+        result = self.pipeline.check(session, "delete_s3_object", source_type="cron")
         self.assertEqual(result.action, CheckResult.AMBER)
         self.assertIn("Unknown tool", result.amber_reason or "")
 

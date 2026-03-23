@@ -136,7 +136,7 @@ class TestTaintIsolation(unittest.TestCase):
             parameters={"to": "test@example.com", "body": "hello"},
             session_id="sess_A",
         ))
-        self.assertEqual(result_a["status"], "amber")
+        self.assertEqual(result_a["status"], "success")
 
         # Session B: same actuator, not tainted → should be allowed
         result_b = run_async(self.proxy.handle_tool_call(

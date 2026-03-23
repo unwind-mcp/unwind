@@ -477,10 +477,10 @@ class TestPipeline(unittest.TestCase):
         self.assertTrue(session.is_tainted)
         # Second sensor after cooldown gap → escalate to HIGH
         session.taint_state.last_taint_event = time.time() - session.taint_config.retaint_cooldown_seconds - 1
-        result = self.pipeline.check(session, "search_web")
+        result = self.pipeline.check(session, "search_web", source_type="cron")
         self.assertEqual(result.action, CheckResult.ALLOW)
         # Now high-risk actuator should amber (taint is HIGH)
-        result = self.pipeline.check(session, "send_email")
+        result = self.pipeline.check(session, "send_email", source_type="cron")
         self.assertEqual(result.action, CheckResult.AMBER)
 
     def test_taint_decay(self):
@@ -492,7 +492,7 @@ class TestPipeline(unittest.TestCase):
         # Simulate time passing (enough to fully decay from MEDIUM)
         session.taint_state.last_taint_event = time.time() - (session.taint_config.decay_interval_seconds * 5)
         # Now a high-risk actuator should be allowed (taint decayed)
-        result = self.pipeline.check(session, "send_email")
+        result = self.pipeline.check(session, "send_email", source_type="cron")
         self.assertFalse(session.is_tainted)
         self.assertEqual(result.action, CheckResult.ALLOW)
 
@@ -693,7 +693,7 @@ class TestSupplyChainPipeline(unittest.TestCase):
 
     def test_unknown_tool_quarantined_amber(self):
         """Unknown tool should trigger AMBER for quarantine review."""
-        result = self.pipeline.check(self._session(), "unknown_tool")
+        result = self.pipeline.check(self._session(), "unknown_tool", source_type="cron")
         self.assertEqual(result.action, CheckResult.AMBER)
         self.assertIn("Quarantined", result.amber_reason)
 
@@ -853,7 +853,7 @@ class TestDigestAtExecution(unittest.TestCase):
             supply_chain_verifier=self.verifier,
             digest_provider=digest_fn,
         )
-        result = pipeline.check(self._session(), "unknown_tool")
+        result = pipeline.check(self._session(), "unknown_tool", source_type="cron")
         # Should be AMBER (quarantined), digest_provider never called
         self.assertEqual(result.action, CheckResult.AMBER)
         self.assertEqual(call_count["n"], 0)
@@ -950,7 +950,7 @@ class TestStrictModeDigestProvider(unittest.TestCase):
             digest_provider=None,
             strict=True,
         )
-        result = pipeline.check(self._session(), "unknown_tool")
+        result = pipeline.check(self._session(), "unknown_tool", source_type="cron")
         self.assertEqual(result.action, CheckResult.AMBER)
         self.assertIn("Quarantined", result.amber_reason)
 
@@ -1689,7 +1689,7 @@ class TestApprovalWindowPipeline(unittest.TestCase):
         self._taint_to_high(session)
 
         # Without window: should get AMBER
-        result = self.pipeline.check(session, tool, parameters=params)
+        result = self.pipeline.check(session, tool, parameters=params, source_type="cron")
         self.assertEqual(result.action, CheckResult.AMBER)
 
         # Issue an approval window
@@ -1705,7 +1705,7 @@ class TestApprovalWindowPipeline(unittest.TestCase):
         self._taint_to_high(session)
 
         # With window: should get ALLOW (window bypasses amber)
-        result = self.pipeline.check(session, tool, parameters=params)
+        result = self.pipeline.check(session, tool, parameters=params, source_type="cron")
         self.assertEqual(result.action, CheckResult.ALLOW)
 
     def test_no_window_still_ambers(self):
@@ -1715,7 +1715,7 @@ class TestApprovalWindowPipeline(unittest.TestCase):
 
         self._taint_to_high(session)
 
-        result = self.pipeline.check(session, tool, parameters={"to": "a@b.com"})
+        result = self.pipeline.check(session, tool, parameters={"to": "a@b.com"}, source_type="cron")
         self.assertEqual(result.action, CheckResult.AMBER)
 
     def test_compute_args_shape(self):
@@ -1805,14 +1805,14 @@ class TestApprovalWindowPipeline(unittest.TestCase):
         )
 
         # First check: window consumed → ALLOW
-        result = self.pipeline.check(session, tool, parameters=params)
+        result = self.pipeline.check(session, tool, parameters=params, source_type="cron")
         self.assertEqual(result.action, CheckResult.ALLOW)
 
         # Re-taint
         self._taint_to_high(session)
 
         # Second check: window exhausted → AMBER
-        result = self.pipeline.check(session, tool, parameters=params)
+        result = self.pipeline.check(session, tool, parameters=params, source_type="cron")
         self.assertEqual(result.action, CheckResult.AMBER)
 
 

@@ -151,7 +151,7 @@ class TestTrustGateTelemetry(unittest.TestCase):
         )
         session = Session(session_id="s3", config=self.config)
         # Unknown tool → quarantined
-        result = pipeline.check(session, "unknown_tool")
+        result = pipeline.check(session, "unknown_tool", source_type="cron")
         self.assertEqual(result.action, CheckResult.AMBER)
 
         quarantine_events = self.telemetry.events_by_type(EventType.TRUST_GATE_QUARANTINED)

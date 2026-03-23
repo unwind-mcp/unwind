@@ -662,7 +662,12 @@ class EnforcementPipeline:
                 _two_2b = " ".join(_cmd_2b.split()[:2]) if _cmd_2b else ""
                 _readonly_2b = _first_2b in self.config.readonly_exec_commands or _two_2b in self.config.readonly_exec_commands
 
-                if session.is_tainted and not _readonly_2b:
+                # Interactive sessions (source_type "user") skip taint gate —
+                # the human gave the command, they ARE the approval.
+                # Only automated sessions (cron/system) need taint gating.
+                _interactive = (not source_type or source_type.lower() == "user")
+
+                if session.is_tainted and not _readonly_2b and not _interactive:
                     session.trust_state = TrustState.AMBER
                     return PipelineResult(
                         action=CheckResult.AMBER,
@@ -949,10 +954,14 @@ class EnforcementPipeline:
             if _first_word in self.config.readonly_exec_commands or _two_words in self.config.readonly_exec_commands:
                 _is_readonly_exec = True
 
+        # Interactive sessions skip taint gating — human is present.
+        _interactive_7 = (not source_type or source_type.lower() == "user")
+
         if (
             session.should_amber_for_taint()
             and tool_name in self.config.high_risk_actuator_tools
             and not _is_readonly_exec
+            and not _interactive_7
         ):
             # Check for valid approval window before prompting
             args_shape = self._compute_args_shape(parameters)
