@@ -211,6 +211,100 @@ _TEMPLATES: list[tuple[re.Pattern, str, str, str, str, str]] = [
             "tool calls \u2014 use environment variables or secret managers."
         ),
     ),
+    # 15a. Exec Tunnel: privilege escalation
+    (
+        re.compile(r"Privilege escalation attempt:\s*(.+)", re.IGNORECASE),
+        "Exec Tunnel",
+        "critical",
+        "Your agent tried to gain elevated privileges",
+        (
+            "The command '{1}' is associated with privilege escalation (such as "
+            "sudo or su). Agents should never need elevated system access. "
+            "The attempt was blocked."
+        ),
+        (
+            "Review the agent's recent instructions. If you genuinely need this, "
+            "run it yourself in a terminal rather than allowing the agent."
+        ),
+    ),
+    # 15b. Exec Tunnel: dangerous git
+    (
+        re.compile(r"Dangerous git operation:\s*(.+)", re.IGNORECASE),
+        "Exec Tunnel",
+        "warning",
+        "A risky git command was blocked",
+        (
+            "The command '{1}' can rewrite history or permanently delete work "
+            "(for example force-push or hard reset). UNWIND blocks these from "
+            "agents because mistakes are hard to undo."
+        ),
+        "If this was intentional, run the git command yourself in a terminal.",
+    ),
+    # 15c. Exec Tunnel: system cron
+    (
+        re.compile(r"System cron modification:\s*(.+)", re.IGNORECASE),
+        "Exec Tunnel",
+        "critical",
+        "Your agent tried to change scheduled system tasks",
+        (
+            "Modifying system schedules via '{1}' is a common persistence "
+            "technique — a way for injected instructions to keep running after "
+            "the session ends. The attempt was blocked."
+        ),
+        (
+            "This should not normally happen. Review what the agent was asked "
+            "to do, and treat unexpected cron changes as a red flag."
+        ),
+    ),
+    # 15d. Exec Tunnel: service management
+    (
+        re.compile(r"Service management command:\s*(.+)", re.IGNORECASE),
+        "Exec Tunnel",
+        "warning",
+        "Your agent tried to control system services",
+        (
+            "The command '{1}' starts, stops or restarts system services. "
+            "Service control can disable security tooling or disrupt the "
+            "machine, so it requires your say-so."
+        ),
+        (
+            "If the agent legitimately manages a service for you, consider a "
+            "trusted source rule; otherwise review the session."
+        ),
+    ),
+    # 15e. Exec Tunnel: script interpreter
+    (
+        re.compile(r"Script interpreter execution:\s*(.+)", re.IGNORECASE),
+        "Exec Tunnel",
+        "warning",
+        "Your agent launched a script interpreter",
+        (
+            "Running '{1}' lets the agent execute arbitrary code, which can "
+            "bypass per-tool controls. UNWIND flags this so you can check what "
+            "the script actually does."
+        ),
+        "Review the script or command line before approving similar actions.",
+    ),
+    # 15f. Exec Tunnel: tunnelled controlled commands
+    (
+        re.compile(
+            r"Tunnelled (?:OpenClaw admin command|OpenClaw command|cron operation"
+            r"|git actuator|git command):\s*(.+)",
+            re.IGNORECASE,
+        ),
+        "Exec Tunnel",
+        "warning",
+        "Your agent used the shell to reach a controlled tool",
+        (
+            "Instead of calling the tool directly, the agent ran '{1}' through "
+            "command execution. These commands are routed through stricter "
+            "checks because the shell can sidestep per-tool rules."
+        ),
+        (
+            "Usually benign, but worth a glance — check the command matches "
+            "what you asked the agent to do."
+        ),
+    ),
     # 15. Exec Tunnel
     (
         re.compile(r"Exec tunnel(?::\s*(.+))?", re.IGNORECASE),
@@ -226,6 +320,202 @@ _TEMPLATES: list[tuple[re.Pattern, str, str, str, str, str]] = [
             "Review the command that was executed. Consider restricting bash access "
             "if the agent doesn't need it."
         ),
+    ),
+    # 16. Ghost Egress: known secret
+    (
+        re.compile(r"GHOST_EGRESS_SECRET_REGISTRY: known secret detected", re.IGNORECASE),
+        "Ghost Egress",
+        "critical",
+        "A real secret nearly left in a test request",
+        (
+            "While running in Ghost Mode (dry-run), an outgoing request "
+            "contained one of your registered secrets. Nothing was actually "
+            "sent — but it means the secret is present in the session."
+        ),
+        (
+            "Work out how the secret got into the session. If in doubt, "
+            "rotate it."
+        ),
+    ),
+    # 17. Ghost Egress: registry unavailable
+    (
+        re.compile(r"GHOST_EGRESS_SECRET_REGISTRY: registry unavailable", re.IGNORECASE),
+        "Ghost Egress",
+        "warning",
+        "Secret check unavailable — request blocked as a precaution",
+        (
+            "Ghost Mode could not reach the secret registry to scan an outgoing "
+            "request, so it failed closed and blocked the request rather than "
+            "risk a leak."
+        ),
+        "Check that the UNWIND sidecar is running, then retry.",
+    ),
+    # 18. Ghost Egress: DLP
+    (
+        re.compile(r"GHOST_EGRESS_DLP:\s*(.+)", re.IGNORECASE),
+        "Ghost Egress",
+        "warning",
+        "Ghost Mode blocked an unsafe-looking outgoing request",
+        (
+            "While testing in dry-run mode, an outgoing request was flagged: "
+            "{1}. Nothing was actually sent."
+        ),
+        (
+            "This is Ghost Mode doing its job — review what the agent tried "
+            "to send before running the same task for real."
+        ),
+    ),
+    # 19. Ghost Mode: network blocked
+    (
+        re.compile(r"GHOST_MODE_NETWORK_BLOCKED", re.IGNORECASE),
+        "Ghost Mode",
+        "info",
+        "Network access is switched off in Ghost Mode",
+        (
+            "The agent tried to reach the network during a dry run. Ghost Mode "
+            "blocks network access so tests can't touch the outside world — "
+            "the attempt was recorded, not sent."
+        ),
+        "No action needed. Run outside Ghost Mode when you want real network calls.",
+    ),
+    # 20. Integrity: signature / HMAC failure
+    (
+        re.compile(r"(?:Signature verification FAILED|HMAC verification FAILED)", re.IGNORECASE),
+        "Supply Chain",
+        "critical",
+        "A tool provider failed its integrity check",
+        (
+            "The cryptographic signature on a tool provider or lockfile did not "
+            "verify. This can mean the files were altered since they were "
+            "approved — possible tampering."
+        ),
+        (
+            "Do not approve anything from this provider. Run 'unwind verify' "
+            "and re-install the provider from a trusted source."
+        ),
+    ),
+    # 21. Supply chain: unknown tool quarantined
+    (
+        re.compile(r"Tool '(.+?)' not found in (?:any known provider|lockfile)", re.IGNORECASE),
+        "Supply Chain",
+        "critical",
+        "Your agent tried to use an unrecognised tool",
+        (
+            "The tool '{1}' is not in the approved tool inventory, so it was "
+            "quarantined. New or renamed tools must be re-approved before "
+            "agents can use them."
+        ),
+        (
+            "If you recently added this tool on purpose, re-run the supply "
+            "chain approval. Otherwise treat it as suspicious."
+        ),
+    ),
+    # 22. Supply chain: blocklisted provider
+    (
+        re.compile(r"Provider '(.+?)' is on the blocklist", re.IGNORECASE),
+        "Supply Chain",
+        "critical",
+        "A banned tool provider was blocked",
+        (
+            "The provider '{1}' is on your blocklist. Tool calls that reference "
+            "it are always refused."
+        ),
+        "No action needed unless you intended to unban this provider.",
+    ),
+    # 23. Session scope
+    (
+        re.compile(r"Tool '(.+?)' is outside session scope", re.IGNORECASE),
+        "Session Scope",
+        "warning",
+        "Your agent tried a tool this session isn't allowed to use",
+        (
+            "Each session is limited to the tools it needs. The tool '{1}' is "
+            "outside this session's scope, so the call was refused."
+        ),
+        (
+            "If the agent genuinely needs this tool, widen the session scope "
+            "in your UNWIND config."
+        ),
+    ),
+    # 24. Telemetry freshness
+    (
+        re.compile(r"(?:RSS|Taint) age\s+[\d.]+\s*s?\s*>", re.IGNORECASE),
+        "Freshness",
+        "warning",
+        "UNWIND's monitoring data went stale",
+        (
+            "One of UNWIND's internal security signals hadn't refreshed within "
+            "its time limit, so the pipeline switched to extra caution until "
+            "fresh data arrived."
+        ),
+        (
+            "Usually resolves on its own. If it keeps appearing, check the "
+            "sidecar is running."
+        ),
+    ),
+    # 25. Secret registry degraded
+    (
+        re.compile(r"registry_degraded", re.IGNORECASE),
+        "Freshness",
+        "warning",
+        "Secret scanning degraded — extra caution applied",
+        (
+            "The secret registry could not be fully consulted, so UNWIND "
+            "applied stricter handling to outgoing data as a precaution."
+        ),
+        "Check that the UNWIND sidecar is healthy.",
+    ),
+    # 26. Breakglass: dual control
+    (
+        re.compile(r"Dual-control violation", re.IGNORECASE),
+        "Breakglass",
+        "warning",
+        "Approval rejected — a second person must approve",
+        (
+            "Emergency overrides require dual control: the person approving "
+            "cannot be the person who asked. This request was made and "
+            "approved by the same identity, so it was refused."
+        ),
+        "Have a different authorised person approve the request.",
+    ),
+    # 27. Breakglass: disabled
+    (
+        re.compile(r"Breakglass is disabled by policy", re.IGNORECASE),
+        "Breakglass",
+        "info",
+        "Emergency override is switched off",
+        (
+            "An emergency override (breakglass) was requested, but your policy "
+            "has breakglass disabled, so it was refused."
+        ),
+        "Enable breakglass in policy only if you really need emergency overrides.",
+    ),
+    # 28. CRAFT: key rejected
+    (
+        re.compile(r"Key '(.+?)' (?:has been revoked|not found in key store)", re.IGNORECASE),
+        "CRAFT",
+        "critical",
+        "A signing key was rejected",
+        (
+            "The key '{1}' was revoked or is unknown to the key store. "
+            "Anything signed with it can no longer be trusted."
+        ),
+        (
+            "If you rotated keys recently this may be expected — otherwise "
+            "investigate before trusting this source again."
+        ),
+    ),
+    # 29. Approval expired
+    (
+        re.compile(r"TTL elapsed", re.IGNORECASE),
+        "Approval",
+        "info",
+        "An approval expired before it was used",
+        (
+            "The approval window for a pending action ran out, so the action "
+            "was not performed. Approvals are time-limited on purpose."
+        ),
+        "If you still want the action, ask the agent to try again and approve promptly.",
     ),
 ]
 
