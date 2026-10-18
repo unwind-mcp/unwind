@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Ghost Mode CLI — one command, zero config.
 
 Usage:
@@ -54,6 +56,14 @@ def main() -> None:
         default=[],
         help="Additional tool names to treat as writes (can be repeated)",
     )
+    parser.add_argument(
+        "--allow",
+        metavar="TOOL",
+        action="append",
+        default=[],
+        help="Tool names to pass through as read-only (can be repeated). "
+             "Unknown tools are blocked unless listed here.",
+    )
 
     args = parser.parse_args()
 
@@ -84,6 +94,7 @@ def main() -> None:
 
     # Custom write tools
     custom_writes = frozenset(args.also_block) if args.also_block else None
+    allowed = frozenset(args.allow) if args.allow else None
 
     # Logging
     level = logging.DEBUG if args.verbose else logging.WARNING
@@ -98,7 +109,7 @@ def main() -> None:
     print(
         "\n  \U0001f47b Ghost Mode active\n"
         f"  Upstream: {' '.join(upstream_cmd)}\n"
-        f"  Writes will be intercepted. Reads pass through.\n",
+        f"  Writes and unknown tools are intercepted. Reads pass through.\n",
         file=sys.stderr,
     )
 
@@ -107,16 +118,24 @@ def main() -> None:
     # Run with export on exit
     async def _run():
         from .proxy import GhostProxy
-        proxy = GhostProxy(upstream_cmd, custom_writes, args.verbose)
-        await proxy.run()
+        proxy = GhostProxy(upstream_cmd, custom_writes, args.verbose, allowed)
+        try:
+            await proxy.run()
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            pass
+        finally:
+            await proxy.shutdown()
 
-        # Export if requested
-        if args.export:
-            from pathlib import Path
-            count = proxy.log.export_json(Path(args.export))
-            print(f"\n  Exported {count} events to {args.export}", file=sys.stderr)
+            # Export if requested
+            if args.export:
+                from pathlib import Path
+                count = proxy.log.export_json(Path(args.export))
+                print(f"\n  Exported {count} events to {args.export}", file=sys.stderr)
 
-    asyncio.run(_run())
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":

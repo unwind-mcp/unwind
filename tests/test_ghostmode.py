@@ -10,9 +10,10 @@ import time
 import unittest
 from pathlib import Path
 
+from ghostmode import __version__
 from ghostmode.shadow_vfs import ShadowVFS
 from ghostmode.event_log import GhostEventLog, GhostEvent
-from ghostmode.proxy import is_write_tool, DEFAULT_WRITE_TOOLS
+from ghostmode.proxy import is_write_tool, classify_tool, DEFAULT_WRITE_TOOLS
 
 
 # ── Shadow VFS Tests ────────────────────────────────────────────
@@ -150,7 +151,7 @@ class TestGhostEventLog(unittest.TestCase):
         self.assertEqual(count, 2)
 
         data = json.loads(path.read_text())
-        self.assertEqual(data["ghostmode_version"], "0.1.0")
+        self.assertEqual(data["ghostmode_version"], __version__)
         self.assertEqual(len(data["events"]), 2)
         self.assertEqual(data["events"][0]["tool"], "fs_write")
         path.unlink()
@@ -213,7 +214,28 @@ class TestToolClassification(unittest.TestCase):
     def test_custom_write_tools(self):
         custom = frozenset({"my_special_tool", "another_tool"})
         self.assertTrue(is_write_tool("my_special_tool", custom))
-        self.assertFalse(is_write_tool("normal_read", custom))
+        self.assertFalse(is_write_tool("read_normal", custom))
+
+    def test_unknown_tools_blocked_by_default(self):
+        self.assertTrue(is_write_tool("frobnicate"))
+        self.assertTrue(is_write_tool("frobnicate", annotations={}))
+        self.assertEqual(classify_tool("frobnicate"), "unknown")
+
+    def test_read_only_annotation_passes(self):
+        self.assertFalse(is_write_tool("frobnicate", annotations={"readOnlyHint": True}))
+        self.assertTrue(is_write_tool("read_thing", annotations={"readOnlyHint": False}))
+
+    def test_known_write_name_beats_annotation(self):
+        self.assertTrue(is_write_tool("write_file", annotations={"readOnlyHint": True}))
+
+    def test_allow_list(self):
+        allowed = frozenset({"frobnicate"})
+        self.assertFalse(is_write_tool("frobnicate", allowed=allowed))
+        # --also-block still wins over --allow
+        self.assertTrue(is_write_tool("frobnicate", frozenset({"frobnicate"}), allowed=allowed))
+
+    def test_directory_tree_is_read(self):
+        self.assertFalse(is_write_tool("directory_tree"))
 
     def test_default_write_tools_not_empty(self):
         self.assertGreater(len(DEFAULT_WRITE_TOOLS), 20)

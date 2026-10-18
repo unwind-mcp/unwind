@@ -199,7 +199,7 @@ class UnwindConfig:
     filesystem_tools: FrozenSet[str] = frozenset({
         "fs_read", "fs_write", "fs_delete", "fs_rename", "fs_mkdir", "fs_move", "fs_copy",
         "write_file", "read_file", "delete_file", "rename_file", "move_file", "create_directory",
-        "edit", "apply_patch",
+        "edit", "apply_patch", "edit_file", "patch_file", "replace_in_file",
     })
 
     # All state-modifying tools (includes high-risk + lower-risk writes)
@@ -220,6 +220,7 @@ class UnwindConfig:
         # Filesystem
         "fs_write", "fs_delete", "fs_rename", "fs_mkdir", "fs_move", "fs_copy",
         "write_file", "delete_file", "rename_file", "move_file", "create_directory",
+        "edit_file", "patch_file", "replace_in_file",
         # Calendar / Scheduling
         "create_calendar_event", "modify_calendar_event", "delete_calendar_event",
         "create_event", "update_event", "delete_event",
@@ -240,7 +241,8 @@ class UnwindConfig:
     ghost_intercept_prefixes: tuple[str, ...] = (
         "create_", "delete_", "remove_", "update_", "modify_",
         "send_", "post_", "put_", "write_", "set_", "insert_",
-        "drop_", "execute_", "run_", "install_", "push_",
+        "drop_", "execute_", "run_", "install_", "push_", "edit_",
+        "patch_", "replace_", "rename_", "move_", "copy_",
     )
 
     # Network tools subject to SSRF checks
