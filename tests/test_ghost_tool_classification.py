@@ -212,6 +212,15 @@ class TestGhostModePipelineGate(unittest.TestCase):
         result = self.pipeline.check(session, "webhook")
         self.assertEqual(result.action, CheckResult.GHOST)
 
+    def test_edit_file_intercepted_in_ghost_mode(self):
+        """edit_file (official MCP filesystem server) must be ghosted, not
+        sent to an approval prompt that would run it for real."""
+        session = self._make_session()
+        target = str(self.config.workspace_root / "notes.txt")
+        for tool in ("edit_file", "patch_file", "replace_in_file"):
+            result = self.pipeline.check(session, tool, target=target)
+            self.assertEqual(result.action, CheckResult.GHOST, tool)
+
     def test_prefix_heuristic_unknown_tool_gets_amber_gate(self):
         """Unknown unlisted tool is fail-closed to AMBER before ghost stages."""
         session = self._make_session()

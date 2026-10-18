@@ -6,7 +6,7 @@ Ghost Mode is a safe first step before giving an AI agent real authority.
 
 It's a zero-config dry-run layer for AI agents. It intercepts every write and lets reads through. Think of it as a flight simulator for AI agents — nothing gets modified, but you see everything the agent tried to do.
 
-Requires Python 3.10+.
+Requires Python 3.9+.
 
 ## Quick Start
 
@@ -17,7 +17,7 @@ pip install ghostmode
 ghostmode -- npx @modelcontextprotocol/server-filesystem ~/Documents
 ```
 
-Point your agent at Ghost Mode instead of the real server. When the session ends, a summary is written to `ghostmode-summary.txt` in your working directory and printed to stderr.
+Point your agent at Ghost Mode instead of the real server. When the session ends, a summary is written to `ghostmode-summary.txt` in your working directory (or your home directory if that isn't writable) and printed to stderr.
 
 ### OpenClaw Users
 
@@ -90,23 +90,31 @@ ghostmode -- <upstream command>        Basic usage
 ghostmode -v -- <command>              Verbose: log every action to stderr
 ghostmode --export log.json -- <cmd>   Export session log on exit
 ghostmode --also-block my_tool -- ...  Add custom tool names to intercept
+ghostmode --allow my_tool -- ...       Pass an unknown read-only tool through
 ```
 
 ## How it knows what to block
 
-Ghost Mode recognises 50+ common MCP tool names as state-modifying (filesystem writes, email sends, API posts, shell commands, database mutations, git operations). It also uses prefix heuristics: any tool starting with `create_`, `delete_`, `send_`, `write_`, `execute_`, etc. gets intercepted. The block list is heuristic-based and configurable.
+Ghost Mode recognises 50+ common MCP tool names as state-modifying (filesystem writes, email sends, API posts, shell commands, database mutations, git operations). It also uses prefix heuristics: any tool starting with `create_`, `delete_`, `send_`, `write_`, `execute_`, etc. gets intercepted. Anything else is only passed through if it is known to be read-only: either the server marks it with the MCP `readOnlyHint` annotation, or its name starts with `read_`, `get_`, `list_`, `search_`, `fetch_` and similar. **Unknown tools are blocked by default**, and listed in the session summary.
 
-If a tool slips through, use `--also-block tool_name` to add it.
+- If a read-only tool is being blocked, use `--allow tool_name` to pass it through.
+- If a tool slips through, use `--also-block tool_name` to add it.
+
+## Keeping the agent consistent
+
+For filesystem servers (including `@modelcontextprotocol/server-filesystem`), the shadow VFS keeps everything the agent sees in line with what it "did": edited files read back with the edit applied, moved files appear at their new path and are gone from the old one, and new files and directories show up in `list_directory`, `directory_tree`, `search_files`, `get_file_info` and `read_multiple_files`. Real file contents are fetched through the upstream server, so its own access rules still apply.
 
 ## Zero dependencies
 
-Ghost Mode has no external dependencies. It uses only Python 3.10+ stdlib (asyncio, json, pathlib). It installs in under a second.
+Ghost Mode has no external dependencies. It uses only Python 3.9+ stdlib (asyncio, json, pathlib). It installs in under a second.
 
 ## Known limitations
 
 **Shell commands can't see ghost-written files.** If the agent writes a file through Ghost Mode and then tries to run it via `bash_exec` or `shell_exec`, the shell will fail because the file only exists in the in-memory shadow VFS, not on disk. Ghost Mode works best for tool-call-level dry runs, not multi-step build/execute workflows.
 
-**Session summary in background clients.** Claude Desktop and Cursor run MCP servers in the background and may not surface stderr output. Ghost Mode automatically writes a `ghostmode-summary.txt` file to your working directory on exit. You can also use `--export log.json` for a machine-readable session log.
+**Moved directories appear empty.** Moving a real directory shows it at the new path, but its contents are not mirrored there.
+
+**Session summary in background clients.** Claude Desktop and Cursor run MCP servers in the background and may not surface stderr output. Ghost Mode automatically writes a `ghostmode-summary.txt` file to your working directory on exit (falling back to your home directory), whether the client disconnects or stops the server with a signal. You can also use `--export log.json` for a machine-readable session log.
 
 ## Want more?
 
